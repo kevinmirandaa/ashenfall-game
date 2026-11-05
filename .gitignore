@@ -1,0 +1,20 @@
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+.DS_Store
+
+# Secretos: nunca en el repo
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Material del curso y moodboards: no forman parte de la entrega
+Proyecto3.pdf
+references/
+README.txt
+
+# Configuración local de Claude Code
+.claude/
