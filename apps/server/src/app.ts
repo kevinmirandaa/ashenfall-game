@@ -16,6 +16,7 @@ import { RedisEventBus } from './realtime/event-bus.js';
 import { Presence } from './realtime/presence.js';
 import { RealtimeGateway, type GatewayOptions } from './realtime/gateway.js';
 import { WsTicketStore } from './realtime/tickets.js';
+import { registerShopRoutes } from './shop/shop.js';
 import { RoomService } from './rooms/room-service.js';
 import { registerRoomRoutes } from './rooms/routes.js';
 
@@ -144,6 +145,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     );
 
     registerHistoryRoutes(api, auth, dependencies.pool, store);
+    registerShopRoutes(api, auth, dependencies.pool);
 
     if (realtime !== undefined && bus !== null) {
       const tickets = new WsTicketStore(realtime.redis, namespace);

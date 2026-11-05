@@ -1,6 +1,7 @@
 # Changelog
 
 ## Sin publicar
+- SCRUM-27: billetera, catálogo cosmético, compras idempotentes e inventario.
 - SCRUM-26: historial paginado y reproducción jugada por jugada, solo para participantes.
 - SCRUM-43: punto de entrada, sondas de salud, imagen Docker no root y docker compose completo.
 - SCRUM-32, 35, 36, 37: plazos en servidor sin réplica líder, presencia y difusión por Redis, recuperación tras reinicio, limpieza y recompensa única.
