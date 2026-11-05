@@ -4,6 +4,8 @@ import type { Redis } from 'ioredis';
 import type pg from 'pg';
 import { AuthService, type AuthConfig } from './auth/auth-service.js';
 import { registerAuthRoutes } from './auth/routes.js';
+import { MatchmakingService } from './matchmaking/matchmaking-service.js';
+import { registerMatchmakingRoutes } from './matchmaking/routes.js';
 import { problemBody, ProblemError } from './problem.js';
 import { RoomService } from './rooms/room-service.js';
 import { registerRoomRoutes } from './rooms/routes.js';
@@ -15,6 +17,8 @@ export interface AppDependencies {
   readonly rateLimit: RateLimitConfig;
   /** Activar detrás del proxy de Azure: sin esto todos los clientes comparten la IP del proxy. */
   readonly trustProxy?: boolean;
+  /** Espera máxima en la cola rápida. */
+  readonly matchmakingMaxWaitMs?: number;
 }
 
 export interface RateLimitConfig {
@@ -81,6 +85,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     const auth = new AuthService(dependencies.pool, dependencies.auth);
     registerAuthRoutes(api, auth, limits);
     registerRoomRoutes(api, auth, new RoomService(dependencies.pool), dependencies.pool);
+    registerMatchmakingRoutes(api, auth, new MatchmakingService(dependencies.pool, dependencies.matchmakingMaxWaitMs ?? 60_000));
   });
   return app;
 }
