@@ -112,8 +112,10 @@ export class RealtimeGateway {
       this.reject(socket, '401 Unauthorized');
       return;
     }
+    const overLimit = (await this.presence.count(userId)) >= this.maxConnectionsPerUser;
     this.wss.handleUpgrade(request, socket, head, (ws) => {
-      this.accept(ws, userId);
+      if (overLimit) ws.close(CloseCode.TooManyConnections, 'Demasiadas conexiones');
+      else this.accept(ws, userId);
     });
   }
 

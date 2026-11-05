@@ -1,0 +1,25 @@
+name: Image scan
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '0 6 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  trivy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - run: docker build -t ashenfall-server:ci .
+      - name: Falla con vulnerabilidades críticas conocidas
+        run: |
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy:0.76.2 image --severity CRITICAL --exit-code 1 --no-progress ashenfall-server:ci
+      - name: Comprueba que la imagen no corre como root
+        run: test "$(docker run --rm --entrypoint id ashenfall-server:ci -u)" != "0"

@@ -1,3 +1,5 @@
+import cors from '@fastify/cors';
+import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
@@ -27,7 +29,9 @@ import { registerRoomRoutes } from './rooms/routes.js';
 export interface AppDependencies {
   readonly pool: pg.Pool;
   readonly auth: AuthConfig;
-  readonly logger?: boolean;
+  readonly logger?: boolean | { readonly stream: NodeJS.WritableStream };
+  /** Orígenes de navegador permitidos en CORS. */
+  readonly allowedOrigins?: readonly string[];
   readonly rateLimit: RateLimitConfig;
   /** Activar detrás del proxy de Azure: sin esto todos los clientes comparten la IP del proxy. */
   readonly trustProxy?: boolean;
@@ -98,7 +102,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
 
   // Toda ruta debe tener contrato: si falta, el servidor no arranca.
   app.addHook('onRoute', (route) => {
-    if (route.method === 'HEAD' || route.url.startsWith('/docs')) return;
+    if (route.method === 'HEAD' || route.method === 'OPTIONS' || route.url.startsWith('/docs') || route.url === '*') return;
     const methods = Array.isArray(route.method) ? route.method : [route.method];
     const contract = REST_CONTRACT[`${String(methods[0])} ${route.url}`];
     if (contract === undefined) throw new Error(`Ruta sin contrato: ${String(methods[0])} ${route.url}`);
@@ -106,6 +110,24 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   });
   // El contrato documenta las respuestas; no debe recortarlas al serializar.
   app.setSerializerCompiler(() => (data) => JSON.stringify(data));
+
+  void app.register(helmet, {
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'"],
+        // Swagger UI inyecta estilos en línea en /docs; la API no sirve HTML propio.
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", 'data:'],
+      },
+    },
+  });
+  void app.register(cors, {
+    origin: [...(dependencies.allowedOrigins ?? [])],
+    methods: ['GET', 'POST', 'DELETE'],
+    allowedHeaders: ['authorization', 'content-type'],
+    maxAge: 600,
+  });
 
   void app.register(swagger, {
     openapi: {
@@ -121,6 +143,8 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   void app.register(swaggerUi, { routePrefix: '/docs' });
 
   const limits = dependencies.rateLimit;
+  const authService = new AuthService(dependencies.pool, dependencies.auth);
+  const tokenSubject = (authorization: string | undefined): Promise<string | null> => authService.verifiedSubject(authorization);
   void app.register(async (api) => {
     await api.register(rateLimit, {
       global: true,
@@ -130,6 +154,11 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       hook: 'preHandler',
       nameSpace: limits.namespace ?? 'ashenfall-rl-',
       ...(limits.redis === undefined ? {} : { redis: limits.redis, skipOnError: true }),
+      // Una petición con token válido cuenta para su usuario en cualquier IP; las demás, para su IP.
+      keyGenerator: async (request) => {
+        const userId = await tokenSubject(request.headers.authorization);
+        return userId === null ? `ip:${request.ip}` : `user:${userId}`;
+      },
       errorResponseBuilder: () => new ProblemError(429, 'RATE_LIMITED', 'Demasiadas peticiones'),
     });
     // No toca dependencias, así que puede quedar fuera del límite de tasa.
@@ -147,7 +176,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       }
     });
 
-    const auth = new AuthService(dependencies.pool, dependencies.auth);
+    const auth = authService;
     registerAuthRoutes(api, auth, limits);
 
     const store = new MatchEventStore(dependencies.pool);

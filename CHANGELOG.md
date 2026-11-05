@@ -1,6 +1,7 @@
 # Changelog
 
 ## Sin publicar
+- SCRUM-38, SCRUM-39: CORS, encabezados, límite por usuario, conexiones entre réplicas, escaneo de imagen y modelo de amenazas.
 - SCRUM-29, SCRUM-33: OpenAPI 3.1 en /docs y AsyncAPI 3.0 generados desde el código y validados contra respuestas reales.
 - SCRUM-28: administración con auditoría; suspender cierra las conexiones abiertas.
 - SCRUM-27: billetera, catálogo cosmético, compras idempotentes e inventario.
