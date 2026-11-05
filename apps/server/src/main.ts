@@ -1,11 +1,11 @@
 import { Redis } from 'ioredis';
-import pg from 'pg';
 import { buildApp } from './app.js';
 import { loadConfig } from './config.js';
 import { migrate } from './db/migrate.js';
+import { createPool } from './db/pool.js';
 
 const config = loadConfig(process.env);
-const pool = new pg.Pool({ connectionString: config.databaseUrl, max: 20 });
+const pool = createPool({ connectionString: config.databaseUrl, managedIdentityClientId: config.managedIdentityClientId });
 const redis = new Redis(config.redisUrl);
 
 const app = buildApp({
