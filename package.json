@@ -8,11 +8,12 @@
     "node": ">=20"
   },
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    "apps/*"
   ],
   "scripts": {
-    "build": "tsc -b packages/domain",
-    "typecheck": "tsc -b packages/domain --pretty",
+    "build": "tsc -b apps/server",
+    "typecheck": "tsc -b apps/server --pretty",
     "lint": "eslint .",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage"
