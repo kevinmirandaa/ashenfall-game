@@ -1,0 +1,17 @@
+{
+  "name": "@ashenfall/bot",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Bot de carga: juega partidas reales por HTTP y WebSocket y mide latencia.",
+  "type": "module",
+  "scripts": {
+    "load": "node dist/load.js"
+  },
+  "dependencies": {
+    "ws": "8.22.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "@types/ws": "^8"
+  }
+}

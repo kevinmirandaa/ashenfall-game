@@ -29,7 +29,7 @@ import { registerRoomRoutes } from './rooms/routes.js';
 export interface AppDependencies {
   readonly pool: pg.Pool;
   readonly auth: AuthConfig;
-  readonly logger?: boolean | { readonly stream: NodeJS.WritableStream };
+  readonly logger?: boolean | { readonly stream?: NodeJS.WritableStream; readonly level?: string };
   /** Orígenes de navegador permitidos en CORS. */
   readonly allowedOrigins?: readonly string[];
   readonly rateLimit: RateLimitConfig;

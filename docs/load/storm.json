@@ -1,0 +1,44 @@
+{
+  "label": "pico de logins",
+  "url": "http://127.0.0.1:8080",
+  "thinkMs": 1000,
+  "shotsPerMatch": 12,
+  "date": "2026-11-05T20:43:44.055Z",
+  "results": [
+    {
+      "matches": 100,
+      "matchesStarted": 100,
+      "connections": 200,
+      "shotsSent": 1200,
+      "shotsConfirmed": 1200,
+      "lost": 0,
+      "duplicatedOrGapped": 0,
+      "errors": 0,
+      "errorRate": 0,
+      "errorKinds": {},
+      "shotsPerSecond": 87.5969389416997,
+      "latencyMs": {
+        "p50": 68.39604099999997,
+        "p95": 108.58483299999989,
+        "p99": 168.88066699999945,
+        "max": 186.61412500000006
+      },
+      "bytesPerMessage": 302.745625,
+      "setupSeconds": 4.6855755,
+      "playSeconds": 13.699108832999999,
+      "cpuPercentAvg": 100.522,
+      "dbCpuPercentAvg": 35.291999999999994,
+      "loginStorm": {
+        "sent": 27452,
+        "ok": 265,
+        "busy": 27187,
+        "limited": 0,
+        "other": 0
+      },
+      "memoryMbIdle": 44,
+      "memoryMbMax": 81.38,
+      "cpuPercentPerMatch": 1.00522,
+      "memoryMbPerMatch": 0.37379999999999997
+    }
+  ]
+}

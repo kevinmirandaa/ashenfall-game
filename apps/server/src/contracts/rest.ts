@@ -103,8 +103,8 @@ export const REST_CONTRACT: Readonly<Record<string, RouteContract>> = {
   'GET /health/live': route('Salud', 'El proceso está vivo', 200, Ok, [], false),
   'GET /health/ready': route('Salud', 'Las dependencias responden', 200, Ok, [503], false),
 
-  'POST /v1/auth/register': route('Usuarios', 'Registrar usuario', 201, Tokens, [409], false),
-  'POST /v1/auth/login': route('Usuarios', 'Iniciar sesión', 200, Tokens, [401, 403], false),
+  'POST /v1/auth/register': route('Usuarios', 'Registrar usuario', 201, Tokens, [409, 503], false),
+  'POST /v1/auth/login': route('Usuarios', 'Iniciar sesión', 200, Tokens, [401, 403, 503], false),
   'POST /v1/auth/refresh': route('Usuarios', 'Rotar el refresh token', 200, Tokens, [401, 403], false),
   'POST /v1/auth/logout': route('Usuarios', 'Cerrar sesión', 204, Empty, [], false),
   'GET /v1/me': route('Usuarios', 'Perfil propio', 200, Profile, [403]),

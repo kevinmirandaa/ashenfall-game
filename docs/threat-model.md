@@ -32,6 +32,7 @@ Cuentas y tokens, integridad de la partida, saldo de Marcas de Ceniza, disponibi
 | Divulgación | Secreto en el repositorio | gitleaks en CI; sin valores por defecto | CI |
 | Denegación | Inundar la API | Límite por usuario e IP con 429 y `Retry-After` | `rate-limit.test.ts`, `hardening.test.ts` |
 | Denegación | Inundar el WebSocket | Tamaño máximo, tasa por conexión, conexiones por usuario | `gateway.test.ts`, `hardening.test.ts` |
+| Denegación | Pico de logins agota CPU o memoria | Argon2id acotado con fila y 503 | `auth/password-hasher.test.ts`, `docs/load-report.md` |
 | Denegación | Saturar la base con la sonda | Límite propio en `/health/ready` | `health.test.ts` |
 | Denegación | Fallo que tumba el servidor | Errores aislados por mensaje y por partida | `gateway.test.ts` (parcial) |
 | Elevación | Jugador usa funciones de administrador | Rol leído de la base en cada petición; ninguna ruta lo concede | `admin/admin.test.ts`, `hardening.test.ts` |
