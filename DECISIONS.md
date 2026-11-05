@@ -38,7 +38,13 @@ El próximo plazo se guarda en `matches.next_deadline_ms` y todas las réplicas 
 ## D11. Argon2id acotado
 19 MiB, t=2, p=1 (mínimo de OWASP), una contraseña a la vez y fila de 32. Lo que no cabe recibe 503. Protege las partidas en curso a costa de rechazar logins en un pico. Ver [docs/load-report.md](docs/load-report.md).
 
+## D12. Azure: Redis en Container Apps sin contraseña y otras sustituciones
+- Redis corre como Container App (`redis:7-alpine`, ingress TCP interno, 0,25 CPU) en vez de Azure Cache for Redis, por costo en Azure for Students. No tiene contraseña: la frontera es la red (solo es alcanzable dentro del entorno de Container Apps, sin ingress externo). Redis guarda solo estado caliente (presencia, difusión entre réplicas, límites de tasa); la verdad está en PostgreSQL, así que perderlo no pierde partidas ni monedas. Sin persistencia (`--save "" --appendonly no`).
+- PostgreSQL solo con Entra (sin contraseña) y sin acceso público; el administrador es la identidad administrada de la app. Los logs del entorno van por Azure Monitor para no pasar la clave del workspace.
+- `jwt-secret` no puede generarse en Bicep sin exponerse: lo crea el pipeline con `openssl rand` solo si no existe y el contenedor lo lee de Key Vault por identidad. Key Vault tiene acceso público de red (con RBAC) porque los runners de GitHub no están en la VNet.
+- Despliegue en dos pasadas (infraestructura base, imagen, app) en vez de una imagen de arranque.
+- Revisiones: en prod la nueva nace al 0 %, se prueba por su URL de revisión y luego recibe el tráfico. Se desactivan las revisiones más antiguas; la inmediatamente anterior queda activa como destino de rollback y se desactiva en el siguiente despliegue.
+
 ## Pendientes
-- Redis gestionado o en Container Apps: se decide al estimar el costo en Azure.
 - Alcance de la guía de trayectoria: con posición del rival conocida, una guía completa haría trivial apuntar. Se decide en SCRUM-41.
 - Valores de armas: son iniciales y no se han probado jugando.

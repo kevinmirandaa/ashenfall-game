@@ -1,6 +1,7 @@
 # Changelog
 
 ## Sin publicar
+- SCRUM-44, SCRUM-45: Bicep del ambiente completo (red, ACR, PostgreSQL Entra, Key Vault, Redis y servidor en Container Apps), pipeline de despliegue dev/prod con revisiones y drenado, rollback y guías de configuración y costo. Sin desplegar aún.
 - SCRUM-44 (parte de código): PostgreSQL con identidad administrada y token de Entra, sin contraseña.
 - SCRUM-49, SCRUM-50: bot de carga, punto de quiebre medido y Argon2 acotado para que un pico de logins no afecte a las partidas.
 - SCRUM-38, SCRUM-39: CORS, encabezados, límite por usuario, conexiones entre réplicas, escaneo de imagen y modelo de amenazas.
