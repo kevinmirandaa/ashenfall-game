@@ -1,0 +1,17 @@
+{
+  "name": "@ashenfall/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "migrate": "node dist/db/migrate-cli.js"
+  },
+  "dependencies": {
+    "@ashenfall/domain": "0.1.0",
+    "pg": "8.23.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "@types/pg": "^8"
+  }
+}
