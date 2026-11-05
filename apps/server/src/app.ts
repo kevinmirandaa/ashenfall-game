@@ -7,6 +7,7 @@ import { AuthService, type AuthConfig } from './auth/auth-service.js';
 import { registerAuthRoutes } from './auth/routes.js';
 import { MatchmakingService } from './matchmaking/matchmaking-service.js';
 import { registerMatchmakingRoutes } from './matchmaking/routes.js';
+import { registerHistoryRoutes } from './matches/history.js';
 import { MatchEventStore } from './matches/event-store.js';
 import { MatchEngine } from './matches/match-engine.js';
 import { problemBody, ProblemError } from './problem.js';
@@ -141,6 +142,8 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       auth,
       new MatchmakingService(dependencies.pool, dependencies.matchmakingMaxWaitMs ?? 60_000, announceMatch),
     );
+
+    registerHistoryRoutes(api, auth, dependencies.pool, store);
 
     if (realtime !== undefined && bus !== null) {
       const tickets = new WsTicketStore(realtime.redis, namespace);
