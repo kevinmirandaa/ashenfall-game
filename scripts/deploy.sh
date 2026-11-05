@@ -3,6 +3,8 @@
 # Uso: scripts/deploy.sh <dev|prod>
 # Entorno: IMAGE_TAG (12 caracteres del sha), AZURE_LOCATION (opcional), ALLOWED_ORIGINS (opcional).
 set -euo pipefail
+# Sin terminal, instalar la extensión containerapp pediría confirmación y el comando fallaría.
+az config set extension.use_dynamic_install=yes_without_prompt --only-show-errors
 
 ENV_NAME="${1:?Uso: deploy.sh <dev|prod>}"
 case "$ENV_NAME" in dev | prod) ;; *) echo "Ambiente inválido: $ENV_NAME" >&2; exit 2 ;; esac
