@@ -140,6 +140,7 @@ export class RoomService {
   private async addMember(client: pg.ClientBase, roomId: string, userId: string): Promise<void> {
     try {
       await client.query('INSERT INTO room_members (room_id, user_id) VALUES ($1, $2)', [roomId, userId]);
+      await client.query('DELETE FROM matchmaking_queue WHERE user_id = $1', [userId]);
     } catch (error) {
       if (isUniqueViolation(error)) throw alreadyInRoom();
       throw error;
