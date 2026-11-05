@@ -17,7 +17,11 @@ interface Tokens {
 
 beforeAll(async () => {
   db = await createTestDatabase();
-  app = buildApp({ pool: db.pool, auth: { jwtSecret, accessTokenTtlSeconds: 300, refreshTokenTtlSeconds: 3600 } });
+  app = buildApp({
+    pool: db.pool,
+    auth: { jwtSecret, accessTokenTtlSeconds: 300, refreshTokenTtlSeconds: 3600 },
+    rateLimit: { globalPerMinute: 10_000, authPerMinute: 10_000, loginPerAccountPerMinute: 10_000 },
+  });
   await app.ready();
 });
 afterAll(async () => {

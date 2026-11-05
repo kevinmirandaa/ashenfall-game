@@ -8,9 +8,11 @@
   },
   "dependencies": {
     "@ashenfall/domain": "0.1.0",
+    "@fastify/rate-limit": "11.2.2",
     "@sinclair/typebox": "0.34.52",
     "argon2": "0.45.2",
     "fastify": "5.12.8",
+    "ioredis": "6.0.0",
     "jose": "6.2.15",
     "pg": "8.23.1"
   },
