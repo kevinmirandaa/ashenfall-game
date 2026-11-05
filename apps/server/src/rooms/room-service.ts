@@ -40,7 +40,10 @@ function newInviteCode(): string {
 }
 
 export class RoomService {
-  constructor(private readonly pool: pg.Pool) {}
+  constructor(
+    private readonly pool: pg.Pool,
+    private readonly onMatchStarted: (matchId: string) => void = () => undefined,
+  ) {}
 
   async create(userId: string, visibility: Visibility): Promise<RoomView> {
     return inTransaction(this.pool, async (client) => {
@@ -107,7 +110,8 @@ export class RoomService {
 
   /** La partida inicia en la misma transacción en que el último jugador se marca listo. */
   async setReady(roomId: string, userId: string, ready: boolean, nowMs: number): Promise<RoomView> {
-    return inTransaction(this.pool, async (client) => {
+    let startedMatchId: string | null = null;
+    const view = await inTransaction(this.pool, async (client) => {
       const room = await this.lockAsMember(client, roomId, userId);
       await client.query('UPDATE room_members SET ready = $1 WHERE room_id = $2 AND user_id = $3', [ready, roomId, userId]);
       const { rows } = await client.query<{ user_id: string; ready: boolean }>(
@@ -119,9 +123,12 @@ export class RoomService {
         const matchId = await createMatchInTransaction(client, [first.user_id, second.user_id], nowMs);
         await client.query(`UPDATE rooms SET status = 'started', match_id = $1 WHERE id = $2`, [matchId, roomId]);
         await client.query('DELETE FROM room_members WHERE room_id = $1', [roomId]);
+        startedMatchId = matchId;
       }
       return this.view(client, roomId, userId);
     });
+    if (startedMatchId !== null) this.onMatchStarted(startedMatchId);
+    return view;
   }
 
   private async join(client: pg.ClientBase, room: RoomRow, userId: string): Promise<RoomView> {

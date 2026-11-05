@@ -1,6 +1,7 @@
 # Changelog
 
 ## Sin publicar
+- SCRUM-30, SCRUM-31: gateway WSS con ticket de un solo uso, heartbeat y validación; jugadas ordenadas, idempotentes y confirmadas antes de difundirse.
 - SCRUM-25: cola de emparejamiento con espera máxima configurable.
 - SCRUM-24: salas públicas y privadas, código de invitación, listo e inicio de partida atómico.
 - SCRUM-38 (parte HTTP): límites de tasa por IP y por cuenta con 429 y Retry-After; corrige las alertas de CodeQL que entraron con SCRUM-23.

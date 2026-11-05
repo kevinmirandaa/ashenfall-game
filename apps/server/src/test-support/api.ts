@@ -13,20 +13,26 @@ export function buildTestApp(db: TestDatabase): FastifyInstance {
 
 export interface TestUser {
   readonly id: string;
+  readonly email: string;
+  readonly password: string;
   request(method: 'GET' | 'POST' | 'DELETE', url: string, payload?: object): Promise<LightMyRequestResponse>;
 }
 
 export async function registerUser(app: FastifyInstance): Promise<TestUser> {
+  const email = `${randomUUID()}@test.invalid`;
+  const password = 'una-clave-larga-de-prueba';
   const response = await app.inject({
     method: 'POST',
     url: '/v1/auth/register',
-    payload: { email: `${randomUUID()}@test.invalid`, password: 'una-clave-larga-de-prueba', displayName: 'Jugador' },
+    payload: { email, password, displayName: 'Jugador' },
   });
   const { accessToken } = response.json<{ accessToken: string }>();
   const headers = { authorization: `Bearer ${accessToken}` };
   const me = await app.inject({ method: 'GET', url: '/v1/me', headers });
   return {
     id: me.json<{ id: string }>().id,
+    email,
+    password,
     request: (method, url, payload) => app.inject({ method, url, headers, ...(payload === undefined ? {} : { payload }) }),
   };
 }

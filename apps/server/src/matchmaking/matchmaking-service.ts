@@ -16,13 +16,20 @@ export class MatchmakingService {
   constructor(
     private readonly pool: pg.Pool,
     private readonly maxWaitMs: number,
+    private readonly onMatchStarted: (matchId: string) => void = () => undefined,
   ) {}
 
   async join(userId: string, nowMs: number): Promise<QueueStatus> {
+    const result = await this.joinInTransaction(userId, nowMs);
+    if (result.created) this.onMatchStarted(result.created);
+    return result.status;
+  }
+
+  private joinInTransaction(userId: string, nowMs: number): Promise<{ status: QueueStatus; created?: string }> {
     return inTransaction(this.pool, async (client) => {
       await client.query('SELECT pg_advisory_xact_lock($1)', [QUEUE_LOCK_ID]);
       const active = await activeMatchOf(client, userId);
-      if (active !== null) return { status: 'matched', matchId: active };
+      if (active !== null) return { status: { status: 'matched', matchId: active } };
 
       const room = await client.query('SELECT 1 FROM room_members WHERE user_id = $1', [userId]);
       if ((room.rowCount ?? 0) > 0) throw new ProblemError(409, 'ALREADY_IN_ROOM', 'Sal de la sala antes de buscar partida');
@@ -36,7 +43,8 @@ export class MatchmakingService {
       const rivalId = rival.rows[0]?.user_id;
       if (rivalId !== undefined) {
         await client.query('DELETE FROM matchmaking_queue WHERE user_id = ANY($1::uuid[])', [[userId, rivalId]]);
-        return { status: 'matched', matchId: await createMatchInTransaction(client, [rivalId, userId], nowMs) };
+        const matchId = await createMatchInTransaction(client, [rivalId, userId], nowMs);
+        return { status: { status: 'matched', matchId }, created: matchId };
       }
 
       // Volver a entrar conserva el turno en la cola y renueva el plazo de espera.
@@ -48,7 +56,7 @@ export class MatchmakingService {
       );
       const expiresAt = rows[0]?.expires_at;
       if (expiresAt === undefined) throw new Error('La cola no devolvió la fila insertada');
-      return { status: 'queued', expiresAt: expiresAt.toISOString() };
+      return { status: { status: 'queued', expiresAt: expiresAt.toISOString() } };
     });
   }
 
