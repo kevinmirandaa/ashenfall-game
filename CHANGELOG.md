@@ -1,6 +1,7 @@
 # Changelog
 
 ## Sin publicar
+- SCRUM-29, SCRUM-33: OpenAPI 3.1 en /docs y AsyncAPI 3.0 generados desde el código y validados contra respuestas reales.
 - SCRUM-28: administración con auditoría; suspender cierra las conexiones abiertas.
 - SCRUM-27: billetera, catálogo cosmético, compras idempotentes e inventario.
 - SCRUM-26: historial paginado y reproducción jugada por jugada, solo para participantes.
