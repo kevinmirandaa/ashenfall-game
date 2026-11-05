@@ -1,0 +1,3 @@
+# Falsos positivos: IDs públicos de roles integrados de Azure (no son secretos).
+a47c0b865fd06f026ff36d418bc3a0b373003266:infra/main.bicep:generic-api-key:37
+a47c0b865fd06f026ff36d418bc3a0b373003266:infra/main.bicep:generic-api-key:38
