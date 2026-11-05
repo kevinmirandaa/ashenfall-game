@@ -11,6 +11,7 @@ const redis = new Redis(config.redisUrl);
 const app = buildApp({
   pool,
   logger: true,
+  allowedOrigins: config.allowedOrigins,
   trustProxy: config.trustProxy,
   auth: { jwtSecret: config.jwtSecret, accessTokenTtlSeconds: 900, refreshTokenTtlSeconds: 30 * 24 * 3600 },
   rateLimit: { globalPerMinute: 600, authPerMinute: 20, loginPerAccountPerMinute: 10, redis },

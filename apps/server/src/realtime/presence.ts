@@ -24,6 +24,11 @@ export class Presence {
     return (await this.redis.zcount(key, Date.now(), '+inf')) > 0;
   }
 
+  /** Conexiones vivas del usuario en todas las réplicas. */
+  count(userId: string): Promise<number> {
+    return this.redis.zcount(this.key(userId), Date.now(), '+inf');
+  }
+
   private key(userId: string): string {
     return `${this.namespace}presence:${userId}`;
   }

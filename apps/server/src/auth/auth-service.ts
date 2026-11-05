@@ -140,19 +140,28 @@ export class AuthService {
   async authenticate(authorization: string | undefined): Promise<Principal> {
     const token = authorization?.startsWith('Bearer ') === true ? authorization.slice('Bearer '.length) : null;
     if (token === null) throw invalidToken();
-    let userId: string | undefined;
+    const userId = await this.subjectOf(token);
+    if (userId === null) throw invalidToken();
+    return this.principalOf(userId);
+  }
+
+  /** Usuario de un token con firma válida, sin consultar la base. Solo para contar límites de tasa. */
+  verifiedSubject(authorization: string | undefined): Promise<string | null> {
+    if (authorization?.startsWith('Bearer ') !== true) return Promise.resolve(null);
+    return this.subjectOf(authorization.slice('Bearer '.length));
+  }
+
+  private async subjectOf(token: string): Promise<string | null> {
     try {
       const { payload } = await jwtVerify(token, this.secret, {
         issuer: ISSUER,
         audience: AUDIENCE,
         algorithms: ['HS256'],
       });
-      userId = payload.sub;
+      return payload.sub ?? null;
     } catch {
-      throw invalidToken();
+      return null;
     }
-    if (userId === undefined) throw invalidToken();
-    return this.principalOf(userId);
   }
 
   async profile(userId: string): Promise<Profile> {

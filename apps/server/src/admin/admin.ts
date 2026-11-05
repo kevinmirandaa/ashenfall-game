@@ -3,6 +3,7 @@ import { Type, type Static } from '@sinclair/typebox';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type pg from 'pg';
 import type { AuthService } from '../auth/auth-service.js';
+import { inTransaction } from '../db/transaction.js';
 import { MatchNotFoundError, type MatchEngine } from '../matches/match-engine.js';
 import { ProblemError } from '../problem.js';
 
@@ -15,7 +16,7 @@ const UserParams = Type.Object({ userId: Type.String({ format: 'uuid' }) });
 const Reason = Type.Object({ reason: Type.String({ minLength: 3, maxLength: 200 }) }, { additionalProperties: false });
 
 async function audit(
-  client: pg.Pool,
+  client: pg.ClientBase | pg.Pool,
   adminId: string,
   action: string,
   target: string,
@@ -90,10 +91,12 @@ export function registerAdminRoutes(
       const adminId = await requireAdmin(request);
       const { userId } = request.params;
       if (userId === adminId) throw new ProblemError(409, 'CANNOT_SUSPEND_SELF', 'No puedes suspenderte a ti mismo');
-      const updated = await pool.query('UPDATE users SET suspended_at = coalesce(suspended_at, now()) WHERE id = $1', [userId]);
-      if ((updated.rowCount ?? 0) === 0) throw new ProblemError(404, 'USER_NOT_FOUND', 'El usuario no existe');
-      await pool.query('UPDATE refresh_tokens SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL', [userId]);
-      await audit(pool, adminId, 'user.suspend', userId, { reason: request.body.reason });
+      await inTransaction(pool, async (client) => {
+        const updated = await client.query('UPDATE users SET suspended_at = coalesce(suspended_at, now()) WHERE id = $1', [userId]);
+        if ((updated.rowCount ?? 0) === 0) throw new ProblemError(404, 'USER_NOT_FOUND', 'El usuario no existe');
+        await client.query('UPDATE refresh_tokens SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL', [userId]);
+        await audit(client, adminId, 'user.suspend', userId, { reason: request.body.reason });
+      });
       onUserSuspended(userId);
       return reply.code(204).send();
     },
@@ -105,9 +108,11 @@ export function registerAdminRoutes(
     async (request, reply) => {
       const adminId = await requireAdmin(request);
       const { userId } = request.params;
-      const updated = await pool.query('UPDATE users SET suspended_at = NULL WHERE id = $1', [userId]);
-      if ((updated.rowCount ?? 0) === 0) throw new ProblemError(404, 'USER_NOT_FOUND', 'El usuario no existe');
-      await audit(pool, adminId, 'user.unsuspend', userId, { reason: request.body.reason });
+      await inTransaction(pool, async (client) => {
+        const updated = await client.query('UPDATE users SET suspended_at = NULL WHERE id = $1', [userId]);
+        if ((updated.rowCount ?? 0) === 0) throw new ProblemError(404, 'USER_NOT_FOUND', 'El usuario no existe');
+        await audit(client, adminId, 'user.unsuspend', userId, { reason: request.body.reason });
+      });
       return reply.code(204).send();
     },
   );
