@@ -1,0 +1,68 @@
+name: Deploy
+
+# Corre tras un CI verde en main, o a mano. Solo actúa si el repositorio tiene las variables de Azure
+# (ver docs/azure-setup.md); sin ellas los jobs se omiten y no ponen el repositorio en rojo.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  dev:
+    if: vars.AZURE_CLIENT_ID != '' && (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: dev
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
+      ALLOWED_ORIGINS: ${{ vars.ALLOWED_ORIGINS }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Desplegar dev
+        run: |
+          IMAGE_TAG="$(git rev-parse --short=12 HEAD)" scripts/deploy.sh dev
+
+  prod:
+    needs: dev
+    if: vars.AZURE_CLIENT_ID != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    # El environment prod exige revisores: el job espera aprobación manual antes de empezar.
+    environment: prod
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
+      ALLOWED_ORIGINS: ${{ vars.ALLOWED_ORIGINS }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Desplegar prod (revisión al 0 %, smoke test, traslado de tráfico y drenado)
+        run: |
+          IMAGE_TAG="$(git rev-parse --short=12 HEAD)" scripts/deploy.sh prod
