@@ -1,6 +1,7 @@
 # Changelog
 
 ## Sin publicar
+- SCRUM-44 (parte de código): PostgreSQL con identidad administrada y token de Entra, sin contraseña.
 - SCRUM-49, SCRUM-50: bot de carga, punto de quiebre medido y Argon2 acotado para que un pico de logins no afecte a las partidas.
 - SCRUM-38, SCRUM-39: CORS, encabezados, límite por usuario, conexiones entre réplicas, escaneo de imagen y modelo de amenazas.
 - SCRUM-29, SCRUM-33: OpenAPI 3.1 en /docs y AsyncAPI 3.0 generados desde el código y validados contra respuestas reales.

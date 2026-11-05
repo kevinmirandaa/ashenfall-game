@@ -8,6 +8,8 @@ export interface ServerConfig {
   readonly allowedOrigins: readonly string[];
   readonly trustProxy: boolean;
   readonly logLevel: string;
+  /** Client ID de la identidad administrada; si existe, PostgreSQL se autentica con Entra. */
+  readonly managedIdentityClientId: string | undefined;
   readonly rateLimit: { readonly globalPerMinute: number; readonly authPerMinute: number; readonly loginPerAccountPerMinute: number };
 }
 
@@ -35,6 +37,7 @@ export function loadConfig(env: NodeJS.ProcessEnv): ServerConfig {
     allowedOrigins: (env['ALLOWED_ORIGINS'] ?? '').split(',').map((origin) => origin.trim()).filter((origin) => origin !== ''),
     trustProxy: env['TRUST_PROXY'] === '1',
     logLevel: env['LOG_LEVEL'] ?? 'info',
+    managedIdentityClientId: env['AZURE_CLIENT_ID'],
     rateLimit: {
       globalPerMinute: Number(env['RATE_LIMIT_GLOBAL_PER_MINUTE'] ?? 600),
       authPerMinute: Number(env['RATE_LIMIT_AUTH_PER_MINUTE'] ?? 20),
