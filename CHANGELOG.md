@@ -1,6 +1,7 @@
 # Changelog
 
 ## Sin publicar
+- SCRUM-23: registro, login, refresh rotativo, logout y perfil, con Argon2id, JWT y Problem Details.
 - SCRUM-34: esquema PostgreSQL, migraciones, log de eventos y docker compose local.
 - SCRUM-15: monorepo TypeScript strict con ESLint y Vitest.
 - SCRUM-19, SCRUM-20: física de proyectiles, armas, arenas y puntos de aparición.
