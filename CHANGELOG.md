@@ -1,6 +1,7 @@
 # Changelog
 
 ## Sin publicar
+- SCRUM-32, 35, 36, 37: plazos en servidor sin réplica líder, presencia y difusión por Redis, recuperación tras reinicio, limpieza y recompensa única.
 - SCRUM-30, SCRUM-31: gateway WSS con ticket de un solo uso, heartbeat y validación; jugadas ordenadas, idempotentes y confirmadas antes de difundirse.
 - SCRUM-25: cola de emparejamiento con espera máxima configurable.
 - SCRUM-24: salas públicas y privadas, código de invitación, listo e inicio de partida atómico.

@@ -7,7 +7,7 @@ import { WebSocket, type ClientOptions } from 'ws';
 import { buildApp } from '../app.js';
 import { registerUser, type TestUser } from '../test-support/api.js';
 import { createTestDatabase, type TestDatabase } from '../test-support/database.js';
-import type { ServerMessage } from './protocol.js';
+import { WsTestClient } from '../test-support/ws-client.js';
 
 const ORIGIN = 'https://ashenfall.test';
 let db: TestDatabase;
@@ -40,56 +40,10 @@ afterAll(async () => {
   await db.destroy();
 });
 
-class Client {
-  readonly messages: ServerMessage[] = [];
-  private waiters: (() => void)[] = [];
-  closeCode: number | null = null;
-
-  constructor(readonly socket: WebSocket) {
-    socket.on('message', (data) => {
-      this.messages.push(JSON.parse(data.toString()) as ServerMessage);
-      this.notify();
-    });
-    socket.on('close', (code) => {
-      this.closeCode = code;
-      this.notify();
-    });
-  }
-
-  private notify(): void {
-    for (const waiter of this.waiters.splice(0)) waiter();
-  }
-
-  async until<T>(find: (messages: readonly ServerMessage[]) => T | undefined, timeoutMs = 3000): Promise<T> {
-    const deadline = Date.now() + timeoutMs;
-    for (;;) {
-      const found = find(this.messages);
-      if (found !== undefined) return found;
-      const remaining = deadline - Date.now();
-      if (remaining <= 0) throw new Error(`Tiempo agotado. Mensajes: ${JSON.stringify(this.messages).slice(0, 800)}`);
-      await new Promise<void>((resolve) => {
-        const timer = setTimeout(resolve, remaining);
-        this.waiters.push(() => {
-          clearTimeout(timer);
-          resolve();
-        });
-      });
-    }
-  }
-
-  closed(): Promise<number> {
-    return this.until(() => this.closeCode ?? undefined);
-  }
-
-  send(message: object): void {
-    this.socket.send(JSON.stringify({ v: 1, ...message }));
-  }
-}
-
-function openRaw(url: string, options: ClientOptions = {}): Promise<{ client?: Client; status?: number }> {
+function openRaw(url: string, options: ClientOptions = {}): Promise<{ client?: WsTestClient; status?: number }> {
   return new Promise((resolve) => {
     const socket = new WebSocket(url, options);
-    const client = new Client(socket);
+    const client = new WsTestClient(socket);
     socket.once('open', () => resolve({ client }));
     socket.once('unexpected-response', (_request, response) => {
       resolve({ status: response.statusCode ?? 0 });
@@ -105,7 +59,7 @@ async function ticketFor(user: TestUser): Promise<string> {
   return response.json<{ ticket: string }>().ticket;
 }
 
-async function connect(user: TestUser, url = baseUrl, options: ClientOptions = {}): Promise<Client> {
+async function connect(user: TestUser, url = baseUrl, options: ClientOptions = {}): Promise<WsTestClient> {
   const { client, status } = await openRaw(`${url}?ticket=${await ticketFor(user)}`, options);
   if (client === undefined) throw new Error(`Conexión rechazada: ${String(status)}`);
   await client.until((messages) => messages.find((message) => message.type === 'welcome'));
@@ -115,8 +69,8 @@ async function connect(user: TestUser, url = baseUrl, options: ClientOptions = {
 interface Duel {
   readonly a: TestUser;
   readonly b: TestUser;
-  readonly clientA: Client;
-  readonly clientB: Client;
+  readonly clientA: WsTestClient;
+  readonly clientB: WsTestClient;
   readonly matchId: string;
   readonly firstPlayerId: string;
 }
@@ -141,7 +95,7 @@ async function startDuel(): Promise<Duel> {
 
 const MISS = { weaponId: 'bow', angleDeg: 45, power: 10 };
 
-function byTurn(duel: Duel, playerId: string): Client {
+function byTurn(duel: Duel, playerId: string): WsTestClient {
   return playerId === duel.a.id ? duel.clientA : duel.clientB;
 }
 

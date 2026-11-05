@@ -15,6 +15,7 @@ export interface TestUser {
   readonly id: string;
   readonly email: string;
   readonly password: string;
+  readonly authorization: string;
   request(method: 'GET' | 'POST' | 'DELETE', url: string, payload?: object): Promise<LightMyRequestResponse>;
 }
 
@@ -33,6 +34,7 @@ export async function registerUser(app: FastifyInstance): Promise<TestUser> {
     id: me.json<{ id: string }>().id,
     email,
     password,
+    authorization: headers.authorization,
     request: (method, url, payload) => app.inject({ method, url, headers, ...(payload === undefined ? {} : { payload }) }),
   };
 }

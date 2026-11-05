@@ -1,4 +1,4 @@
-import { decide, evolve, replay, type Decision, type MatchCommand, type MatchEvent, type MatchState } from '@ashenfall/domain';
+import { decide, evolve, nextDeadline, replay, type Decision, type MatchCommand, type MatchEvent, type MatchState } from '@ashenfall/domain';
 import { MatchEventStore, SequenceConflictError } from './event-store.js';
 
 export class MatchNotFoundError extends Error {
@@ -60,14 +60,16 @@ export class MatchEngine {
       const state = await this.state(matchId);
       const decision = decide(state, command);
       if (decision.kind !== 'applied' || decision.events.length === 0) return decision;
+      const published = withStates(state, decision.events);
+      const finalState = published.at(-1)?.stateAfter ?? state;
       try {
-        await this.store.append(matchId, decision.events);
+        await this.store.append(matchId, decision.events, nextDeadline(finalState));
       } catch (error) {
         if (error instanceof SequenceConflictError) continue;
         throw error;
       }
       // Se difunde solo después de confirmar en PostgreSQL.
-      this.publish(matchId, withStates(state, decision.events));
+      this.publish(matchId, published);
       return decision;
     }
     throw new Error(`Demasiados conflictos de secuencia en la partida ${matchId}`);

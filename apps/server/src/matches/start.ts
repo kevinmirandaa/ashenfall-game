@@ -22,7 +22,10 @@ export async function createMatchInTransaction(
   const first = startMatch(setup, nowMs);
   // Un SAVEPOINT no hace falta: si falla, toda la transacción de origen se revierte.
   try {
-    await client.query(`INSERT INTO matches (id, status) VALUES ($1, 'in_progress')`, [matchId]);
+    await client.query(`INSERT INTO matches (id, status, next_deadline_ms) VALUES ($1, 'in_progress', $2)`, [
+      matchId,
+      nowMs + setup.config.turnDurationMs,
+    ]);
     for (const playerId of playerIds) {
       await client.query('INSERT INTO match_players (match_id, user_id) VALUES ($1, $2)', [matchId, playerId]);
     }
