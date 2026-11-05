@@ -71,6 +71,13 @@ export class RealtimeGateway {
     }
   }
 
+  /** Cierra las conexiones de un usuario suspendido en esta réplica. */
+  disconnectUser(userId: string): void {
+    for (const connection of this.connections.get(userId) ?? []) {
+      connection.socket.close(CloseCode.Suspended, 'Usuario suspendido');
+    }
+  }
+
   close(): void {
     clearInterval(this.heartbeat);
     this.server.off('upgrade', this.onUpgrade);
