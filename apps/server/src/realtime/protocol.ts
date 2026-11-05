@@ -8,6 +8,7 @@ export const MAX_MESSAGE_BYTES = 4 * 1024;
 /** Códigos de cierre propios, además de 1001 (el servidor se apaga) y 1009 (mensaje demasiado grande). */
 export const CloseCode = {
   GoingAway: 1001,
+  Suspended: 4003,
   HeartbeatLost: 4009,
   TooManyConnections: 4008,
   RateLimited: 4029,

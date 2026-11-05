@@ -1,6 +1,7 @@
 # Changelog
 
 ## Sin publicar
+- SCRUM-28: administración con auditoría; suspender cierra las conexiones abiertas.
 - SCRUM-27: billetera, catálogo cosmético, compras idempotentes e inventario.
 - SCRUM-26: historial paginado y reproducción jugada por jugada, solo para participantes.
 - SCRUM-43: punto de entrada, sondas de salud, imagen Docker no root y docker compose completo.

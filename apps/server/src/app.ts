@@ -3,6 +3,7 @@ import { initialState } from '@ashenfall/domain';
 import Fastify, { type FastifyInstance } from 'fastify';
 import type { Redis } from 'ioredis';
 import type pg from 'pg';
+import { registerAdminRoutes } from './admin/admin.js';
 import { AuthService, type AuthConfig } from './auth/auth-service.js';
 import { registerAuthRoutes } from './auth/routes.js';
 import { MatchmakingService } from './matchmaking/matchmaking-service.js';
@@ -146,6 +147,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
 
     registerHistoryRoutes(api, auth, dependencies.pool, store);
     registerShopRoutes(api, auth, dependencies.pool);
+    registerAdminRoutes(api, auth, dependencies.pool, engine, (userId) => bus?.publishUserSuspended(userId));
 
     if (realtime !== undefined && bus !== null) {
       const tickets = new WsTicketStore(realtime.redis, namespace);
@@ -158,9 +160,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         return reply.code(201).send(await tickets.issue(userId));
       });
       app.addHook('onReady', async () => {
-        await bus.start((matchId, events) => {
-          activeGateway.deliver(matchId, events);
-        });
+        await bus.start(activeGateway);
         sweeper.start(realtime.sweepIntervalMs ?? 1000);
       });
       app.addHook('preClose', () => {

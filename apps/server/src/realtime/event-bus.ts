@@ -2,9 +2,13 @@ import type { FastifyBaseLogger } from 'fastify';
 import type { Redis } from 'ioredis';
 import type { PublishedEvent } from '../matches/match-engine.js';
 
-interface BusMessage {
-  readonly matchId: string;
-  readonly events: readonly PublishedEvent[];
+type BusMessage =
+  | { readonly kind: 'events'; readonly matchId: string; readonly events: readonly PublishedEvent[] }
+  | { readonly kind: 'user_suspended'; readonly userId: string };
+
+export interface BusHandlers {
+  deliver(matchId: string, events: readonly PublishedEvent[]): void;
+  disconnectUser(userId: string): void;
 }
 
 /**
@@ -23,7 +27,7 @@ export class RedisEventBus {
     this.channel = `${namespace}match-events`;
   }
 
-  async start(deliver: (matchId: string, events: readonly PublishedEvent[]) => void): Promise<void> {
+  async start(handlers: BusHandlers): Promise<void> {
     const subscriber = this.redis.duplicate();
     this.subscriber = subscriber;
     subscriber.on('error', (error: unknown) => {
@@ -31,8 +35,9 @@ export class RedisEventBus {
     });
     subscriber.on('message', (_channel: string, raw: string) => {
       try {
-        const { matchId, events } = JSON.parse(raw) as BusMessage;
-        deliver(matchId, events);
+        const message = JSON.parse(raw) as BusMessage;
+        if (message.kind === 'events') handlers.deliver(message.matchId, message.events);
+        else handlers.disconnectUser(message.userId);
       } catch (error) {
         this.logger.error({ err: error }, 'Error repartiendo eventos');
       }
@@ -41,9 +46,16 @@ export class RedisEventBus {
   }
 
   publish(matchId: string, events: readonly PublishedEvent[]): void {
-    const message: BusMessage = { matchId, events };
+    this.send({ kind: 'events', matchId, events });
+  }
+
+  publishUserSuspended(userId: string): void {
+    this.send({ kind: 'user_suspended', userId });
+  }
+
+  private send(message: BusMessage): void {
     void this.redis.publish(this.channel, JSON.stringify(message)).catch((error: unknown) => {
-      this.logger.error({ err: error, matchId }, 'No se pudo difundir el evento');
+      this.logger.error({ err: error }, 'No se pudo difundir el mensaje');
     });
   }
 
