@@ -29,6 +29,7 @@ export interface AppDependencies {
   readonly matchmakingMaxWaitMs?: number;
   /** Sin esto no se abre el WebSocket; las pruebas que solo usan REST no necesitan Redis. */
   readonly realtime?: RealtimeConfig;
+  readonly health?: { readonly redis: Pick<Redis, 'ping'> };
 }
 
 export interface RealtimeConfig {
@@ -48,6 +49,7 @@ export interface RateLimitConfig {
   readonly namespace?: string;
 }
 
+const READINESS_PER_MINUTE = 120;
 const PROBLEM_JSON = 'application/problem+json';
 
 export function buildApp(dependencies: AppDependencies): FastifyInstance {
@@ -88,6 +90,9 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     reply.code(404).type(PROBLEM_JSON).send(problemBody(404, 'NOT_FOUND', 'Recurso no encontrado', request.url)),
   );
 
+  // No toca dependencias, así que puede quedar fuera del límite de tasa.
+  app.get('/health/live', () => ({ status: 'ok' }));
+
   const limits = dependencies.rateLimit;
   void app.register(async (api) => {
     await api.register(rateLimit, {
@@ -100,6 +105,18 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       ...(limits.redis === undefined ? {} : { redis: limits.redis, skipOnError: true }),
       errorResponseBuilder: () => new ProblemError(429, 'RATE_LIMITED', 'Demasiadas peticiones'),
     });
+    // Consulta la base de datos: lleva límite propio, holgado para las sondas de la plataforma.
+    api.get('/health/ready', { config: { rateLimit: { max: READINESS_PER_MINUTE, timeWindow: '1 minute' } } }, async (request, reply) => {
+      try {
+        await dependencies.pool.query('SELECT 1');
+        await dependencies.health?.redis.ping();
+        return { status: 'ok' };
+      } catch (error) {
+        request.log.warn({ err: error }, 'Sonda de disponibilidad fallida');
+        return reply.code(503).send({ status: 'unavailable' });
+      }
+    });
+
     const auth = new AuthService(dependencies.pool, dependencies.auth);
     registerAuthRoutes(api, auth, limits);
 

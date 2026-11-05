@@ -1,13 +1,24 @@
 # ASHENFALL
 
-Servidor autoritativo para un duelo 1v1 por turnos de proyectiles. Proyecto académico en construcción: por ahora solo existe el motor de reglas (`packages/domain`), sin servidor ni despliegue.
+Servidor autoritativo para un duelo 1v1 por turnos de proyectiles. Proyecto académico en construcción: el servidor ya corre en local, pero aún no hay cliente ni despliegue en Azure.
 
-## Requisitos
+## Ejecutar en local
+Con Docker Desktop abierto:
+```bash
+docker compose up --build
+```
+El servidor queda en `http://localhost:8080`; compruébalo en `/health/ready`.
+
+## Requisitos para desarrollar
 Node 20 o superior (CI y Docker usarán Node 22).
 
 ## Comandos
 ```bash
 npm ci
+```
+Las pruebas necesitan PostgreSQL y Redis:
+```bash
+docker compose up -d --wait postgres redis
 ```
 ```bash
 npm test

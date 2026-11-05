@@ -51,6 +51,31 @@ describe('migrate', () => {
   });
 });
 
+describe('recompensa', () => {
+  it('finales simultáneos desde varias réplicas pagan una sola vez', async () => {
+    const { state, playerA, playerB } = await newMatch();
+    for (const id of [playerA, playerB]) await db.pool.query('INSERT INTO wallets (user_id) VALUES ($1)', [id]);
+    const decision = decide(
+      { ...state, players: [state.players[0], { ...state.players[1], connected: false, graceDeadlineMs: T0 }] },
+      { type: 'grace_expired', playerId: state.players[1].playerId, nowMs: T0 + 1 },
+    );
+    if (decision.kind !== 'applied') throw new Error('Rechazada');
+    const attempts = await Promise.allSettled(
+      Array.from({ length: 10 }, () => store.append(state.setup.matchId, decision.events, null)),
+    );
+    expect(attempts.filter((attempt) => attempt.status === 'fulfilled')).toHaveLength(1);
+    const { rows } = await db.pool.query<{ user_id: string; balance: number }>(
+      'SELECT user_id, balance FROM wallets WHERE user_id = ANY($1::uuid[])',
+      [[playerA, playerB]],
+    );
+    expect(rows.map((row) => row.balance).sort((x, y) => x - y)).toEqual([0, 100]);
+    const paid = await db.pool.query('SELECT 1 FROM wallet_transactions WHERE idempotency_key = $1', [
+      `match-reward:${state.setup.matchId}`,
+    ]);
+    expect(paid.rows).toHaveLength(1);
+  });
+});
+
 describe('MatchEventStore', () => {
   it('reconstruye desde PostgreSQL exactamente el mismo estado, como tras un reinicio', async () => {
     const { state, first } = await newMatch();
