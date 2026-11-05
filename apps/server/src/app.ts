@@ -5,6 +5,8 @@ import type pg from 'pg';
 import { AuthService, type AuthConfig } from './auth/auth-service.js';
 import { registerAuthRoutes } from './auth/routes.js';
 import { problemBody, ProblemError } from './problem.js';
+import { RoomService } from './rooms/room-service.js';
+import { registerRoomRoutes } from './rooms/routes.js';
 
 export interface AppDependencies {
   readonly pool: pg.Pool;
@@ -76,7 +78,9 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       ...(limits.redis === undefined ? {} : { redis: limits.redis, skipOnError: true }),
       errorResponseBuilder: () => new ProblemError(429, 'RATE_LIMITED', 'Demasiadas peticiones'),
     });
-    registerAuthRoutes(api, new AuthService(dependencies.pool, dependencies.auth), limits);
+    const auth = new AuthService(dependencies.pool, dependencies.auth);
+    registerAuthRoutes(api, auth, limits);
+    registerRoomRoutes(api, auth, new RoomService(dependencies.pool), dependencies.pool);
   });
   return app;
 }
