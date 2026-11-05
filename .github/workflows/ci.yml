@@ -40,6 +40,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+      - run: npm run typecheck
       - run: npm run lint
       - run: npm test
       # TODO: la validación de contratos (OpenAPI/AsyncAPI) se añade con SCRUM-29/33,

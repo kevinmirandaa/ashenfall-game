@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { IncomingMessage, Server } from 'node:http';
 import type { Duplex } from 'node:stream';
 import { toPlayerEvent, toPlayerView, type MatchErrorCode } from '@ashenfall/domain';
@@ -14,6 +15,7 @@ import {
   type ClientMessage,
   type ServerMessage,
 } from './protocol.js';
+import type { Presence } from './presence.js';
 import type { WsTicketStore } from './tickets.js';
 
 export interface GatewayOptions {
@@ -26,6 +28,7 @@ export interface GatewayOptions {
 interface Connection {
   readonly socket: WebSocket;
   readonly userId: string;
+  readonly id: string;
   alive: boolean;
   windowStartMs: number;
   messagesInWindow: number;
@@ -46,6 +49,7 @@ export class RealtimeGateway {
     private readonly pool: pg.Pool,
     private readonly engineRef: () => MatchEngine,
     private readonly tickets: WsTicketStore,
+    private readonly presence: Presence,
     private readonly logger: FastifyBaseLogger,
     private readonly options: GatewayOptions,
   ) {
@@ -117,7 +121,7 @@ export class RealtimeGateway {
       socket.close(CloseCode.TooManyConnections, 'Demasiadas conexiones');
       return;
     }
-    const connection: Connection = { socket, userId, alive: true, windowStartMs: Date.now(), messagesInWindow: 0 };
+    const connection: Connection = { socket, userId, id: randomUUID(), alive: true, windowStartMs: Date.now(), messagesInWindow: 0 };
     group.add(connection);
     this.connections.set(userId, group);
 
@@ -127,6 +131,9 @@ export class RealtimeGateway {
     socket.on('close', () => {
       group.delete(connection);
       if (group.size === 0 && this.connections.get(userId) === group) this.connections.delete(userId);
+      void this.onDisconnected(connection).catch((error: unknown) => {
+        this.logger.warn({ err: error, userId }, 'No se pudo registrar la desconexión');
+      });
     });
     // Un error de socket afecta solo a esa conexión; sin este oyente tumbaría el proceso.
     socket.on('error', (error) => {
@@ -161,8 +168,21 @@ export class RealtimeGateway {
   }
 
   private async sendActiveSnapshot(connection: Connection): Promise<void> {
+    await this.presence.touch(connection.userId, connection.id);
     const matchId = await activeMatchOf(this.pool, connection.userId);
-    if (matchId !== null) await this.sendSnapshot(connection, matchId);
+    if (matchId === null) return;
+    await this.engineRef().execute(matchId, { type: 'player_reconnected', playerId: connection.userId, nowMs: Date.now() });
+    await this.sendSnapshot(connection, matchId);
+  }
+
+  /** Solo cuenta como desconexión si al usuario no le queda ninguna conexión en ninguna réplica. */
+  private async onDisconnected(connection: Connection): Promise<void> {
+    const { userId, id } = connection;
+    if (await this.presence.removeAndCheck(userId, id)) return;
+    const matchId = await activeMatchOf(this.pool, userId);
+    if (matchId !== null) {
+      await this.engineRef().execute(matchId, { type: 'player_disconnected', playerId: userId, nowMs: Date.now() });
+    }
   }
 
   private async sendSnapshot(connection: Connection, matchId: string): Promise<boolean> {
@@ -244,6 +264,9 @@ export class RealtimeGateway {
         }
         connection.alive = false;
         connection.socket.ping();
+        void this.presence.touch(connection.userId, connection.id).catch((error: unknown) => {
+          this.logger.warn({ err: error }, 'No se pudo renovar la presencia');
+        });
       }
     }
   }

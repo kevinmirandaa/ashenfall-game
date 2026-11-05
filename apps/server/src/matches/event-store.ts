@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { EventPayload, MatchEvent, MatchSetup } from '@ashenfall/domain';
 import type pg from 'pg';
 
@@ -5,6 +6,9 @@ import type pg from 'pg';
 export class SequenceConflictError extends Error {
   override readonly name = 'SequenceConflictError';
 }
+
+/** Marcas de Ceniza por victoria. */
+export const WIN_REWARD = 100;
 
 const UNIQUE_VIOLATION = '23505';
 
@@ -39,11 +43,14 @@ export class MatchEventStore {
    * Confirma eventos antes de avisar a los clientes. La clave (match_id, seq) serializa a las réplicas:
    * si dos escriben la misma secuencia, solo una gana y la otra recibe SequenceConflictError.
    */
-  async append(matchId: string, events: readonly MatchEvent[]): Promise<void> {
+  async append(matchId: string, events: readonly MatchEvent[], nextDeadlineMs?: number | null): Promise<void> {
     if (events.length === 0) return;
     try {
       await this.transaction(async (client) => {
         await this.insertEvents(client, matchId, events);
+        if (nextDeadlineMs !== undefined) {
+          await client.query('UPDATE matches SET next_deadline_ms = $1 WHERE id = $2', [nextDeadlineMs, matchId]);
+        }
         for (const { payload } of events) {
           if (payload.type !== 'match_finished') continue;
           const { result } = payload;
@@ -53,6 +60,7 @@ export class MatchEventStore {
             'INSERT INTO match_results (match_id, winner_id, loser_id, reason, result) VALUES ($1, $2, $3, $4, $5)',
             [matchId, result.winnerId, result.loserId, result.reason, JSON.stringify(result)],
           );
+          if (result.winnerId !== null) await this.grantReward(client, matchId, result.winnerId);
         }
       });
     } catch (error) {
@@ -72,6 +80,18 @@ export class MatchEventStore {
   async listActiveMatchIds(): Promise<readonly string[]> {
     const { rows } = await this.pool.query<{ id: string }>(`SELECT id FROM matches WHERE status = 'in_progress'`);
     return rows.map((row) => row.id);
+  }
+
+  /** En la misma transacción que el resultado; la clave única impide pagar dos veces. */
+  private async grantReward(client: pg.ClientBase, matchId: string, winnerId: string): Promise<void> {
+    const inserted = await client.query(
+      `INSERT INTO wallet_transactions (id, user_id, amount, kind, idempotency_key)
+       VALUES ($1, $2, $3, 'match_reward', $4) ON CONFLICT (idempotency_key) DO NOTHING`,
+      [randomUUID(), winnerId, WIN_REWARD, `match-reward:${matchId}`],
+    );
+    if ((inserted.rowCount ?? 0) > 0) {
+      await client.query('UPDATE wallets SET balance = balance + $1 WHERE user_id = $2', [WIN_REWARD, winnerId]);
+    }
   }
 
   private async insertEvents(client: pg.ClientBase, matchId: string, events: readonly MatchEvent[]): Promise<void> {

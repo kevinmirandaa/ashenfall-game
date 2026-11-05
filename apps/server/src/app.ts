@@ -10,6 +10,9 @@ import { registerMatchmakingRoutes } from './matchmaking/routes.js';
 import { MatchEventStore } from './matches/event-store.js';
 import { MatchEngine } from './matches/match-engine.js';
 import { problemBody, ProblemError } from './problem.js';
+import { MatchSweeper } from './matches/sweeper.js';
+import { RedisEventBus } from './realtime/event-bus.js';
+import { Presence } from './realtime/presence.js';
 import { RealtimeGateway, type GatewayOptions } from './realtime/gateway.js';
 import { WsTicketStore } from './realtime/tickets.js';
 import { RoomService } from './rooms/room-service.js';
@@ -32,6 +35,8 @@ export interface RealtimeConfig {
   readonly redis: Redis;
   readonly namespace?: string;
   readonly gateway: GatewayOptions;
+  /** Cada cuánto esta réplica barre plazos vencidos. */
+  readonly sweepIntervalMs?: number;
 }
 
 export interface RateLimitConfig {
@@ -100,13 +105,14 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
 
     const store = new MatchEventStore(dependencies.pool);
     const { realtime } = dependencies;
-    let gateway: RealtimeGateway | null = null;
-    const engine = new MatchEngine(store, (matchId, events) => gateway?.deliver(matchId, events));
+    const namespace = realtime?.namespace ?? 'ashenfall-';
+    const bus = realtime === undefined ? null : new RedisEventBus(realtime.redis, namespace, app.log);
+    const engine = new MatchEngine(store, (matchId, events) => bus?.publish(matchId, events));
     /** Tras confirmar la transacción, avisa a los jugadores sin que tengan que consultar. */
     const announceMatch = (matchId: string): void => {
       void (async () => {
         const [first] = await store.load(matchId);
-        if (first !== undefined) gateway?.deliver(matchId, [{ event: first, stateAfter: initialState(first) }]);
+        if (first !== undefined) bus?.publish(matchId, [{ event: first, stateAfter: initialState(first) }]);
       })().catch((error: unknown) => {
         api.log.error({ err: error, matchId }, 'No se pudo anunciar la partida');
       });
@@ -119,15 +125,26 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       new MatchmakingService(dependencies.pool, dependencies.matchmakingMaxWaitMs ?? 60_000, announceMatch),
     );
 
-    if (realtime !== undefined) {
-      const tickets = new WsTicketStore(realtime.redis, realtime.namespace ?? 'ashenfall-');
-      gateway = new RealtimeGateway(app.server, dependencies.pool, () => engine, tickets, app.log, realtime.gateway);
+    if (realtime !== undefined && bus !== null) {
+      const tickets = new WsTicketStore(realtime.redis, namespace);
+      const heartbeatMs = realtime.gateway.heartbeatMs ?? 15_000;
+      const presence = new Presence(realtime.redis, namespace, heartbeatMs * 3);
+      const activeGateway = new RealtimeGateway(app.server, dependencies.pool, () => engine, tickets, presence, app.log, realtime.gateway);
+      const sweeper = new MatchSweeper(dependencies.pool, engine, app.log);
       api.post('/v1/ws-ticket', async (request, reply) => {
         const { userId } = await auth.authenticate(request.headers.authorization);
         return reply.code(201).send(await tickets.issue(userId));
       });
+      app.addHook('onReady', async () => {
+        await bus.start((matchId, events) => {
+          activeGateway.deliver(matchId, events);
+        });
+        sweeper.start(realtime.sweepIntervalMs ?? 1000);
+      });
       app.addHook('preClose', () => {
-        gateway?.close();
+        sweeper.stop();
+        activeGateway.close();
+        bus.stop();
         return Promise.resolve();
       });
     }

@@ -78,7 +78,7 @@ function aimingAtOpponent(state: MatchState, shooterId: string): { angleDeg: num
 }
 
 let actionCounter = 0;
-function shoot(state: MatchState, playerId: string, aim: { angleDeg: number; power: number }, nowMs = T0 + 1): MatchCommand {
+function shoot(state: MatchState, playerId: string, aim: { angleDeg: number; power: number }, nowMs = T0 + 1): Extract<MatchCommand, { type: 'shoot' }> {
   actionCounter += 1;
   return {
     type: 'shoot',
@@ -224,7 +224,7 @@ describe('idempotencia', () => {
     let state = begin();
     const command = shoot(state, A, MISS);
     state = run(state, command);
-    expect(decide(state, { ...shoot(state, B, MISS), actionId: command.type === 'shoot' ? command.actionId : '' })).toEqual({
+    expect(decide(state, { ...shoot(state, B, MISS), actionId: command.actionId })).toEqual({
       kind: 'rejected',
       code: 'ACTION_ID_CONFLICT',
     });

@@ -13,7 +13,7 @@
   ],
   "scripts": {
     "build": "tsc -b apps/server",
-    "typecheck": "tsc -b apps/server --pretty",
+    "typecheck": "tsc -b apps/server --pretty && tsc -p tsconfig.tests.json --pretty",
     "lint": "eslint .",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage"

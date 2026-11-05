@@ -311,6 +311,14 @@ export function evolve(state: MatchState, event: MatchEvent): MatchState {
   }
 }
 
+/** Próximo instante en que algo debe ocurrir sin intervención de los jugadores; null si la partida terminó. */
+export function nextDeadline(state: MatchState): number | null {
+  if (state.status === 'finished') return null;
+  const deadlines = state.players.flatMap((player) => (player.graceDeadlineMs === null ? [] : [player.graceDeadlineMs]));
+  if (state.turn !== null) deadlines.push(state.turn.deadlineMs);
+  return deadlines.length === 0 ? null : Math.min(...deadlines);
+}
+
 function findPlayer(state: MatchState, playerId: PlayerId): PlayerState | undefined {
   return state.players.find((player) => player.playerId === playerId);
 }
