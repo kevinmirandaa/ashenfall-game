@@ -7,6 +7,8 @@ export interface ServerConfig {
   readonly jwtSecret: string;
   readonly allowedOrigins: readonly string[];
   readonly trustProxy: boolean;
+  readonly logLevel: string;
+  readonly rateLimit: { readonly globalPerMinute: number; readonly authPerMinute: number; readonly loginPerAccountPerMinute: number };
 }
 
 const MIN_SECRET_LENGTH = 32;
@@ -32,5 +34,11 @@ export function loadConfig(env: NodeJS.ProcessEnv): ServerConfig {
     jwtSecret,
     allowedOrigins: (env['ALLOWED_ORIGINS'] ?? '').split(',').map((origin) => origin.trim()).filter((origin) => origin !== ''),
     trustProxy: env['TRUST_PROXY'] === '1',
+    logLevel: env['LOG_LEVEL'] ?? 'info',
+    rateLimit: {
+      globalPerMinute: Number(env['RATE_LIMIT_GLOBAL_PER_MINUTE'] ?? 600),
+      authPerMinute: Number(env['RATE_LIMIT_AUTH_PER_MINUTE'] ?? 20),
+      loginPerAccountPerMinute: Number(env['RATE_LIMIT_LOGIN_PER_MINUTE'] ?? 10),
+    },
   };
 }

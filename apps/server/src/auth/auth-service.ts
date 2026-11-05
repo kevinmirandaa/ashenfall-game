@@ -1,8 +1,8 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
-import argon2 from 'argon2';
 import { jwtVerify, SignJWT } from 'jose';
 import type pg from 'pg';
 import { ProblemError } from '../problem.js';
+import { PasswordHasher } from './password-hasher.js';
 
 export interface AuthConfig {
   /** Llega por Key Vault en Azure y por entorno en local; nunca está en el repositorio. */
@@ -46,6 +46,7 @@ function hashToken(token: string): string {
 
 export class AuthService {
   private readonly secret: Uint8Array;
+  private readonly hasher = new PasswordHasher();
   /** Se verifica cuando el correo no existe, para que el tiempo de respuesta no revele qué cuentas hay. */
   private readonly dummyHash: Promise<string>;
 
@@ -54,12 +55,12 @@ export class AuthService {
     private readonly config: AuthConfig,
   ) {
     this.secret = new TextEncoder().encode(config.jwtSecret);
-    this.dummyHash = argon2.hash(randomUUID(), { type: argon2.argon2id });
+    this.dummyHash = this.hasher.hash(randomUUID());
   }
 
   async register(email: string, password: string, displayName: string): Promise<TokenPair> {
     const id = randomUUID();
-    const passwordHash = await argon2.hash(password, { type: argon2.argon2id });
+    const passwordHash = await this.hasher.hash(password);
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
@@ -92,10 +93,10 @@ export class AuthService {
     }>('SELECT id, password_hash, role, suspended_at FROM users WHERE lower(email) = lower($1)', [email]);
     const user = rows[0];
     if (user === undefined) {
-      await argon2.verify(await this.dummyHash, password);
+      await this.hasher.verify(await this.dummyHash, password);
       throw invalidCredentials();
     }
-    if (!(await argon2.verify(user.password_hash, password))) throw invalidCredentials();
+    if (!(await this.hasher.verify(user.password_hash, password))) throw invalidCredentials();
     if (user.suspended_at !== null) throw suspended();
     return this.issue({ userId: user.id, role: user.role }, randomUUID());
   }

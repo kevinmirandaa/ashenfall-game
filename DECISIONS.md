@@ -35,6 +35,9 @@ SCRUM-35 proponía un bloqueo en Redis. En su lugar, cada réplica ordena sus ju
 ## D10. Plazos sin réplica líder
 El próximo plazo se guarda en `matches.next_deadline_ms` y todas las réplicas lo barren. Repetir un barrido es inofensivo. Tras una caída brusca no se registra la desconexión, y esas partidas terminan por los timeouts de turno.
 
+## D11. Argon2id acotado
+19 MiB, t=2, p=1 (mínimo de OWASP), una contraseña a la vez y fila de 32. Lo que no cabe recibe 503. Protege las partidas en curso a costa de rechazar logins en un pico. Ver [docs/load-report.md](docs/load-report.md).
+
 ## Pendientes
 - Redis gestionado o en Container Apps: se decide al estimar el costo en Azure.
 - Alcance de la guía de trayectoria: con posición del rival conocida, una guía completa haría trivial apuntar. Se decide en SCRUM-41.
