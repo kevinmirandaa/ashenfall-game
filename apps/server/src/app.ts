@@ -1,4 +1,5 @@
 import rateLimit from '@fastify/rate-limit';
+import { initialState } from '@ashenfall/domain';
 import Fastify, { type FastifyInstance } from 'fastify';
 import type { Redis } from 'ioredis';
 import type pg from 'pg';
@@ -6,7 +7,11 @@ import { AuthService, type AuthConfig } from './auth/auth-service.js';
 import { registerAuthRoutes } from './auth/routes.js';
 import { MatchmakingService } from './matchmaking/matchmaking-service.js';
 import { registerMatchmakingRoutes } from './matchmaking/routes.js';
+import { MatchEventStore } from './matches/event-store.js';
+import { MatchEngine } from './matches/match-engine.js';
 import { problemBody, ProblemError } from './problem.js';
+import { RealtimeGateway, type GatewayOptions } from './realtime/gateway.js';
+import { WsTicketStore } from './realtime/tickets.js';
 import { RoomService } from './rooms/room-service.js';
 import { registerRoomRoutes } from './rooms/routes.js';
 
@@ -19,6 +24,14 @@ export interface AppDependencies {
   readonly trustProxy?: boolean;
   /** Espera máxima en la cola rápida. */
   readonly matchmakingMaxWaitMs?: number;
+  /** Sin esto no se abre el WebSocket; las pruebas que solo usan REST no necesitan Redis. */
+  readonly realtime?: RealtimeConfig;
+}
+
+export interface RealtimeConfig {
+  readonly redis: Redis;
+  readonly namespace?: string;
+  readonly gateway: GatewayOptions;
 }
 
 export interface RateLimitConfig {
@@ -84,8 +97,40 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     });
     const auth = new AuthService(dependencies.pool, dependencies.auth);
     registerAuthRoutes(api, auth, limits);
-    registerRoomRoutes(api, auth, new RoomService(dependencies.pool), dependencies.pool);
-    registerMatchmakingRoutes(api, auth, new MatchmakingService(dependencies.pool, dependencies.matchmakingMaxWaitMs ?? 60_000));
+
+    const store = new MatchEventStore(dependencies.pool);
+    const { realtime } = dependencies;
+    let gateway: RealtimeGateway | null = null;
+    const engine = new MatchEngine(store, (matchId, events) => gateway?.deliver(matchId, events));
+    /** Tras confirmar la transacción, avisa a los jugadores sin que tengan que consultar. */
+    const announceMatch = (matchId: string): void => {
+      void (async () => {
+        const [first] = await store.load(matchId);
+        if (first !== undefined) gateway?.deliver(matchId, [{ event: first, stateAfter: initialState(first) }]);
+      })().catch((error: unknown) => {
+        api.log.error({ err: error, matchId }, 'No se pudo anunciar la partida');
+      });
+    };
+
+    registerRoomRoutes(api, auth, new RoomService(dependencies.pool, announceMatch), dependencies.pool);
+    registerMatchmakingRoutes(
+      api,
+      auth,
+      new MatchmakingService(dependencies.pool, dependencies.matchmakingMaxWaitMs ?? 60_000, announceMatch),
+    );
+
+    if (realtime !== undefined) {
+      const tickets = new WsTicketStore(realtime.redis, realtime.namespace ?? 'ashenfall-');
+      gateway = new RealtimeGateway(app.server, dependencies.pool, () => engine, tickets, app.log, realtime.gateway);
+      api.post('/v1/ws-ticket', async (request, reply) => {
+        const { userId } = await auth.authenticate(request.headers.authorization);
+        return reply.code(201).send(await tickets.issue(userId));
+      });
+      app.addHook('preClose', () => {
+        gateway?.close();
+        return Promise.resolve();
+      });
+    }
   });
   return app;
 }
