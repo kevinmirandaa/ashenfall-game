@@ -29,6 +29,12 @@ Decisión del usuario, para disponer de CodeQL y aprobación manual a prod sin c
 ## D8. Pueblo en vista lateral (side-view)
 Es la perspectiva que usan el combate y el prompt de arte del brief.
 
+## D9. Sin bloqueo distribuido por partida
+SCRUM-35 proponía un bloqueo en Redis. En su lugar, cada réplica ordena sus jugadas en una fila interna y entre réplicas decide la clave `(match_id, seq)` de PostgreSQL: la perdedora relee el log y vuelve a decidir. La garantía queda en la misma transacción que guarda la jugada; un bloqueo con caducidad podría vencer a mitad de una jugada y no eliminaría la necesidad de esa clave.
+
+## D10. Plazos sin réplica líder
+El próximo plazo se guarda en `matches.next_deadline_ms` y todas las réplicas lo barren. Repetir un barrido es inofensivo. Tras una caída brusca no se registra la desconexión, y esas partidas terminan por los timeouts de turno.
+
 ## Pendientes
 - Redis gestionado o en Container Apps: se decide al estimar el costo en Azure.
 - Alcance de la guía de trayectoria: con posición del rival conocida, una guía completa haría trivial apuntar. Se decide en SCRUM-41.

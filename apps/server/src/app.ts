@@ -29,6 +29,7 @@ export interface AppDependencies {
   readonly matchmakingMaxWaitMs?: number;
   /** Sin esto no se abre el WebSocket; las pruebas que solo usan REST no necesitan Redis. */
   readonly realtime?: RealtimeConfig;
+  readonly health?: { readonly redis: Pick<Redis, 'ping'> };
 }
 
 export interface RealtimeConfig {
@@ -87,6 +88,19 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   app.setNotFoundHandler((request, reply) =>
     reply.code(404).type(PROBLEM_JSON).send(problemBody(404, 'NOT_FOUND', 'Recurso no encontrado', request.url)),
   );
+
+  // Fuera del límite de tasa: la plataforma las consulta continuamente.
+  app.get('/health/live', () => ({ status: 'ok' }));
+  app.get('/health/ready', async (request, reply) => {
+    try {
+      await dependencies.pool.query('SELECT 1');
+      await dependencies.health?.redis.ping();
+      return { status: 'ok' };
+    } catch (error) {
+      request.log.warn({ err: error }, 'Sonda de disponibilidad fallida');
+      return reply.code(503).send({ status: 'unavailable' });
+    }
+  });
 
   const limits = dependencies.rateLimit;
   void app.register(async (api) => {

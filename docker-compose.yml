@@ -1,6 +1,22 @@
 # Solo para desarrollo local. Los puertos se publican únicamente en 127.0.0.1 y no se usan contraseñas,
 # de modo que ninguna credencial entra al repositorio.
 services:
+  server:
+    build: .
+    environment:
+      DATABASE_URL: postgres://ashenfall@postgres:5432/ashenfall
+      REDIS_URL: redis://redis:6379
+      # Genera una clave aleatoria al arrancar. Solo para local: en Azure llega desde Key Vault.
+      ASHENFALL_DEV_SECRETS: "1"
+      ALLOWED_ORIGINS: http://localhost:5173
+    ports:
+      - "127.0.0.1:8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
   postgres:
     image: postgres:16-alpine
     environment:
