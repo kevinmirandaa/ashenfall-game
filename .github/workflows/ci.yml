@@ -43,5 +43,5 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
       - run: npm test
-      # TODO: la validación de contratos (OpenAPI/AsyncAPI) se añade con SCRUM-29/33,
-      # cuando existan los contratos.
+      # Los tests de apps/server/src/contracts validan OpenAPI 3.1 y AsyncAPI 3.0 y comparan
+      # contracts/ con lo que genera el código: un contrato desactualizado hace fallar este paso.

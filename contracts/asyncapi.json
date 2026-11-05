@@ -1,0 +1,1450 @@
+{
+  "asyncapi": "3.0.0",
+  "info": {
+    "title": "ASHENFALL tiempo real",
+    "version": "1.0.0",
+    "description": "Protocolo versión 1, campo v en cada mensaje. Tamaño máximo por mensaje: 4096 bytes.\n\nAutenticación en el handshake con un ticket de un solo uso de POST /v1/ws-ticket; sin ticket válido responde 401 y con origen no permitido 403.\n\nHeartbeat: el servidor envía ping y cierra si no recibe pong antes del siguiente.\n\nCódigos de cierre: 1001 El servidor se apaga; reconectar con un ticket nuevo; 1009 Mensaje mayor a 4096 bytes; 4003 Usuario suspendido; 4008 Demasiadas conexiones de este usuario; 4009 No respondió al ping del heartbeat; 4029 Abuso sostenido del límite de mensajes."
+  },
+  "servers": {
+    "production": {
+      "host": "ashenfall.example",
+      "protocol": "wss",
+      "description": "El host real se define al desplegar.",
+      "security": [
+        {
+          "$ref": "#/components/securitySchemes/ticket"
+        }
+      ]
+    }
+  },
+  "channels": {
+    "game": {
+      "address": "/ws",
+      "messages": {
+        "shoot": {
+          "$ref": "#/components/messages/shoot"
+        },
+        "sync": {
+          "$ref": "#/components/messages/sync"
+        },
+        "welcome": {
+          "$ref": "#/components/messages/welcome"
+        },
+        "snapshot": {
+          "$ref": "#/components/messages/snapshot"
+        },
+        "event": {
+          "$ref": "#/components/messages/event"
+        },
+        "ack": {
+          "$ref": "#/components/messages/ack"
+        },
+        "error": {
+          "$ref": "#/components/messages/error"
+        }
+      }
+    }
+  },
+  "operations": {
+    "sendToServer": {
+      "action": "receive",
+      "channel": {
+        "$ref": "#/channels/game"
+      },
+      "summary": "Mensajes que el cliente envía",
+      "messages": [
+        {
+          "$ref": "#/channels/game/messages/shoot"
+        },
+        {
+          "$ref": "#/channels/game/messages/sync"
+        }
+      ]
+    },
+    "sendToClient": {
+      "action": "send",
+      "channel": {
+        "$ref": "#/channels/game"
+      },
+      "summary": "Mensajes que el servidor envía",
+      "messages": [
+        {
+          "$ref": "#/channels/game/messages/welcome"
+        },
+        {
+          "$ref": "#/channels/game/messages/snapshot"
+        },
+        {
+          "$ref": "#/channels/game/messages/event"
+        },
+        {
+          "$ref": "#/channels/game/messages/ack"
+        },
+        {
+          "$ref": "#/channels/game/messages/error"
+        }
+      ]
+    }
+  },
+  "components": {
+    "messages": {
+      "shoot": {
+        "name": "shoot",
+        "contentType": "application/json",
+        "description": "Intención de disparo. Nunca incluye daño ni resultados. Reenviar el mismo actionId no lo aplica dos veces. Errores posibles: ver el mensaje error.",
+        "payload": {
+          "additionalProperties": false,
+          "type": "object",
+          "required": [
+            "v",
+            "type",
+            "matchId",
+            "actionId",
+            "expectedVersion",
+            "weaponId",
+            "angleDeg",
+            "power"
+          ],
+          "properties": {
+            "v": {
+              "const": 1,
+              "type": "number"
+            },
+            "type": {
+              "const": "shoot",
+              "type": "string"
+            },
+            "matchId": {
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+              "type": "string"
+            },
+            "actionId": {
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+              "type": "string"
+            },
+            "expectedVersion": {
+              "minimum": 1,
+              "type": "integer"
+            },
+            "weaponId": {
+              "anyOf": [
+                {
+                  "const": "bow",
+                  "type": "string"
+                },
+                {
+                  "const": "spear",
+                  "type": "string"
+                },
+                {
+                  "const": "axe",
+                  "type": "string"
+                },
+                {
+                  "const": "dagger",
+                  "type": "string"
+                }
+              ]
+            },
+            "angleDeg": {
+              "minimum": 0,
+              "maximum": 90,
+              "type": "number"
+            },
+            "power": {
+              "minimum": 10,
+              "maximum": 100,
+              "type": "number"
+            }
+          }
+        },
+        "examples": [
+          {
+            "name": "ejemplo",
+            "payload": {
+              "v": 1,
+              "type": "shoot",
+              "matchId": "6f1c2f5e-3a54-4a7e-9b1d-2c8f0a4e7d11",
+              "actionId": "0b9a7c3e-52d1-4f60-8a2b-7e1d3c5f9a22",
+              "expectedVersion": 3,
+              "weaponId": "bow",
+              "angleDeg": 42.5,
+              "power": 70
+            }
+          }
+        ]
+      },
+      "sync": {
+        "name": "sync",
+        "contentType": "application/json",
+        "description": "Pide el estado actual, por ejemplo al detectar un hueco en seq.",
+        "payload": {
+          "additionalProperties": false,
+          "type": "object",
+          "required": [
+            "v",
+            "type",
+            "matchId"
+          ],
+          "properties": {
+            "v": {
+              "const": 1,
+              "type": "number"
+            },
+            "type": {
+              "const": "sync",
+              "type": "string"
+            },
+            "matchId": {
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+              "type": "string"
+            }
+          }
+        },
+        "examples": [
+          {
+            "name": "ejemplo",
+            "payload": {
+              "v": 1,
+              "type": "sync",
+              "matchId": "6f1c2f5e-3a54-4a7e-9b1d-2c8f0a4e7d11"
+            }
+          }
+        ]
+      },
+      "welcome": {
+        "name": "welcome",
+        "contentType": "application/json",
+        "description": "Primer mensaje tras autenticar la conexión.",
+        "payload": {
+          "additionalProperties": false,
+          "type": "object",
+          "required": [
+            "v",
+            "type",
+            "userId"
+          ],
+          "properties": {
+            "v": {
+              "const": 1,
+              "type": "number"
+            },
+            "type": {
+              "const": "welcome",
+              "type": "string"
+            },
+            "userId": {
+              "description": "UUID",
+              "type": "string"
+            }
+          }
+        },
+        "examples": [
+          {
+            "name": "ejemplo",
+            "payload": {
+              "v": 1,
+              "type": "welcome",
+              "userId": "c4e8a1d2-7b36-49f0-a5c3-1f2e6d8b0a33"
+            }
+          }
+        ]
+      },
+      "snapshot": {
+        "name": "snapshot",
+        "contentType": "application/json",
+        "description": "Estado autorizado de la partida para este jugador, también al reconectar.",
+        "payload": {
+          "additionalProperties": false,
+          "type": "object",
+          "required": [
+            "v",
+            "type",
+            "view"
+          ],
+          "properties": {
+            "v": {
+              "const": 1,
+              "type": "number"
+            },
+            "type": {
+              "const": "snapshot",
+              "type": "string"
+            },
+            "view": {
+              "additionalProperties": false,
+              "type": "object",
+              "required": [
+                "matchId",
+                "status",
+                "seq",
+                "version",
+                "arenaId",
+                "windAccel",
+                "maxRounds",
+                "round",
+                "physicsVersion",
+                "turn",
+                "you",
+                "opponent",
+                "result"
+              ],
+              "properties": {
+                "matchId": {
+                  "description": "UUID",
+                  "type": "string"
+                },
+                "status": {
+                  "anyOf": [
+                    {
+                      "const": "in_progress",
+                      "type": "string"
+                    },
+                    {
+                      "const": "finished",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "seq": {
+                  "type": "integer"
+                },
+                "version": {
+                  "type": "integer"
+                },
+                "arenaId": {
+                  "anyOf": [
+                    {
+                      "const": "whispering_forest",
+                      "type": "string"
+                    },
+                    {
+                      "const": "frostlands",
+                      "type": "string"
+                    },
+                    {
+                      "const": "ashen_desert",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "windAccel": {
+                  "type": "number"
+                },
+                "maxRounds": {
+                  "type": "integer"
+                },
+                "round": {
+                  "type": "integer"
+                },
+                "physicsVersion": {
+                  "type": "integer"
+                },
+                "turn": {
+                  "anyOf": [
+                    {
+                      "additionalProperties": false,
+                      "type": "object",
+                      "required": [
+                        "playerId",
+                        "round",
+                        "deadlineMs"
+                      ],
+                      "properties": {
+                        "playerId": {
+                          "description": "UUID",
+                          "type": "string"
+                        },
+                        "round": {
+                          "type": "integer"
+                        },
+                        "deadlineMs": {
+                          "type": "number"
+                        }
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "you": {
+                  "additionalProperties": false,
+                  "type": "object",
+                  "required": [
+                    "playerId",
+                    "hp",
+                    "position",
+                    "facing",
+                    "connected"
+                  ],
+                  "properties": {
+                    "playerId": {
+                      "description": "UUID",
+                      "type": "string"
+                    },
+                    "hp": {
+                      "type": "integer"
+                    },
+                    "position": {
+                      "additionalProperties": false,
+                      "type": "object",
+                      "required": [
+                        "x",
+                        "y"
+                      ],
+                      "properties": {
+                        "x": {
+                          "type": "number"
+                        },
+                        "y": {
+                          "type": "number"
+                        }
+                      }
+                    },
+                    "facing": {
+                      "anyOf": [
+                        {
+                          "const": 1,
+                          "type": "number"
+                        },
+                        {
+                          "const": -1,
+                          "type": "number"
+                        }
+                      ]
+                    },
+                    "connected": {
+                      "type": "boolean"
+                    }
+                  }
+                },
+                "opponent": {
+                  "additionalProperties": false,
+                  "type": "object",
+                  "required": [
+                    "playerId",
+                    "hp",
+                    "position",
+                    "facing",
+                    "connected"
+                  ],
+                  "properties": {
+                    "playerId": {
+                      "description": "UUID",
+                      "type": "string"
+                    },
+                    "hp": {
+                      "type": "integer"
+                    },
+                    "position": {
+                      "additionalProperties": false,
+                      "type": "object",
+                      "required": [
+                        "x",
+                        "y"
+                      ],
+                      "properties": {
+                        "x": {
+                          "type": "number"
+                        },
+                        "y": {
+                          "type": "number"
+                        }
+                      }
+                    },
+                    "facing": {
+                      "anyOf": [
+                        {
+                          "const": 1,
+                          "type": "number"
+                        },
+                        {
+                          "const": -1,
+                          "type": "number"
+                        }
+                      ]
+                    },
+                    "connected": {
+                      "type": "boolean"
+                    }
+                  }
+                },
+                "result": {
+                  "anyOf": [
+                    {
+                      "additionalProperties": false,
+                      "type": "object",
+                      "required": [
+                        "winnerId",
+                        "loserId",
+                        "reason",
+                        "finalHp",
+                        "rounds"
+                      ],
+                      "properties": {
+                        "winnerId": {
+                          "anyOf": [
+                            {
+                              "description": "UUID",
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "loserId": {
+                          "anyOf": [
+                            {
+                              "description": "UUID",
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "reason": {
+                          "anyOf": [
+                            {
+                              "const": "knockout",
+                              "type": "string"
+                            },
+                            {
+                              "const": "round_limit",
+                              "type": "string"
+                            },
+                            {
+                              "const": "timeout_forfeit",
+                              "type": "string"
+                            },
+                            {
+                              "const": "disconnect_forfeit",
+                              "type": "string"
+                            },
+                            {
+                              "const": "both_abandoned",
+                              "type": "string"
+                            },
+                            {
+                              "const": "admin_terminated",
+                              "type": "string"
+                            }
+                          ]
+                        },
+                        "finalHp": {
+                          "minItems": 2,
+                          "maxItems": 2,
+                          "type": "array",
+                          "items": {
+                            "type": "integer"
+                          }
+                        },
+                        "rounds": {
+                          "type": "integer"
+                        }
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "examples": [
+          {
+            "name": "ejemplo",
+            "payload": {
+              "v": 1,
+              "type": "snapshot",
+              "view": {
+                "matchId": "6f1c2f5e-3a54-4a7e-9b1d-2c8f0a4e7d11",
+                "status": "in_progress",
+                "seq": 3,
+                "version": 3,
+                "arenaId": "frostlands",
+                "windAccel": -40,
+                "maxRounds": 12,
+                "round": 1,
+                "physicsVersion": 1,
+                "turn": {
+                  "playerId": "c4e8a1d2-7b36-49f0-a5c3-1f2e6d8b0a33",
+                  "round": 1,
+                  "deadlineMs": 1793906164944
+                },
+                "you": {
+                  "playerId": "c4e8a1d2-7b36-49f0-a5c3-1f2e6d8b0a33",
+                  "hp": 100,
+                  "position": {
+                    "x": 450,
+                    "y": 0
+                  },
+                  "facing": 1,
+                  "connected": true
+                },
+                "opponent": {
+                  "playerId": "0b9a7c3e-52d1-4f60-8a2b-7e1d3c5f9a22",
+                  "hp": 78,
+                  "position": {
+                    "x": 1550,
+                    "y": 0
+                  },
+                  "facing": -1,
+                  "connected": true
+                },
+                "result": null
+              }
+            }
+          }
+        ]
+      },
+      "event": {
+        "name": "event",
+        "contentType": "application/json",
+        "description": "Evento confirmado en PostgreSQL. seq crece sin huecos por partida; el orden de llegada frente al ack no está garantizado.",
+        "payload": {
+          "additionalProperties": false,
+          "type": "object",
+          "required": [
+            "v",
+            "type",
+            "matchId",
+            "event"
+          ],
+          "properties": {
+            "v": {
+              "const": 1,
+              "type": "number"
+            },
+            "type": {
+              "const": "event",
+              "type": "string"
+            },
+            "matchId": {
+              "description": "UUID",
+              "type": "string"
+            },
+            "event": {
+              "additionalProperties": false,
+              "type": "object",
+              "required": [
+                "seq",
+                "atMs",
+                "payload"
+              ],
+              "properties": {
+                "seq": {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "atMs": {
+                  "type": "number"
+                },
+                "payload": {
+                  "anyOf": [
+                    {
+                      "additionalProperties": false,
+                      "type": "object",
+                      "required": [
+                        "type",
+                        "view"
+                      ],
+                      "properties": {
+                        "type": {
+                          "const": "match_started",
+                          "type": "string"
+                        },
+                        "view": {
+                          "additionalProperties": false,
+                          "type": "object",
+                          "required": [
+                            "matchId",
+                            "status",
+                            "seq",
+                            "version",
+                            "arenaId",
+                            "windAccel",
+                            "maxRounds",
+                            "round",
+                            "physicsVersion",
+                            "turn",
+                            "you",
+                            "opponent",
+                            "result"
+                          ],
+                          "properties": {
+                            "matchId": {
+                              "description": "UUID",
+                              "type": "string"
+                            },
+                            "status": {
+                              "anyOf": [
+                                {
+                                  "const": "in_progress",
+                                  "type": "string"
+                                },
+                                {
+                                  "const": "finished",
+                                  "type": "string"
+                                }
+                              ]
+                            },
+                            "seq": {
+                              "type": "integer"
+                            },
+                            "version": {
+                              "type": "integer"
+                            },
+                            "arenaId": {
+                              "anyOf": [
+                                {
+                                  "const": "whispering_forest",
+                                  "type": "string"
+                                },
+                                {
+                                  "const": "frostlands",
+                                  "type": "string"
+                                },
+                                {
+                                  "const": "ashen_desert",
+                                  "type": "string"
+                                }
+                              ]
+                            },
+                            "windAccel": {
+                              "type": "number"
+                            },
+                            "maxRounds": {
+                              "type": "integer"
+                            },
+                            "round": {
+                              "type": "integer"
+                            },
+                            "physicsVersion": {
+                              "type": "integer"
+                            },
+                            "turn": {
+                              "anyOf": [
+                                {
+                                  "additionalProperties": false,
+                                  "type": "object",
+                                  "required": [
+                                    "playerId",
+                                    "round",
+                                    "deadlineMs"
+                                  ],
+                                  "properties": {
+                                    "playerId": {
+                                      "description": "UUID",
+                                      "type": "string"
+                                    },
+                                    "round": {
+                                      "type": "integer"
+                                    },
+                                    "deadlineMs": {
+                                      "type": "number"
+                                    }
+                                  }
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "you": {
+                              "additionalProperties": false,
+                              "type": "object",
+                              "required": [
+                                "playerId",
+                                "hp",
+                                "position",
+                                "facing",
+                                "connected"
+                              ],
+                              "properties": {
+                                "playerId": {
+                                  "description": "UUID",
+                                  "type": "string"
+                                },
+                                "hp": {
+                                  "type": "integer"
+                                },
+                                "position": {
+                                  "additionalProperties": false,
+                                  "type": "object",
+                                  "required": [
+                                    "x",
+                                    "y"
+                                  ],
+                                  "properties": {
+                                    "x": {
+                                      "type": "number"
+                                    },
+                                    "y": {
+                                      "type": "number"
+                                    }
+                                  }
+                                },
+                                "facing": {
+                                  "anyOf": [
+                                    {
+                                      "const": 1,
+                                      "type": "number"
+                                    },
+                                    {
+                                      "const": -1,
+                                      "type": "number"
+                                    }
+                                  ]
+                                },
+                                "connected": {
+                                  "type": "boolean"
+                                }
+                              }
+                            },
+                            "opponent": {
+                              "additionalProperties": false,
+                              "type": "object",
+                              "required": [
+                                "playerId",
+                                "hp",
+                                "position",
+                                "facing",
+                                "connected"
+                              ],
+                              "properties": {
+                                "playerId": {
+                                  "description": "UUID",
+                                  "type": "string"
+                                },
+                                "hp": {
+                                  "type": "integer"
+                                },
+                                "position": {
+                                  "additionalProperties": false,
+                                  "type": "object",
+                                  "required": [
+                                    "x",
+                                    "y"
+                                  ],
+                                  "properties": {
+                                    "x": {
+                                      "type": "number"
+                                    },
+                                    "y": {
+                                      "type": "number"
+                                    }
+                                  }
+                                },
+                                "facing": {
+                                  "anyOf": [
+                                    {
+                                      "const": 1,
+                                      "type": "number"
+                                    },
+                                    {
+                                      "const": -1,
+                                      "type": "number"
+                                    }
+                                  ]
+                                },
+                                "connected": {
+                                  "type": "boolean"
+                                }
+                              }
+                            },
+                            "result": {
+                              "anyOf": [
+                                {
+                                  "additionalProperties": false,
+                                  "type": "object",
+                                  "required": [
+                                    "winnerId",
+                                    "loserId",
+                                    "reason",
+                                    "finalHp",
+                                    "rounds"
+                                  ],
+                                  "properties": {
+                                    "winnerId": {
+                                      "anyOf": [
+                                        {
+                                          "description": "UUID",
+                                          "type": "string"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "loserId": {
+                                      "anyOf": [
+                                        {
+                                          "description": "UUID",
+                                          "type": "string"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "reason": {
+                                      "anyOf": [
+                                        {
+                                          "const": "knockout",
+                                          "type": "string"
+                                        },
+                                        {
+                                          "const": "round_limit",
+                                          "type": "string"
+                                        },
+                                        {
+                                          "const": "timeout_forfeit",
+                                          "type": "string"
+                                        },
+                                        {
+                                          "const": "disconnect_forfeit",
+                                          "type": "string"
+                                        },
+                                        {
+                                          "const": "both_abandoned",
+                                          "type": "string"
+                                        },
+                                        {
+                                          "const": "admin_terminated",
+                                          "type": "string"
+                                        }
+                                      ]
+                                    },
+                                    "finalHp": {
+                                      "minItems": 2,
+                                      "maxItems": 2,
+                                      "type": "array",
+                                      "items": {
+                                        "type": "integer"
+                                      }
+                                    },
+                                    "rounds": {
+                                      "type": "integer"
+                                    }
+                                  }
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "additionalProperties": false,
+                      "type": "object",
+                      "required": [
+                        "type",
+                        "shooterId",
+                        "weaponId",
+                        "impactKind",
+                        "impact",
+                        "flightMs",
+                        "path",
+                        "damage",
+                        "targetHpAfter"
+                      ],
+                      "properties": {
+                        "type": {
+                          "const": "shot_resolved",
+                          "type": "string"
+                        },
+                        "shooterId": {
+                          "description": "UUID",
+                          "type": "string"
+                        },
+                        "weaponId": {
+                          "anyOf": [
+                            {
+                              "const": "bow",
+                              "type": "string"
+                            },
+                            {
+                              "const": "spear",
+                              "type": "string"
+                            },
+                            {
+                              "const": "axe",
+                              "type": "string"
+                            },
+                            {
+                              "const": "dagger",
+                              "type": "string"
+                            }
+                          ]
+                        },
+                        "impactKind": {
+                          "anyOf": [
+                            {
+                              "const": "player",
+                              "type": "string"
+                            },
+                            {
+                              "const": "obstacle",
+                              "type": "string"
+                            },
+                            {
+                              "const": "ground",
+                              "type": "string"
+                            },
+                            {
+                              "const": "out_of_bounds",
+                              "type": "string"
+                            }
+                          ]
+                        },
+                        "impact": {
+                          "additionalProperties": false,
+                          "type": "object",
+                          "required": [
+                            "x",
+                            "y"
+                          ],
+                          "properties": {
+                            "x": {
+                              "type": "number"
+                            },
+                            "y": {
+                              "type": "number"
+                            }
+                          }
+                        },
+                        "flightMs": {
+                          "type": "integer"
+                        },
+                        "path": {
+                          "type": "array",
+                          "items": {
+                            "additionalProperties": false,
+                            "type": "object",
+                            "required": [
+                              "x",
+                              "y"
+                            ],
+                            "properties": {
+                              "x": {
+                                "type": "number"
+                              },
+                              "y": {
+                                "type": "number"
+                              }
+                            }
+                          }
+                        },
+                        "damage": {
+                          "type": "integer"
+                        },
+                        "targetHpAfter": {
+                          "type": "integer"
+                        },
+                        "own": {
+                          "additionalProperties": false,
+                          "description": "Solo lo recibe quien disparó",
+                          "type": "object",
+                          "required": [
+                            "actionId",
+                            "angleDeg",
+                            "power"
+                          ],
+                          "properties": {
+                            "actionId": {
+                              "description": "UUID",
+                              "type": "string"
+                            },
+                            "angleDeg": {
+                              "type": "number"
+                            },
+                            "power": {
+                              "type": "number"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "additionalProperties": false,
+                      "type": "object",
+                      "required": [
+                        "type",
+                        "playerId"
+                      ],
+                      "properties": {
+                        "type": {
+                          "const": "turn_timed_out",
+                          "type": "string"
+                        },
+                        "playerId": {
+                          "description": "UUID",
+                          "type": "string"
+                        }
+                      }
+                    },
+                    {
+                      "additionalProperties": false,
+                      "type": "object",
+                      "required": [
+                        "type",
+                        "playerId",
+                        "round",
+                        "deadlineMs"
+                      ],
+                      "properties": {
+                        "type": {
+                          "const": "turn_started",
+                          "type": "string"
+                        },
+                        "playerId": {
+                          "description": "UUID",
+                          "type": "string"
+                        },
+                        "round": {
+                          "type": "integer"
+                        },
+                        "deadlineMs": {
+                          "type": "number"
+                        }
+                      }
+                    },
+                    {
+                      "additionalProperties": false,
+                      "type": "object",
+                      "required": [
+                        "type",
+                        "playerId",
+                        "graceDeadlineMs"
+                      ],
+                      "properties": {
+                        "type": {
+                          "const": "player_disconnected",
+                          "type": "string"
+                        },
+                        "playerId": {
+                          "description": "UUID",
+                          "type": "string"
+                        },
+                        "graceDeadlineMs": {
+                          "type": "number"
+                        }
+                      }
+                    },
+                    {
+                      "additionalProperties": false,
+                      "type": "object",
+                      "required": [
+                        "type",
+                        "playerId"
+                      ],
+                      "properties": {
+                        "type": {
+                          "const": "player_reconnected",
+                          "type": "string"
+                        },
+                        "playerId": {
+                          "description": "UUID",
+                          "type": "string"
+                        }
+                      }
+                    },
+                    {
+                      "additionalProperties": false,
+                      "type": "object",
+                      "required": [
+                        "type",
+                        "result"
+                      ],
+                      "properties": {
+                        "type": {
+                          "const": "match_finished",
+                          "type": "string"
+                        },
+                        "result": {
+                          "additionalProperties": false,
+                          "type": "object",
+                          "required": [
+                            "winnerId",
+                            "loserId",
+                            "reason",
+                            "finalHp",
+                            "rounds"
+                          ],
+                          "properties": {
+                            "winnerId": {
+                              "anyOf": [
+                                {
+                                  "description": "UUID",
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "loserId": {
+                              "anyOf": [
+                                {
+                                  "description": "UUID",
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "reason": {
+                              "anyOf": [
+                                {
+                                  "const": "knockout",
+                                  "type": "string"
+                                },
+                                {
+                                  "const": "round_limit",
+                                  "type": "string"
+                                },
+                                {
+                                  "const": "timeout_forfeit",
+                                  "type": "string"
+                                },
+                                {
+                                  "const": "disconnect_forfeit",
+                                  "type": "string"
+                                },
+                                {
+                                  "const": "both_abandoned",
+                                  "type": "string"
+                                },
+                                {
+                                  "const": "admin_terminated",
+                                  "type": "string"
+                                }
+                              ]
+                            },
+                            "finalHp": {
+                              "minItems": 2,
+                              "maxItems": 2,
+                              "type": "array",
+                              "items": {
+                                "type": "integer"
+                              }
+                            },
+                            "rounds": {
+                              "type": "integer"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "examples": [
+          {
+            "name": "ejemplo",
+            "payload": {
+              "v": 1,
+              "type": "event",
+              "matchId": "6f1c2f5e-3a54-4a7e-9b1d-2c8f0a4e7d11",
+              "event": {
+                "seq": 4,
+                "atMs": 1793906140000,
+                "payload": {
+                  "type": "turn_started",
+                  "playerId": "c4e8a1d2-7b36-49f0-a5c3-1f2e6d8b0a33",
+                  "round": 2,
+                  "deadlineMs": 1793906170000
+                }
+              }
+            }
+          }
+        ]
+      },
+      "ack": {
+        "name": "ack",
+        "contentType": "application/json",
+        "description": "La jugada quedó confirmada, o ya lo estaba si duplicate es true.",
+        "payload": {
+          "additionalProperties": false,
+          "type": "object",
+          "required": [
+            "v",
+            "type",
+            "actionId",
+            "seq",
+            "duplicate"
+          ],
+          "properties": {
+            "v": {
+              "const": 1,
+              "type": "number"
+            },
+            "type": {
+              "const": "ack",
+              "type": "string"
+            },
+            "actionId": {
+              "description": "UUID",
+              "type": "string"
+            },
+            "seq": {
+              "type": "integer"
+            },
+            "duplicate": {
+              "type": "boolean"
+            }
+          }
+        },
+        "examples": [
+          {
+            "name": "ejemplo",
+            "payload": {
+              "v": 1,
+              "type": "ack",
+              "actionId": "0b9a7c3e-52d1-4f60-8a2b-7e1d3c5f9a22",
+              "seq": 4,
+              "duplicate": false
+            }
+          }
+        ]
+      },
+      "error": {
+        "name": "error",
+        "contentType": "application/json",
+        "description": "Rechazo tipado que no cierra la conexión. Códigos: INVALID_MESSAGE, RATE_LIMITED, INTERNAL_ERROR, MATCH_NOT_FOUND, MATCH_FINISHED, NOT_YOUR_TURN, STALE_VERSION, TURN_EXPIRED, INVALID_WEAPON, INVALID_ANGLE, INVALID_POWER, ACTION_ID_CONFLICT.",
+        "payload": {
+          "additionalProperties": false,
+          "type": "object",
+          "required": [
+            "v",
+            "type",
+            "code"
+          ],
+          "properties": {
+            "v": {
+              "const": 1,
+              "type": "number"
+            },
+            "type": {
+              "const": "error",
+              "type": "string"
+            },
+            "code": {
+              "anyOf": [
+                {
+                  "const": "INVALID_MESSAGE",
+                  "type": "string"
+                },
+                {
+                  "const": "RATE_LIMITED",
+                  "type": "string"
+                },
+                {
+                  "const": "INTERNAL_ERROR",
+                  "type": "string"
+                },
+                {
+                  "const": "MATCH_NOT_FOUND",
+                  "type": "string"
+                },
+                {
+                  "const": "MATCH_FINISHED",
+                  "type": "string"
+                },
+                {
+                  "const": "NOT_YOUR_TURN",
+                  "type": "string"
+                },
+                {
+                  "const": "STALE_VERSION",
+                  "type": "string"
+                },
+                {
+                  "const": "TURN_EXPIRED",
+                  "type": "string"
+                },
+                {
+                  "const": "INVALID_WEAPON",
+                  "type": "string"
+                },
+                {
+                  "const": "INVALID_ANGLE",
+                  "type": "string"
+                },
+                {
+                  "const": "INVALID_POWER",
+                  "type": "string"
+                },
+                {
+                  "const": "ACTION_ID_CONFLICT",
+                  "type": "string"
+                }
+              ]
+            },
+            "actionId": {
+              "description": "UUID",
+              "type": "string"
+            }
+          }
+        },
+        "examples": [
+          {
+            "name": "ejemplo",
+            "payload": {
+              "v": 1,
+              "type": "error",
+              "code": "NOT_YOUR_TURN",
+              "actionId": "0b9a7c3e-52d1-4f60-8a2b-7e1d3c5f9a22"
+            }
+          }
+        ]
+      }
+    },
+    "securitySchemes": {
+      "ticket": {
+        "type": "httpApiKey",
+        "name": "ticket",
+        "in": "query",
+        "description": "Ticket de un solo uso, válido 30 s"
+      }
+    }
+  },
+  "x-close-codes": [
+    {
+      "code": 1001,
+      "meaning": "El servidor se apaga; reconectar con un ticket nuevo"
+    },
+    {
+      "code": 1009,
+      "meaning": "Mensaje mayor a 4096 bytes"
+    },
+    {
+      "code": 4003,
+      "meaning": "Usuario suspendido"
+    },
+    {
+      "code": 4008,
+      "meaning": "Demasiadas conexiones de este usuario"
+    },
+    {
+      "code": 4009,
+      "meaning": "No respondió al ping del heartbeat"
+    },
+    {
+      "code": 4029,
+      "meaning": "Abuso sostenido del límite de mensajes"
+    }
+  ]
+}

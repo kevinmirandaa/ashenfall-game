@@ -1,8 +1,11 @@
 import rateLimit from '@fastify/rate-limit';
+import swagger from '@fastify/swagger';
+import swaggerUi from '@fastify/swagger-ui';
 import { initialState } from '@ashenfall/domain';
 import Fastify, { type FastifyInstance } from 'fastify';
 import type { Redis } from 'ioredis';
 import type pg from 'pg';
+import { contractSchema, REST_CONTRACT } from './contracts/rest.js';
 import { registerAdminRoutes } from './admin/admin.js';
 import { AuthService, type AuthConfig } from './auth/auth-service.js';
 import { registerAuthRoutes } from './auth/routes.js';
@@ -93,8 +96,29 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     reply.code(404).type(PROBLEM_JSON).send(problemBody(404, 'NOT_FOUND', 'Recurso no encontrado', request.url)),
   );
 
-  // No toca dependencias, así que puede quedar fuera del límite de tasa.
-  app.get('/health/live', () => ({ status: 'ok' }));
+  // Toda ruta debe tener contrato: si falta, el servidor no arranca.
+  app.addHook('onRoute', (route) => {
+    if (route.method === 'HEAD' || route.url.startsWith('/docs')) return;
+    const methods = Array.isArray(route.method) ? route.method : [route.method];
+    const contract = REST_CONTRACT[`${String(methods[0])} ${route.url}`];
+    if (contract === undefined) throw new Error(`Ruta sin contrato: ${String(methods[0])} ${route.url}`);
+    route.schema = { ...route.schema, ...contractSchema(contract) };
+  });
+  // El contrato documenta las respuestas; no debe recortarlas al serializar.
+  app.setSerializerCompiler(() => (data) => JSON.stringify(data));
+
+  void app.register(swagger, {
+    openapi: {
+      openapi: '3.1.0',
+      info: {
+        title: 'ASHENFALL API',
+        version: '1.0.0',
+        description: 'REST para todo lo que no es tiempo real. Errores en RFC 9457. El tiempo real se documenta en contracts/asyncapi.json.',
+      },
+      components: { securitySchemes: { bearerAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' } } },
+    },
+  });
+  void app.register(swaggerUi, { routePrefix: '/docs' });
 
   const limits = dependencies.rateLimit;
   void app.register(async (api) => {
@@ -108,6 +132,9 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       ...(limits.redis === undefined ? {} : { redis: limits.redis, skipOnError: true }),
       errorResponseBuilder: () => new ProblemError(429, 'RATE_LIMITED', 'Demasiadas peticiones'),
     });
+    // No toca dependencias, así que puede quedar fuera del límite de tasa.
+    api.get('/health/live', { config: { rateLimit: false } }, () => ({ status: 'ok' }));
+
     // Consulta la base de datos: lleva límite propio, holgado para las sondas de la plataforma.
     api.get('/health/ready', { config: { rateLimit: { max: READINESS_PER_MINUTE, timeWindow: '1 minute' } } }, async (request, reply) => {
       try {

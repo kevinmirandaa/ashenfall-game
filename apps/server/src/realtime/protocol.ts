@@ -35,6 +35,9 @@ const Sync = Type.Object(
   { additionalProperties: false },
 );
 
+/** Publicados tal cual en el contrato AsyncAPI. */
+export const CLIENT_MESSAGES = { shoot: Shoot, sync: Sync } as const;
+
 const ClientMessageSchema = Type.Union([Shoot, Sync]);
 export type ClientMessage = Static<typeof ClientMessageSchema>;
 
