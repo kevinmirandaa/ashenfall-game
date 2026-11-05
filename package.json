@@ -1,0 +1,27 @@
+{
+  "name": "ashenfall",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Servidor autoritativo y cliente de ASHENFALL, duelo 1v1 por turnos de proyectiles.",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "tsc -b packages/domain",
+    "typecheck": "tsc -b packages/domain --pretty",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^3.2.7",
+    "eslint": "^9.39.5",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.72.1",
+    "vitest": "^3.2.7"
+  }
+}
