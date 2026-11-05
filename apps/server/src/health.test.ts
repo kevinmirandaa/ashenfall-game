@@ -17,12 +17,15 @@ function appWith(ping: () => Promise<string>) {
 }
 
 describe('sondas', () => {
-  it('live y ready responden 200, y no consumen el límite de tasa', async () => {
+  it('live y ready responden 200 sin depender del límite global, y ready tiene su propio límite', async () => {
     const app = appWith(() => Promise.resolve('PONG'));
     for (let i = 0; i < 3; i += 1) {
       expect((await app.inject({ method: 'GET', url: '/health/live' })).statusCode).toBe(200);
       expect((await app.inject({ method: 'GET', url: '/health/ready' })).statusCode).toBe(200);
     }
+    const codes: number[] = [];
+    for (let i = 0; i < 120; i += 1) codes.push((await app.inject({ method: 'GET', url: '/health/ready' })).statusCode);
+    expect(codes).toContain(429);
     await app.close();
   });
 
