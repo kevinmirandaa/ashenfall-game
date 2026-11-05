@@ -1,4 +1,6 @@
+import rateLimit from '@fastify/rate-limit';
 import Fastify, { type FastifyInstance } from 'fastify';
+import type { Redis } from 'ioredis';
 import type pg from 'pg';
 import { AuthService, type AuthConfig } from './auth/auth-service.js';
 import { registerAuthRoutes } from './auth/routes.js';
@@ -8,12 +10,28 @@ export interface AppDependencies {
   readonly pool: pg.Pool;
   readonly auth: AuthConfig;
   readonly logger?: boolean;
+  readonly rateLimit: RateLimitConfig;
+  /** Activar detrás del proxy de Azure: sin esto todos los clientes comparten la IP del proxy. */
+  readonly trustProxy?: boolean;
+}
+
+export interface RateLimitConfig {
+  readonly globalPerMinute: number;
+  readonly authPerMinute: number;
+  readonly loginPerAccountPerMinute: number;
+  /** Con Redis el contador es común a todas las réplicas. */
+  readonly redis?: Redis;
+  readonly namespace?: string;
 }
 
 const PROBLEM_JSON = 'application/problem+json';
 
 export function buildApp(dependencies: AppDependencies): FastifyInstance {
-  const app = Fastify({ logger: dependencies.logger ?? false, bodyLimit: 16 * 1024 });
+  const app = Fastify({
+    logger: dependencies.logger ?? false,
+    bodyLimit: 16 * 1024,
+    trustProxy: dependencies.trustProxy ?? false,
+  });
 
   app.setErrorHandler((error: unknown, request, reply) => {
     if (error instanceof ProblemError) {
@@ -46,6 +64,19 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     reply.code(404).type(PROBLEM_JSON).send(problemBody(404, 'NOT_FOUND', 'Recurso no encontrado', request.url)),
   );
 
-  registerAuthRoutes(app, new AuthService(dependencies.pool, dependencies.auth));
+  const limits = dependencies.rateLimit;
+  void app.register(async (api) => {
+    await api.register(rateLimit, {
+      global: true,
+      max: limits.globalPerMinute,
+      timeWindow: '1 minute',
+      // En preHandler ya hay cuerpo validado, lo que permite limitar por cuenta antes de gastar CPU en Argon2.
+      hook: 'preHandler',
+      nameSpace: limits.namespace ?? 'ashenfall-rl-',
+      ...(limits.redis === undefined ? {} : { redis: limits.redis, skipOnError: true }),
+      errorResponseBuilder: () => new ProblemError(429, 'RATE_LIMITED', 'Demasiadas peticiones'),
+    });
+    registerAuthRoutes(api, new AuthService(dependencies.pool, dependencies.auth), limits);
+  });
   return app;
 }

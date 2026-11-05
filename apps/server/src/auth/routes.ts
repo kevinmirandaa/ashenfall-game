@@ -1,6 +1,8 @@
 import { Type, type Static } from '@sinclair/typebox';
 import type { FastifyInstance } from 'fastify';
+import type { RateLimitConfig } from '../app.js';
 import type { AuthService } from './auth-service.js';
+import { LoginThrottle } from './login-throttle.js';
 
 const Credentials = Type.Object(
   {
@@ -20,24 +22,42 @@ const Register = Type.Object(
 );
 const Refresh = Type.Object({ refreshToken: Type.String({ minLength: 1, maxLength: 128 }) }, { additionalProperties: false });
 
-export function registerAuthRoutes(app: FastifyInstance, auth: AuthService): void {
-  app.post<{ Body: Static<typeof Register> }>('/v1/auth/register', { schema: { body: Register } }, async (request, reply) => {
-    const { email, password, displayName } = request.body;
-    return reply.code(201).send(await auth.register(email, password, displayName));
-  });
+export function registerAuthRoutes(app: FastifyInstance, auth: AuthService, limits: RateLimitConfig): void {
+  // Límite por IP, más estricto que el global, para todo lo que gasta Argon2 o toca sesiones.
+  const authLimit = { rateLimit: { max: limits.authPerMinute, timeWindow: '1 minute' } };
+  // Límite por cuenta: frena la fuerza bruta distribuida entre muchas IP.
+  const throttle = new LoginThrottle(limits.loginPerAccountPerMinute, limits.redis, limits.namespace ?? 'ashenfall-rl-');
 
-  app.post<{ Body: Static<typeof Credentials> }>('/v1/auth/login', { schema: { body: Credentials } }, (request) =>
-    auth.login(request.body.email, request.body.password),
+  app.post<{ Body: Static<typeof Register> }>(
+    '/v1/auth/register',
+    { schema: { body: Register }, config: authLimit },
+    async (request, reply) => {
+      const { email, password, displayName } = request.body;
+      return reply.code(201).send(await auth.register(email, password, displayName));
+    },
   );
 
-  app.post<{ Body: Static<typeof Refresh> }>('/v1/auth/refresh', { schema: { body: Refresh } }, (request) =>
+  app.post<{ Body: Static<typeof Credentials> }>(
+    '/v1/auth/login',
+    { schema: { body: Credentials }, config: authLimit },
+    async (request) => {
+      await throttle.check(request.body.email);
+      return auth.login(request.body.email, request.body.password);
+    },
+  );
+
+  app.post<{ Body: Static<typeof Refresh> }>('/v1/auth/refresh', { schema: { body: Refresh }, config: authLimit }, (request) =>
     auth.refresh(request.body.refreshToken),
   );
 
-  app.post<{ Body: Static<typeof Refresh> }>('/v1/auth/logout', { schema: { body: Refresh } }, async (request, reply) => {
-    await auth.logout(request.body.refreshToken);
-    return reply.code(204).send();
-  });
+  app.post<{ Body: Static<typeof Refresh> }>(
+    '/v1/auth/logout',
+    { schema: { body: Refresh }, config: authLimit },
+    async (request, reply) => {
+      await auth.logout(request.body.refreshToken);
+      return reply.code(204).send();
+    },
+  );
 
   app.get('/v1/me', async (request) => {
     const principal = await auth.authenticate(request.headers.authorization);
