@@ -1,4 +1,5 @@
 import { decide, evolve, nextDeadline, replay, type Decision, type MatchCommand, type MatchEvent, type MatchState } from '@ashenfall/domain';
+import { defaultTelemetry, type Telemetry } from '../telemetry/telemetry.js';
 import { MatchEventStore, SequenceConflictError } from './event-store.js';
 
 export class MatchNotFoundError extends Error {
@@ -34,6 +35,7 @@ export class MatchEngine {
   constructor(
     private readonly store: MatchEventStore,
     private readonly publish: EventPublisher,
+    private readonly telemetry: Telemetry = defaultTelemetry(),
   ) {}
 
   async state(matchId: string): Promise<MatchState> {
@@ -45,7 +47,13 @@ export class MatchEngine {
   execute(matchId: string, command: MatchCommand): Promise<Decision> {
     const previous = this.tails.get(matchId) ?? Promise.resolve();
     // Un fallo en una jugada no bloquea la fila de esa partida ni afecta a las demás.
-    const run = previous.catch(() => undefined).then(() => this.decideAndPersist(matchId, command));
+    const run = previous.catch(() => undefined).then(() =>
+      this.telemetry.inSpan(
+        `match.${command.type}`,
+        { 'ashenfall.match_id': matchId, ...('playerId' in command ? { 'ashenfall.player_id': command.playerId } : {}) },
+        () => this.decideAndPersist(matchId, command),
+      ),
+    );
     this.tails.set(matchId, run);
     void run
       .catch(() => undefined)
