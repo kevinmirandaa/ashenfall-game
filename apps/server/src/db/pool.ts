@@ -39,8 +39,14 @@ export function createPool(options: PoolOptions): pg.Pool {
   if (managedIdentityClientId === undefined && tokenSource === undefined) return new pg.Pool(base);
 
   const credential = tokenSource ?? new ManagedIdentityCredential({ clientId: managedIdentityClientId ?? '' });
+  // Sin connectionString: pg la procesaría después y sobrescribiría con vacío la función de contraseña.
+  const url = new URL(connectionString);
   return new pg.Pool({
-    ...base,
+    host: url.hostname,
+    port: Number(url.port || 5432),
+    database: url.pathname.slice(1),
+    user: decodeURIComponent(url.username),
+    max: base.max,
     ssl: { rejectUnauthorized: true },
     password: async () => {
       const token = await credential.getToken(POSTGRES_TOKEN_SCOPE);
