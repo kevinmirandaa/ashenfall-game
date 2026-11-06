@@ -11,7 +11,9 @@ No necesitas instalar `az`. Tú preparas la suscripción y la identidad de GitHu
 Suscripción, **Proveedores de recursos**. Busca cada uno y pulsa **Registrar** (esperar a "Registrado"):
 `Microsoft.App`, `Microsoft.DBforPostgreSQL`, `Microsoft.KeyVault`, `Microsoft.ContainerRegistry`, `Microsoft.OperationalInsights`, `Microsoft.Insights`, `Microsoft.Network`. Añade `Microsoft.ManagedIdentity` y `Microsoft.Authorization` si no figuran como registrados.
 
-## 3. App Registration para GitHub (OIDC, sin secretos)
+## 3. Identidad para GitHub (OIDC, sin secretos)
+Si no tienes acceso a Entra ID, como en una cuenta de estudiante, crea una **identidad administrada asignada por el usuario** `ashenfall-github` en el grupo `rg-ashenfall-identity`, con credenciales federadas para los entornos `dev` y `prod`, y usa su Client ID. Es el método en uso. En el rol RBAC, elige la opción que excluye roles privilegiados. Alternativa con App Registration:
+
 1. **Microsoft Entra ID**, **Registros de aplicaciones**, **Nuevo registro**. Nombre `ashenfall-github`, un solo inquilino, sin URI de redirección.
 2. En el registro: **Certificados y secretos**, **Credenciales federadas**, **Agregar credencial**, escenario **GitHub Actions**. Crea dos:
    - Organización `kevinmirandaa`, repositorio `ashenfall-game`, entidad **Entorno**, nombre `dev`.
@@ -41,7 +43,7 @@ Se espera `dev` (sin reglas) y `prod` con revisores obligatorios (kevinmirandaa)
 Confirmación de que los pasos 2 a 6 están hechos, la región elegida y, tras ejecutar `Deploy`, el resultado de los jobs (o el error exacto). No me envíes secretos: no hay ninguno. Los tres identificadores son datos de configuración, no credenciales.
 
 ## 8. Desplegar
-Actions, **Deploy**, **Run workflow** (o simplemente fusiona en `main`: tras un CI verde corre solo). `dev` se despliega solo; `prod` espera tu aprobación. La primera ejecución de cada ambiente tarda de 15 a 25 minutos (PostgreSQL y el entorno de Container Apps son lentos). Si PostgreSQL de dev está detenido, enciéndelo antes (paso 9): un despliegue sobre un servidor parado puede fallar.
+Actions, **Deploy**, **Run workflow**. Tras un merge a `main` solo despliega si la variable `AUTO_DEPLOY` vale `true`; está apagada para no gastar crédito. `dev` se despliega solo; `prod` espera tu aprobación. La primera ejecución de cada ambiente tarda de 15 a 25 minutos (PostgreSQL y el entorno de Container Apps son lentos). Si PostgreSQL de dev está detenido, enciéndelo antes (paso 9): un despliegue sobre un servidor parado puede fallar.
 
 ## 9. Apagar dev
 - **Servidor**: ya escala a cero (`minReplicas 0`). **Advertencia, solo dev**: sin réplica el barrido de plazos se detiene, así que las partidas en curso no avanzan por timeout hasta que otra petición arranque una réplica. En prod hay siempre al menos una.

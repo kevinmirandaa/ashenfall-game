@@ -18,7 +18,8 @@ concurrency:
 
 jobs:
   dev:
-    if: vars.AZURE_CLIENT_ID != '' && (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success')
+    # Para cuidar el crédito, tras un merge solo despliega con AUTO_DEPLOY=true; a mano, siempre.
+    if: vars.AZURE_CLIENT_ID != '' && (github.event_name == 'workflow_dispatch' || (vars.AUTO_DEPLOY == 'true' && github.event.workflow_run.conclusion == 'success'))
     runs-on: ubuntu-latest
     timeout-minutes: 45
     environment: dev
