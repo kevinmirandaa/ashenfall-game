@@ -8,26 +8,11 @@
   </head>
   <body>
     <div id="game"></div>
-    <div id="hud" hidden>
-      <div class="bar"><span id="you-name">Tú</span><div class="hp"><i id="you-hp"></i></div><b id="you-hp-text"></b></div>
-      <div id="center"><b id="turn"></b><span id="timer"></span><span id="wind"></span><span id="round"></span></div>
-      <div class="bar right"><span>Rival <em id="rival-status"></em></span><div class="hp"><i id="rival-hp"></i></div><b id="rival-hp-text"></b></div>
+    <div id="ui">
+      <div id="screen"></div>
+      <div id="modal" hidden></div>
+      <p id="toast" role="status"></p>
     </div>
-    <div id="controls" hidden>
-      <label>Arma
-        <select id="weapon">
-          <option value="bow">Arco</option>
-          <option value="spear">Lanza</option>
-          <option value="axe">Hacha</option>
-          <option value="dagger">Daga</option>
-        </select>
-      </label>
-      <span id="angle-text"></span>
-      <label>Potencia <input id="power" type="range" min="10" max="100" value="60" /> <span id="power-text"></span></label>
-      <button id="fire">Disparar (Espacio)</button>
-    </div>
-    <main id="panel"></main>
-    <p id="toast" role="status"></p>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

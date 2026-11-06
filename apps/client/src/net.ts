@@ -87,6 +87,13 @@ export class GameSocket {
     private readonly onStatus: (connected: boolean) => void,
   ) {}
 
+  /** Volver al pueblo no debe abrir otra conexión: el servidor limita las conexiones por usuario. */
+  async ensureConnected(): Promise<void> {
+    const state = this.socket?.readyState;
+    if (state === WebSocket.OPEN || state === WebSocket.CONNECTING) return;
+    await this.connect();
+  }
+
   async connect(): Promise<void> {
     this.closedByUser = false;
     const { ticket } = await this.session.call<{ ticket: string }>('POST', '/v1/ws-ticket');
