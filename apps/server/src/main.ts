@@ -17,6 +17,7 @@ const app = buildApp({
   pool,
   logger: { level: config.logLevel },
   allowedOrigins: config.allowedOrigins,
+  clientDir: process.env['CLIENT_DIR'],
   trustProxy: config.trustProxy,
   auth: { jwtSecret: config.jwtSecret, accessTokenTtlSeconds: 900, refreshTokenTtlSeconds: 30 * 24 * 3600 },
   rateLimit: { ...config.rateLimit, redis },

@@ -45,6 +45,8 @@ El próximo plazo se guarda en `matches.next_deadline_ms` y todas las réplicas 
 - Despliegue en dos pasadas (infraestructura base, imagen, app) en vez de una imagen de arranque.
 - Revisiones: en prod la nueva nace al 0 %, se prueba por su URL de revisión y luego recibe el tráfico. Se desactivan las revisiones más antiguas; la inmediatamente anterior queda activa como destino de rollback y se desactiva en el siguiente despliegue.
 
+## D13. Cliente ligero
+Phaser con renderizador Canvas y arte por código, servido por el propio servidor: sin otro servicio que pagar y sin CORS. La guía muestra solo el 30 % inicial del arco, porque la posición del rival es visible y una guía completa haría trivial apuntar. Con la pestaña oculta se omiten las animaciones para que la partida no se detenga.
+
 ## Pendientes
-- Alcance de la guía de trayectoria: con posición del rival conocida, una guía completa haría trivial apuntar. Se decide en SCRUM-41.
 - Valores de armas: son iniciales y no se han probado jugando.

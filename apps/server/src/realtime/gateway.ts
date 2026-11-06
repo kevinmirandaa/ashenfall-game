@@ -102,7 +102,7 @@ export class RealtimeGateway {
     }
     // Sin cabecera Origin no hay navegador que proteger; el ticket sigue siendo obligatorio.
     const { origin } = request.headers;
-    if (origin !== undefined && !this.options.allowedOrigins.includes(origin)) {
+    if (origin !== undefined && !this.options.allowedOrigins.includes(origin) && !isSameHost(origin, request.headers.host)) {
       this.reject(socket, '403 Forbidden');
       return;
     }
@@ -286,6 +286,15 @@ export class RealtimeGateway {
 
   private send(socket: WebSocket, message: ServerMessage): void {
     if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(message));
+  }
+}
+
+/** El cliente servido por este mismo servidor siempre puede conectarse. */
+function isSameHost(origin: string, host: string | undefined): boolean {
+  try {
+    return host !== undefined && new URL(origin).host === host;
+  } catch {
+    return false;
   }
 }
 

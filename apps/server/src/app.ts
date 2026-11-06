@@ -2,6 +2,7 @@ import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
 import swagger from '@fastify/swagger';
+import fastifyStatic from '@fastify/static';
 import swaggerUi from '@fastify/swagger-ui';
 import { initialState } from '@ashenfall/domain';
 import Fastify, { type FastifyInstance } from 'fastify';
@@ -32,6 +33,8 @@ export interface AppDependencies {
   readonly logger?: boolean | { readonly stream?: NodeJS.WritableStream; readonly level?: string };
   /** Orígenes de navegador permitidos en CORS. */
   readonly allowedOrigins?: readonly string[];
+  /** Carpeta con el cliente compilado. */
+  readonly clientDir?: string | undefined;
   readonly rateLimit: RateLimitConfig;
   /** Activar detrás del proxy de Azure: sin esto todos los clientes comparten la IP del proxy. */
   readonly trustProxy?: boolean;
@@ -102,7 +105,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
 
   // Toda ruta debe tener contrato: si falta, el servidor no arranca.
   app.addHook('onRoute', (route) => {
-    if (route.method === 'HEAD' || route.method === 'OPTIONS' || route.url.startsWith('/docs') || route.url === '*') return;
+    if (route.method === 'HEAD' || route.method === 'OPTIONS' || route.url.startsWith('/docs') || route.url === '*' || route.url === '/*') return;
     const methods = Array.isArray(route.method) ? route.method : [route.method];
     const contract = REST_CONTRACT[`${String(methods[0])} ${route.url}`];
     if (contract === undefined) throw new Error(`Ruta sin contrato: ${String(methods[0])} ${route.url}`);
@@ -118,7 +121,8 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         scriptSrc: ["'self'"],
         // Swagger UI inyecta estilos en línea en /docs; la API no sirve HTML propio.
         styleSrc: ["'self'", "'unsafe-inline'"],
-        imgSrc: ["'self'", 'data:'],
+        imgSrc: ["'self'", 'data:', 'blob:'],
+        connectSrc: ["'self'", 'ws:', 'wss:'],
       },
     },
   });
@@ -141,6 +145,10 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     },
   });
   void app.register(swaggerUi, { routePrefix: '/docs' });
+  // El cliente se sirve desde el mismo origen: sin otro servicio que pagar y sin CORS.
+  if (dependencies.clientDir !== undefined) {
+    void app.register(fastifyStatic, { root: dependencies.clientDir, decorateReply: false });
+  }
 
   const limits = dependencies.rateLimit;
   const authService = new AuthService(dependencies.pool, dependencies.auth);
