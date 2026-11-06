@@ -7,12 +7,30 @@ export interface TokenSource {
   getToken(scope: string): Promise<{ readonly token: string } | null>;
 }
 
+/** Solo datos de identificación del token, nunca el token: sirven para diagnosticar un rechazo de PostgreSQL. */
+export interface TokenClaims {
+  readonly aud?: unknown;
+  readonly tid?: unknown;
+  readonly oid?: unknown;
+  readonly appid?: unknown;
+}
+
+export function tokenClaims(token: string): TokenClaims {
+  try {
+    const { aud, tid, oid, appid } = JSON.parse(Buffer.from(token.split('.')[1] ?? '', 'base64url').toString('utf8')) as TokenClaims;
+    return { aud, tid, oid, appid };
+  } catch {
+    return {};
+  }
+}
+
 export interface PoolOptions {
   readonly connectionString: string;
   /** Con identidad administrada no hay contraseña: cada conexión nueva pide un token de Entra. */
   readonly managedIdentityClientId?: string | undefined;
   readonly tokenSource?: TokenSource;
   readonly max?: number;
+  readonly onToken?: (claims: TokenClaims) => void;
 }
 
 export function createPool(options: PoolOptions): pg.Pool {
@@ -27,6 +45,7 @@ export function createPool(options: PoolOptions): pg.Pool {
     password: async () => {
       const token = await credential.getToken(POSTGRES_TOKEN_SCOPE);
       if (token === null) throw new Error('No se obtuvo un token para PostgreSQL');
+      options.onToken?.(tokenClaims(token.token));
       return token.token;
     },
   });

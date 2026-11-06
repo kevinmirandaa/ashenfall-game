@@ -86,8 +86,18 @@ step "Despliegue de la app (revisión ${NEW_REVISION}; tráfico previo en: ${PRE
 OUT="$(deploy true "$PREVIOUS")"
 endstep
 
+diagnostics() { # Sin secretos: registros de la app, identidad y administradores de PostgreSQL.
+  echo "::group::Diagnóstico"
+  az containerapp logs show --name "$APP" --resource-group "$RG" --type console --tail 80 --format text 2>&1 | grep -E 'msg|message|rror' | tail -n 40 || true
+  az identity show --name "id-ashenfall-${ENV_NAME}" --resource-group "$RG" --query "{name:name,clientId:clientId,principalId:principalId}" --output json || true
+  PG="$(az postgres flexible-server list --resource-group "$RG" --query "[0].name" --output tsv)"
+  az postgres flexible-server show --name "$PG" --resource-group "$RG" --query "{auth:authConfig,state:state}" --output json || true
+  az postgres flexible-server microsoft-entra-admin list --server-name "$PG" --resource-group "$RG" --output json 2>&1 || az postgres flexible-server ad-admin list --server-name "$PG" --resource-group "$RG" --output json 2>&1 || true
+  echo "::endgroup::"
+}
+
 smoke() { # smoke <fqdn>: hasta ~5 min (con réplicas a cero, dev arranca en frío)
-  for attempt in $(seq 1 30); do
+  for attempt in $(seq 1 ${SMOKE_ATTEMPTS:-12}); do
     if curl -fsS --max-time 10 "https://$1/health/ready" --output /dev/null; then
       echo "Smoke test OK en https://$1/health/ready"
       return 0
@@ -104,7 +114,7 @@ if [ "$ENV_NAME" = "prod" ] && [ -n "$PREVIOUS" ] && [ "$PREVIOUS" != "$NEW_REVI
   REVISION_FQDN="$(az containerapp revision show --name "$APP" --resource-group "$RG" \
     --revision "$NEW_REVISION" --query properties.fqdn --output tsv)"
   step "Smoke test de la revisión al 0 % de tráfico"
-  smoke "$REVISION_FQDN"
+  smoke "$REVISION_FQDN" || { diagnostics; exit 1; }
   endstep
   step "Traslado de tráfico"
   az containerapp ingress traffic set --name "$APP" --resource-group "$RG" \
@@ -112,7 +122,7 @@ if [ "$ENV_NAME" = "prod" ] && [ -n "$PREVIOUS" ] && [ "$PREVIOUS" != "$NEW_REVI
   endstep
 else
   step "Smoke test"
-  smoke "$(echo "$OUT" | jq -r .serverFqdn.value)"
+  smoke "$(echo "$OUT" | jq -r .serverFqdn.value)" || { diagnostics; exit 1; }
   endstep
 fi
 
