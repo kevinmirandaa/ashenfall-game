@@ -1,3 +1,4 @@
+import pg from 'pg';
 import { describe, expect, it } from 'vitest';
 import { createPool, tokenClaims, type TokenSource } from './pool.js';
 
@@ -34,6 +35,21 @@ describe('createPool', () => {
     expect(await password()).toBe('token-1');
     expect(await password()).toBe('token-2');
     expect(scopes[0]).toBe('https://ossrdbms-aad.database.windows.net/.default');
+    await pool.end();
+  });
+
+  it('el cliente real de pg conserva la función de contraseña, el usuario, el host y TLS', async () => {
+    const pool = createPool({
+      connectionString: 'postgres://id-ashenfall-dev@psql.example:5432/ashenfall?sslmode=require',
+      tokenSource: { getToken: () => Promise.resolve({ token: 't' }) },
+    });
+    const { options } = pool as unknown as { options: pg.ClientConfig };
+    const client = new pg.Client(options) as unknown as { password: unknown; user: string; host: string; database: string; ssl: unknown };
+    expect(typeof client.password).toBe('function');
+    expect(client.user).toBe('id-ashenfall-dev');
+    expect(client.host).toBe('psql.example');
+    expect(client.database).toBe('ashenfall');
+    expect(client.ssl).toEqual({ rejectUnauthorized: true });
     await pool.end();
   });
 

@@ -1,6 +1,7 @@
 # Changelog
 
 ## Sin publicar
+- SCRUM-44: corrige la autenticación con token en PostgreSQL, que pg sobrescribía al procesar la URL.
 - SCRUM-44, SCRUM-45: corrige el ID del rol de Key Vault y añade AUTO_DEPLOY para no desplegar en cada merge.
 - SCRUM-44, SCRUM-45: Bicep del ambiente completo (red, ACR, PostgreSQL Entra, Key Vault, Redis y servidor en Container Apps), pipeline de despliegue dev/prod con revisiones y drenado, rollback y guías de configuración y costo. Sin desplegar aún.
 - SCRUM-44 (parte de código): PostgreSQL con identidad administrada y token de Entra, sin contraseña.
