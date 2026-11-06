@@ -5,6 +5,7 @@ import { toPlayerEvent, toPlayerView, type MatchErrorCode } from '@ashenfall/dom
 import type { FastifyBaseLogger } from 'fastify';
 import type pg from 'pg';
 import { WebSocket, WebSocketServer } from 'ws';
+import { defaultTelemetry, type Telemetry } from '../telemetry/telemetry.js';
 import { MatchEngine, MatchNotFoundError, type PublishedEvent } from '../matches/match-engine.js';
 import { activeMatchOf } from '../matches/start.js';
 import {
@@ -52,7 +53,9 @@ export class RealtimeGateway {
     private readonly presence: Presence,
     private readonly logger: FastifyBaseLogger,
     private readonly options: GatewayOptions,
+    private readonly telemetry: Telemetry = defaultTelemetry(),
   ) {
+    telemetry.observeConnections(() => this.connectionCount());
     this.maxConnectionsPerUser = options.maxConnectionsPerUser ?? 3;
     this.maxMessagesPerSecond = options.maxMessagesPerSecond ?? 20;
     this.server.on('upgrade', this.onUpgrade);
@@ -63,12 +66,22 @@ export class RealtimeGateway {
   /** Reparte eventos confirmados: cada jugador recibe su propia proyección. */
   deliver(matchId: string, events: readonly PublishedEvent[]): void {
     for (const { event, stateAfter } of events) {
+      let local = false;
       for (const { playerId } of stateAfter.players) {
         const playerEvent = toPlayerEvent(event, stateAfter, playerId);
         if (playerEvent === null) continue;
+        local ||= this.connections.has(playerId);
         this.sendToUser(playerId, { v: PROTOCOL_VERSION, type: 'event', matchId, event: playerEvent });
       }
+      // atMs es el instante en que llegó la jugada; solo mide la réplica que tiene a algún jugador.
+      if (local && event.payload.type === 'shot_resolved') this.telemetry.recordShotLatency(Date.now() - event.atMs);
     }
+  }
+
+  private connectionCount(): number {
+    let total = 0;
+    for (const group of this.connections.values()) total += group.size;
+    return total;
   }
 
   /** Cierra las conexiones de un usuario suspendido en esta réplica. */
@@ -141,12 +154,12 @@ export class RealtimeGateway {
       group.delete(connection);
       if (group.size === 0 && this.connections.get(userId) === group) this.connections.delete(userId);
       void this.onDisconnected(connection).catch((error: unknown) => {
-        this.logger.warn({ err: error, userId }, 'No se pudo registrar la desconexión');
+        this.logger.warn({ err: error, playerId: userId }, 'No se pudo registrar la desconexión');
       });
     });
     // Un error de socket afecta solo a esa conexión; sin este oyente tumbaría el proceso.
     socket.on('error', (error) => {
-      this.logger.warn({ err: error, userId }, 'Error en conexión WebSocket');
+      this.logger.warn({ err: error, playerId: userId }, 'Error en conexión WebSocket');
     });
     socket.on('message', (data, isBinary) => {
       if (!this.withinRateLimit(connection)) return;
@@ -160,7 +173,7 @@ export class RealtimeGateway {
         return;
       }
       void this.handle(connection, message).catch((error: unknown) => {
-        this.logger.error({ err: error, userId, matchId: message.matchId }, 'Error procesando mensaje');
+        this.logger.error({ err: error, playerId: userId, matchId: message.matchId }, 'Error procesando mensaje');
         this.send(socket, {
           v: PROTOCOL_VERSION,
           type: 'error',
@@ -172,7 +185,7 @@ export class RealtimeGateway {
 
     this.send(socket, { v: PROTOCOL_VERSION, type: 'welcome', userId });
     void this.sendActiveSnapshot(connection).catch((error: unknown) => {
-      this.logger.error({ err: error, userId }, 'Error enviando el estado inicial');
+      this.logger.error({ err: error, playerId: userId }, 'Error enviando el estado inicial');
     });
   }
 
@@ -237,6 +250,7 @@ export class RealtimeGateway {
 
     switch (decision.kind) {
       case 'applied':
+        this.telemetry.shotConfirmed();
         this.send(socket, { v: PROTOCOL_VERSION, type: 'ack', actionId, seq: decision.events[0]?.seq ?? 0, duplicate: false });
         return;
       case 'duplicate':
