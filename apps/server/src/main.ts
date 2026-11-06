@@ -5,7 +5,12 @@ import { migrate } from './db/migrate.js';
 import { createPool } from './db/pool.js';
 
 const config = loadConfig(process.env);
-const pool = createPool({ connectionString: config.databaseUrl, managedIdentityClientId: config.managedIdentityClientId });
+const pool = createPool({
+  connectionString: config.databaseUrl, managedIdentityClientId: config.managedIdentityClientId,
+  onToken: (claims) => {
+    console.log(JSON.stringify({ msg: 'Token de PostgreSQL obtenido', ...claims }));
+  },
+});
 const redis = new Redis(config.redisUrl);
 
 const app = buildApp({
@@ -26,7 +31,12 @@ pool.on('error', (error: unknown) => {
   app.log.error({ err: error }, 'Error en una conexión inactiva de PostgreSQL');
 });
 
-const client = await pool.connect();
+const client = await pool.connect().catch((error: unknown) => {
+  // Mensaje en una sola línea: el visor de registros de Azure corta los errores largos.
+  const detail = error instanceof Error ? error.message : String(error);
+  console.error(JSON.stringify({ msg: 'No se pudo conectar a PostgreSQL', detail }));
+  throw error;
+});
 try {
   const applied = await migrate(client);
   app.log.info({ applied }, 'Migraciones comprobadas');

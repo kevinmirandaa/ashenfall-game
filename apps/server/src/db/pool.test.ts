@@ -1,8 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { createPool, type TokenSource } from './pool.js';
+import { createPool, tokenClaims, type TokenSource } from './pool.js';
 
 type PasswordFn = () => Promise<string>;
 const passwordOf = (pool: unknown): unknown => (pool as { options: { password?: unknown } }).options.password;
+
+describe('tokenClaims', () => {
+  it('extrae solo los datos de identificación, y tolera un token ilegible', () => {
+    const payload = Buffer.from(JSON.stringify({ aud: 'a', tid: 't', oid: 'o', appid: 'c', secreto: 'x' })).toString('base64url');
+    expect(tokenClaims(`h.${payload}.firma`)).toEqual({ aud: 'a', tid: 't', oid: 'o', appid: 'c' });
+    expect(tokenClaims('basura')).toEqual({});
+  });
+});
 
 describe('createPool', () => {
   it('sin identidad administrada no define contraseña ni exige TLS, para el entorno local', async () => {
