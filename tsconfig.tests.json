@@ -8,5 +8,5 @@
     "types": ["node"],
     "paths": { "@ashenfall/domain": ["./packages/domain/src/index.ts"] }
   },
-  "include": ["packages/*/src/**/*.ts", "apps/*/src/**/*.ts"]
+  "include": ["packages/*/src/**/*.ts", "apps/server/src/**/*.ts", "apps/bot/src/**/*.ts"]
 }

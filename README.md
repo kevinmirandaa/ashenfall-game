@@ -7,7 +7,7 @@ Con Docker Desktop abierto:
 ```bash
 docker compose up --build
 ```
-El servidor queda en `http://localhost:8080`; compruébalo en `/health/ready`.
+Juega en `http://localhost:8080`, con dos navegadores o pestañas; compruébalo en `/health/ready`.
 
 ## Requisitos para desarrollar
 Node 20 o superior (CI y Docker usarán Node 22).
