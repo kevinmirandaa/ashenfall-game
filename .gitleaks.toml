@@ -1,0 +1,7 @@
+[extend]
+useDefault = true
+
+# IDs públicos de roles integrados de Azure; no son secretos.
+[allowlist]
+description = "Roles integrados de Azure"
+regexes = ['''7f951dda-4ed3-4680-a7ca-43fe172d538d''', '''4633458b-17de-408a-b874-0445c86b69e6''', '''b86a8fe4-44ce-4948-aee5-eccb2c155cd7''', '''b86a8fe4-44ce-4948-aee5-eccb2f155b99''']
