@@ -24,6 +24,9 @@ param deployerObjectId string
 @description('Revisión que debe seguir con el 100 % del tráfico mientras la nueva se prueba. Vacío = la última revisión recibe todo.')
 param previousRevision string = ''
 
+@description('Correo que recibe las alertas. Vacío = solo se ven en el portal.')
+param alertEmail string = ''
+
 var isProd = environmentName == 'prod'
 var suffix = take(uniqueString(resourceGroup().id), 6)
 var identityName = 'id-ashenfall-${environmentName}'
@@ -265,6 +268,7 @@ var serverEnv = [
   { name: 'AZURE_CLIENT_ID', value: identity.properties.clientId }
   { name: 'REDIS_URL', value: 'redis://${redisAppName}:6379' }
   { name: 'TRUST_PROXY', value: '1' }
+  { name: 'OTEL_SERVICE_NAME', value: 'ashenfall-server' }
   { name: 'ALLOWED_ORIGINS', value: allowedOrigins }
   { name: 'JWT_SECRET', secretRef: 'jwt-secret' }
   { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', secretRef: 'appinsights-connection-string' }
@@ -322,6 +326,102 @@ resource serverApp 'Microsoft.App/containerApps@2024-03-01' = if (deployServer) 
     }
   }
   dependsOn: [acrPull, kvSecretsUser, redisApp, database]
+}
+
+// ---------- Alertas ----------
+resource actionGroup 'Microsoft.Insights/actionGroups@2023-01-01' = if (!empty(alertEmail)) {
+  name: 'ag-ashenfall-${environmentName}'
+  location: 'global'
+  properties: {
+    groupShortName: 'ashenfall'
+    enabled: true
+    emailReceivers: [{ name: 'correo', emailAddress: alertEmail, useCommonAlertSchema: true }]
+  }
+}
+
+var alertActions = empty(alertEmail) ? [] : [{ actionGroupId: actionGroup.id }]
+
+resource restartsAlert 'Microsoft.Insights/metricAlerts@2018-03-01' = if (deployServer) {
+  name: 'alert-restarts-${environmentName}'
+  location: 'global'
+  properties: {
+    description: 'El servidor se reinició: posible fallo al arrancar o caída.'
+    severity: 1
+    enabled: true
+    scopes: [serverApp.id]
+    evaluationFrequency: 'PT5M'
+    windowSize: 'PT15M'
+    criteria: {
+      'odata.type': 'Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria'
+      allOf: [
+        {
+          name: 'reinicios'
+          criterionType: 'StaticThresholdCriterion'
+          metricNamespace: 'Microsoft.App/containerApps'
+          metricName: 'RestartCount'
+          operator: 'GreaterThan'
+          threshold: 0
+          timeAggregation: 'Total'
+        }
+      ]
+    }
+    actions: alertActions
+  }
+}
+
+resource postgresCpuAlert 'Microsoft.Insights/metricAlerts@2018-03-01' = {
+  name: 'alert-postgres-cpu-${environmentName}'
+  location: 'global'
+  properties: {
+    description: 'PostgreSQL es el primer cuello de botella medido; CPU sostenida alta anticipa degradación.'
+    severity: 2
+    enabled: true
+    scopes: [postgres.id]
+    evaluationFrequency: 'PT5M'
+    windowSize: 'PT15M'
+    criteria: {
+      'odata.type': 'Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria'
+      allOf: [
+        {
+          name: 'cpu'
+          criterionType: 'StaticThresholdCriterion'
+          metricNamespace: 'Microsoft.DBforPostgreSQL/flexibleServers'
+          metricName: 'cpu_percent'
+          operator: 'GreaterThan'
+          threshold: 80
+          timeAggregation: 'Average'
+        }
+      ]
+    }
+    actions: alertActions
+  }
+}
+
+// Application Insights no guarda percentiles de un histograma: se vigila la media sobre la meta de 200 ms.
+resource latencyAlert 'Microsoft.Insights/scheduledQueryRules@2023-12-01' = {
+  name: 'alert-latency-${environmentName}'
+  location: location
+  properties: {
+    description: 'Latencia media de jugada por encima de 200 ms.'
+    severity: 2
+    enabled: true
+    scopes: [appInsights.id]
+    evaluationFrequency: 'PT15M'
+    windowSize: 'PT15M'
+    criteria: {
+      allOf: [
+        {
+          query: 'customMetrics | where name == "ashenfall.shot.latency" | summarize avgMs = sum(valueSum) / sum(valueCount)'
+          timeAggregation: 'Average'
+          metricMeasureColumn: 'avgMs'
+          operator: 'GreaterThan'
+          threshold: 200
+          failingPeriods: { numberOfEvaluationPeriods: 1, minFailingPeriodsToAlert: 1 }
+        }
+      ]
+    }
+    actions: { actionGroups: empty(alertEmail) ? [] : [actionGroup.id] }
+  }
 }
 
 output identityName string = identity.name
