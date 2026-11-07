@@ -194,6 +194,12 @@ describe('las respuestas reales cumplen el contrato', () => {
     assertRoute('GET /v1/me/inventory', await a.request('GET', '/v1/me/inventory'));
     assertRoute('POST /v1/me/inventory/:cosmeticId/equip', await a.request('POST', '/v1/me/inventory/frame-ash/equip', { equipped: true }));
 
+    assertRoute('GET /v1/me/potions', await a.request('GET', '/v1/me/potions'));
+    assertRoute('POST /v1/shop/potions', await a.request('POST', '/v1/shop/potions', { potionId: 'vital', purchaseId: randomUUID() }));
+    assertRoute('PUT /v1/me/loadout', await a.request('PUT', '/v1/me/loadout', { potions: ['vital'] }));
+    assertRoute('GET /v1/me/story', await a.request('GET', '/v1/me/story'));
+    assertRoute('POST /v1/matches/bot', await a.request('POST', '/v1/matches/bot', { mode: 'story', level: 1 }));
+
     assertMatches('problem', ProblemSchema, (await a.request('GET', '/v1/no-existe')).json());
     expect([...covered].sort()).toEqual(Object.keys(REST_CONTRACT).sort());
 

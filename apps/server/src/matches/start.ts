@@ -1,21 +1,46 @@
 import { randomInt, randomUUID } from 'node:crypto';
-import { CHARACTER_FAMILY, CHARACTER_IDS, createMatchSetup, isCharacterId, isWeaponId, startMatch, WEAPONS, type CharacterId, type MatchConfig, type RandomSource, type WeaponId } from '@ashenfall/domain';
+import {
+  CHARACTER_FAMILY,
+  CHARACTER_IDS,
+  createMatchSetup,
+  isCharacterId,
+  isWeaponId,
+  startMatch,
+  WEAPONS,
+  type FighterId,
+  type MatchConfig,
+  type MonsterProfile,
+  type PotionId,
+  type RandomSource,
+  type WeaponId,
+} from '@ashenfall/domain';
 import type pg from 'pg';
 import { isUniqueViolation } from '../db/transaction.js';
 import { ProblemError } from '../problem.js';
+import { consumeLoadout } from '../shop/potions.js';
+import { botThinkMs } from './bots.js';
+import { WIN_REWARD } from './event-store.js';
 
 /** Azar criptográficamente seguro para arena, posiciones, viento y primer turno. */
 export const cryptoRandom: RandomSource = { intBelow: (exclusiveMax) => randomInt(exclusiveMax) };
 
+export interface BotMatch {
+  readonly mode: 'quick' | 'story';
+  readonly monster: MonsterProfile;
+  readonly reward: number;
+}
+
 /**
- * Crea la partida dentro de la transacción de quien la origina (sala o cola), para que ambas cosas
+ * Crea la partida dentro de la transacción de quien la origina (sala, cola o bot), para que ambas cosas
  * se confirmen juntas. El índice único de partidas activas es la última garantía contra la doble asignación.
+ * En una partida contra bot, `playerIds[1]` es la cuenta del monstruo.
  */
 export async function createMatchInTransaction(
   client: pg.ClientBase,
   playerIds: readonly [string, string],
   nowMs: number,
   config?: MatchConfig,
+  bot?: BotMatch,
 ): Promise<string> {
   const matchId = randomUUID();
   const { rows } = await client.query<{ id: string; display_name: string; character_id: string }>(
@@ -28,8 +53,12 @@ export async function createMatchInTransaction(
      WHERE p.user_id = ANY($1::uuid[]) AND p.equipped AND c.kind LIKE 'weapon\\_%'`,
     [[...playerIds]],
   );
-  const profiles: Record<string, { characterId: CharacterId; displayName: string; weaponId?: WeaponId }> = {};
+  const profiles: Record<string, { characterId: FighterId; displayName: string; weaponId?: WeaponId; potions?: readonly PotionId[] }> = {};
   for (const row of rows) {
+    if (bot !== undefined && row.id === playerIds[1]) {
+      profiles[row.id] = { characterId: bot.monster.id, displayName: bot.monster.name, weaponId: bot.monster.weaponId };
+      continue;
+    }
     const characterId = isCharacterId(row.character_id) ? row.character_id : CHARACTER_IDS[0];
     const weapons = equipped.rows
       .filter((entry) => entry.user_id === row.id)
@@ -37,18 +66,20 @@ export async function createMatchInTransaction(
       .filter(isWeaponId)
       .filter((id) => WEAPONS[id].family === CHARACTER_FAMILY[characterId]);
     const weaponId = weapons[0];
-    profiles[row.id] = { characterId, displayName: row.display_name, ...(weaponId === undefined ? {} : { weaponId }) };
+    const potions = await consumeLoadout(client, row.id);
+    profiles[row.id] = { characterId, displayName: row.display_name, ...(weaponId === undefined ? {} : { weaponId }), ...(potions.length === 0 ? {} : { potions }) };
   }
   const setup = createMatchSetup({ matchId, playerIds, profiles, ...(config === undefined ? {} : { config }) }, cryptoRandom);
   const first = startMatch(setup, nowMs);
-  // Un SAVEPOINT no hace falta: si falla, toda la transacción de origen se revierte.
+  // El bot piensa antes de mover si le toca abrir la partida.
+  const botFirst = bot !== undefined && setup.firstPlayerId === playerIds[1];
   try {
-    await client.query(`INSERT INTO matches (id, status, next_deadline_ms) VALUES ($1, 'in_progress', $2)`, [
-      matchId,
-      nowMs + setup.config.turnDurationMs,
-    ]);
+    await client.query(
+      `INSERT INTO matches (id, status, next_deadline_ms, mode, monster_id, reward, bot_due_ms) VALUES ($1, 'in_progress', $2, $3, $4, $5, $6)`,
+      [matchId, nowMs + setup.config.turnDurationMs, bot?.mode ?? 'pvp', bot?.monster.id ?? null, bot?.reward ?? WIN_REWARD, botFirst ? nowMs + botThinkMs(matchId, 1) + 4000 : null],
+    );
     for (const playerId of playerIds) {
-      await client.query('INSERT INTO match_players (match_id, user_id) VALUES ($1, $2)', [matchId, playerId]);
+      await client.query('INSERT INTO match_players (match_id, user_id, is_bot) VALUES ($1, $2, $3)', [matchId, playerId, bot !== undefined && playerId === playerIds[1]]);
     }
     await client.query('INSERT INTO match_events (match_id, seq, at_ms, payload) VALUES ($1, $2, $3, $4)', [
       matchId,

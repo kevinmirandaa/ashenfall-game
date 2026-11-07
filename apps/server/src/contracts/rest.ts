@@ -44,6 +44,26 @@ const Queue = Type.Union([
 ]);
 const Cosmetic = Type.Object({ id: Type.String(), name: Type.String(), kind: Type.String(), price: Type.Integer() }, strict);
 const Owned = Type.Object({ id: Type.String(), name: Type.String(), kind: Type.String(), equipped: Type.Boolean() }, strict);
+const PotionInventory = Type.Object(
+  {
+    items: Type.Array(Type.Object({ id: Type.String(), name: Type.String(), description: Type.String(), price: Type.Integer(), quantity: Type.Integer() }, strict)),
+    loadout: Type.Array(Type.String()),
+    loadoutMax: Type.Integer(),
+  },
+  strict,
+);
+const Story = Type.Object(
+  {
+    cleared: Type.Integer(),
+    levels: Type.Array(
+      Type.Object(
+        { level: Type.Integer(), monsterId: Type.String(), name: Type.String(), title: Type.String(), weaponId: Type.String(), reward: Type.Integer(), unlocked: Type.Boolean(), cleared: Type.Boolean() },
+        strict,
+      ),
+    ),
+  },
+  strict,
+);
 const Page = (item: TSchema) => Type.Object({ items: Type.Array(item) }, strict);
 const History = Type.Object(
   {
@@ -134,6 +154,17 @@ export const REST_CONTRACT: Readonly<Record<string, RouteContract>> = {
     Type.Object({ cosmeticId: Type.String(), balance: Type.Integer(), duplicate: Type.Boolean() }, strict),
     [403, 404, 409],
   ),
+  'GET /v1/me/potions': route('Tienda', 'Pociones propias y las elegidas para la próxima partida', 200, PotionInventory, [403]),
+  'POST /v1/shop/potions': route(
+    'Tienda',
+    'Comprar una poción; reintentar con el mismo purchaseId no cobra de nuevo',
+    200,
+    Type.Object({ balance: Type.Integer(), duplicate: Type.Boolean() }, strict),
+    [403, 409],
+  ),
+  'PUT /v1/me/loadout': route('Tienda', 'Elegir las pociones de la próxima partida; se descuentan al empezarla', 204, Empty, [403, 409]),
+  'GET /v1/me/story': route('Partidas', 'Niveles del modo historia y cuáles están desbloqueados', 200, Story, [403]),
+  'POST /v1/matches/bot': route('Partidas', 'Empezar una partida rápida o un nivel de historia contra un monstruo', 201, Type.Object({ matchId: Id, monsterId: Type.String() }, strict), [403, 404, 409]),
   'GET /v1/me/inventory': route('Tienda', 'Inventario propio', 200, Page(Owned), [403]),
   'POST /v1/me/inventory/:cosmeticId/equip': route('Tienda', 'Equipar o desequipar', 204, Empty, [403, 404]),
 

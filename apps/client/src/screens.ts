@@ -1,7 +1,7 @@
 /** Pueblo y paneles. Todo precio, saldo y propiedad viene del servidor; el cliente solo los presenta. */
 import { audio } from './audio.js';
-import { CHARACTER_FAMILY, CHARACTER_PRICE, STARTER_CHARACTER, WEAPONS, type ArenaId, type WeaponId } from '@ashenfall/domain';
-import { baseLook, bodyFilter, CHARACTERS, FAMILY_LABEL, icon, iconUrl, type CharacterId, type IconName, type Look } from './art.js';
+import { CHARACTER_FAMILY, CHARACTER_PRICE, POTION_LOADOUT_MAX, STARTER_CHARACTER, WEAPONS, type ArenaId, type PotionId, type WeaponId } from '@ashenfall/domain';
+import { baseLook, bodyFilter, CHARACTERS, FAMILY_LABEL, icon, iconUrl, type CharacterId, type FighterId, type IconName, type Look } from './art.js';
 import { BIOME_NAMES } from './biomes.js';
 import type { Session } from './net.js';
 
@@ -89,7 +89,7 @@ export function lookFrom(character: CharacterId, items: readonly OwnedItem[]): L
   };
 }
 
-export const portrait = (character: CharacterId, ornate: boolean): string =>
+export const portrait = (character: FighterId, ornate: boolean): string =>
   `<span class="portrait${ornate ? ' ornate' : ''}"><img src="/art/portrait-${character}.webp" alt="" /></span>`;
 
 export function openModal(title: string, subtitle: string, body: string, wide = false): void {
@@ -352,6 +352,107 @@ export async function openRoster(actions: ShopActions): Promise<void> {
     }
   };
   openModal('Personajes', 'Tu mercenario y su arma', '', true);
+  render();
+}
+
+interface StoryLevel {
+  level: number;
+  monsterId: string;
+  name: string;
+  title: string;
+  weaponId: WeaponId;
+  reward: number;
+  unlocked: boolean;
+  cleared: boolean;
+}
+
+/** Modo historia: diez monstruos en orden; cada uno desbloquea al siguiente. */
+export async function openStory(actions: ShopActions, start: (level: number) => void): Promise<void> {
+  const story = await actions.session.call<{ cleared: number; levels: StoryLevel[] }>('GET', '/v1/me/story');
+  openModal('Modo historia', `Has vencido a ${String(story.cleared)} de ${String(story.levels.length)}`, `
+    <div class="story">${story.levels.map((entry) => `
+      <button class="story-card${entry.cleared ? ' cleared' : ''}${entry.unlocked ? '' : ' locked'}" data-level="${String(entry.level)}" ${entry.unlocked ? '' : 'disabled'}>
+        <span class="story-num">${String(entry.level)}</span>
+        <img src="/art/portrait-${entry.monsterId}.webp" alt="" />
+        <b>${escapeHtml(entry.name)}</b>
+        <small>${escapeHtml(entry.title)}</small>
+        <span class="story-weapon"><img src="/art/icon-${entry.weaponId}.webp" alt="" />${escapeHtml(WEAPONS[entry.weaponId].name)}</span>
+        <span class="story-reward">${entry.unlocked ? `${icon('coin', 14)} ${String(entry.reward)}${entry.cleared ? ' · vencido' : ''}` : 'Bloqueado'}</span>
+      </button>`).join('')}</div>`, true);
+  for (const node of document.querySelectorAll<HTMLElement>('[data-level]')) {
+    node.addEventListener('click', () => {
+      start(Number(node.dataset.level));
+    });
+  }
+}
+
+interface PotionStock {
+  items: { id: PotionId; name: string; description: string; price: number; quantity: number }[];
+  loadout: PotionId[];
+  loadoutMax: number;
+}
+
+/** Alquimista: pociones de un solo uso. Se compran y se eligen hasta tres para la próxima partida. */
+export async function openAlchemist(actions: ShopActions): Promise<void> {
+  let stock = await actions.session.call<PotionStock>('GET', '/v1/me/potions');
+  const pending = new Map<string, string>();
+  const render = (): void => {
+    const body = document.getElementById('modal-body');
+    if (body === null) return;
+    const balance = actions.profile().balance;
+    const carried = (id: PotionId): number => stock.loadout.filter((entry) => entry === id).length;
+    body.innerHTML = `
+      <p class="muted">Las pociones que lleves a la partida se gastan al usarlas, o se pierden al terminar. Usar una ocupa tu turno.</p>
+      <div class="potions">${stock.items.map((potion) => `
+        <div class="potion-card">
+          <img src="/art/potion-${potion.id}.webp" alt="" />
+          <div><b>${escapeHtml(potion.name)}</b><small>${escapeHtml(potion.description)}</small>
+            <span class="potion-stock">Tienes ${String(potion.quantity)} · llevas ${String(carried(potion.id))}</span></div>
+          <div class="potion-actions">
+            <button data-buy="${potion.id}" ${balance < potion.price ? 'disabled' : ''}>${icon('coin', 14)} ${String(potion.price)}</button>
+            <span class="stepper"><button data-less="${potion.id}" ${carried(potion.id) === 0 ? 'disabled' : ''} aria-label="Llevar una menos">−</button>
+              <b>${String(carried(potion.id))}</b>
+              <button data-more="${potion.id}" ${carried(potion.id) >= potion.quantity || stock.loadout.length >= stock.loadoutMax ? 'disabled' : ''} aria-label="Llevar una más">+</button></span>
+          </div>
+        </div>`).join('')}</div>
+      <p class="wallet">${icon('coin', 20)} <b>${String(balance)}</b> Marcas de Ceniza · llevas ${String(stock.loadout.length)} de ${String(POTION_LOADOUT_MAX)}</p>`;
+    const save = (loadout: PotionId[]): void => {
+      void actions.guarded(async () => {
+        await actions.session.call('PUT', '/v1/me/loadout', { potions: loadout });
+        stock = { ...stock, loadout };
+        render();
+      });
+    };
+    for (const node of body.querySelectorAll<HTMLElement>('[data-buy]')) {
+      node.addEventListener('click', () => {
+        const id = node.dataset.buy as PotionId;
+        void actions.guarded(async () => {
+          // El mismo id hasta que la compra se confirme: reintentar tras un fallo de red no cobra dos veces.
+          const purchaseId = pending.get(id) ?? crypto.randomUUID();
+          pending.set(id, purchaseId);
+          const result = await actions.session.call<{ balance: number }>('POST', '/v1/shop/potions', { potionId: id, purchaseId });
+          pending.delete(id);
+          actions.setBalance(result.balance);
+          stock = await actions.session.call<PotionStock>('GET', '/v1/me/potions');
+          audio.sfx('buy');
+          render();
+        });
+      });
+    }
+    for (const node of body.querySelectorAll<HTMLElement>('[data-more]')) {
+      node.addEventListener('click', () => {
+        save([...stock.loadout, node.dataset.more as PotionId]);
+      });
+    }
+    for (const node of body.querySelectorAll<HTMLElement>('[data-less]')) {
+      node.addEventListener('click', () => {
+        const id = node.dataset.less as PotionId;
+        const index = stock.loadout.lastIndexOf(id);
+        save(stock.loadout.filter((_entry, position) => position !== index));
+      });
+    }
+  };
+  openModal('Alquimista', 'Pociones de un solo uso', '', true);
   render();
 }
 

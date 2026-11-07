@@ -101,7 +101,7 @@ describe('registro y login', () => {
 
 describe('token de acceso', () => {
   it('rechaza ausente, malformado, firmado con otra clave y vencido', async () => {
-    const { rows } = await db.pool.query<{ id: string }>('SELECT id FROM users LIMIT 1');
+    const { rows } = await db.pool.query<{ id: string }>('SELECT id FROM users WHERE NOT is_bot LIMIT 1');
     const sign = (secret: string, expires: string) =>
       new SignJWT({})
         .setProtectedHeader({ alg: 'HS256' })

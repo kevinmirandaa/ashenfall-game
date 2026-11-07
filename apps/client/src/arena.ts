@@ -7,16 +7,18 @@ import {
   WEAPONS,
   type PlayerEventPayload,
   type PlayerMatchView,
+  type PotionView,
   type ShotView,
   type Vec2,
   type WeaponEffect,
   type WeaponFamily,
   type WeaponId,
-  WEAPON_FAMILIES,
+  MONSTER_IDS,
+  WEAPON_IDS,
 } from '@ashenfall/domain';
 import Phaser from 'phaser';
 import { audio } from './audio.js';
-import { bodyTint, CHARACTERS, type CharacterId, type Look } from './art.js';
+import { bodyTint, CHARACTERS, type FighterId, type Look } from './art.js';
 import { BIOME_ART, drawGround, GROUND_DEPTH, GROUND_HEADROOM, WORLD_LEFT, WORLD_WIDTH } from './biomes.js';
 
 const VIEW_W = 1280;
@@ -39,8 +41,13 @@ const POWER_MIN = 10;
 const MAX_PULL = 240;
 const MIN_PULL = 28;
 /** Fotogramas que existen en las hojas de referencia; lo demás se anima con el muñeco. */
-const POSES: Readonly<Partial<Record<CharacterId, readonly ('hit' | 'down' | 'win' | 'shoot')[]>>> = {};
-const BODY_HEIGHT: Readonly<Record<CharacterId, number>> = { edrik: 148, sylwen: 148, borgrim: 134, aldric: 156, vaela: 148, corvus: 156, anselmo: 148, mirelle: 148, morveth: 152, rurik: 148 };
+const POSES: Readonly<Partial<Record<FighterId, readonly ('hit' | 'down' | 'win' | 'shoot')[]>>> = {};
+const BODY_HEIGHT: Readonly<Record<FighterId, number>> = {
+  edrik: 148, sylwen: 148, borgrim: 134, aldric: 156, vaela: 148, corvus: 156, anselmo: 148, mirelle: 148, morveth: 152, rurik: 148,
+  vampire: 150, werewolf: 162, witch: 148, specter: 160, spider: 118, skeleton: 150, dark_knight: 168, treant: 176, wraith: 160, golem: 176,
+};
+/** Mercenarios y monstruos: todos se cargan y se parten por la cadera igual. */
+const FIGHTER_IDS: readonly FighterId[] = [...CHARACTERS.map((hero) => hero.id), ...MONSTER_IDS];
 /** Armas que giran en el aire; el resto vuela apuntando a donde va. */
 const FIREFLY_ARENAS: ReadonlySet<string> = new Set(['graveyard', 'misty_pines', 'hamlet_ruins']);
 const FOG_ARENAS: ReadonlySet<string> = new Set(['graveyard', 'misty_pines', 'fog_ruins', 'blood_keep']);
@@ -139,16 +146,16 @@ export class ArenaScene extends Phaser.Scene {
   }
 
   preload(): void {
-    for (const hero of CHARACTERS) this.load.image(`body-${hero.id}`, `/art/body-${hero.id}.webp`);
-    for (const family of WEAPON_FAMILIES) this.load.image(`proj-${family}`, `/art/proj-${family}.webp`);
+    for (const id of FIGHTER_IDS) this.load.image(`body-${id}`, `/art/body-${id}.webp`);
+    for (const weaponId of WEAPON_IDS) this.load.image(`proj-${weaponId}`, `/art/proj-${weaponId}.webp`);
     for (const [hero, poses] of Object.entries(POSES)) for (const pose of poses) this.load.image(`pose-${hero}-${pose}`, `/art/pose-${hero}-${pose}.webp`);
     for (const id of ARENA_IDS) this.load.image(`biome-${id}`, `/art/biome-${id}.webp`);
     this.load.image('helm', '/art/icon-helm.webp');
   }
 
   create(): void {
-    for (const hero of CHARACTERS) {
-      const texture = this.textures.get(`body-${hero.id}`);
+    for (const fighter of FIGHTER_IDS) {
+      const texture = this.textures.get(`body-${fighter}`);
       const { width, height } = texture.getSourceImage();
       const hip = Math.round(Number(height) * HIP);
       // Se solapan unos píxeles para que no se abra una junta al inclinarse.
@@ -246,6 +253,7 @@ export class ArenaScene extends Phaser.Scene {
   /** Los eventos se animan en orden, uno tras otro, en ambos jugadores. */
   applyEvent(payload: PlayerEventPayload): void {
     if (payload.type === 'shot_resolved') this.enqueue(() => this.playShot(payload));
+    if (payload.type === 'potion_used') this.enqueue(() => this.playPotion(payload));
     if (payload.type === 'turn_started') {
       const mine = payload.playerId === this.view?.you.playerId;
       this.enqueue(async () => {
@@ -753,7 +761,7 @@ export class ArenaScene extends Phaser.Scene {
 
     const family = WEAPONS[shot.weaponId].family;
     const spin = SPINNING.has(family);
-    projectile.setTexture(`proj-${family}`).setPosition(start.x, start.y).setVisible(true).clearTint().setScale(1).setOrigin(0.5, 0.5);
+    projectile.setTexture(`proj-${shot.weaponId}`).setPosition(start.x, start.y).setVisible(true).clearTint().setScale(1).setOrigin(0.5, 0.5);
     this.trailColors = shot.effect === null ? [0xf2963c, 0xfbe58a] : EFFECT_COLORS[shot.effect.kind];
     this.trailOn = shooter.look.embers || shot.effect !== null;
     const camera = this.cameras.main;
@@ -786,6 +794,31 @@ export class ArenaScene extends Phaser.Scene {
     this.showImpact(shot);
     this.resolveImpact(shot);
     await this.wait(shot.impactKind !== 'player' ? 800 : shot.targetHpAfter <= 0 ? 1500 : 1600);
+  }
+
+  /** Una poción: destello del color del efecto alrededor de quien la bebe y el texto de lo que hace. */
+  private async playPotion(potion: PotionView): Promise<void> {
+    const figure = this.figures.get(potion.playerId);
+    if (figure === undefined) return;
+    const colour = { vital: 0x7ed957, ward: 0x9fb4d8, fury: 0xe0503c, focus: 0xf0d060 }[potion.potionId];
+    const label = { vital: 'Elixir vital', ward: 'Piel de piedra', fury: 'Furia salvaje', focus: 'Ojo de halcón' }[potion.potionId];
+    audio.sfx(potion.potionId === 'vital' ? 'heal' : 'potion');
+    if (document.hidden) return;
+    const height = BODY_HEIGHT[figure.look.character];
+    const ring = this.add.ellipse(figure.homeX, figure.homeY - height * 0.45, 40, height * 0.9, colour, 0.35).setDepth(6).setBlendMode(Phaser.BlendModes.ADD);
+    this.tweens.add({ targets: ring, scaleX: 2.6, scaleY: 1.5, alpha: 0, duration: 900, onComplete: () => ring.destroy() });
+    for (let i = 0; i < 14; i += 1) {
+      const spark = this.add.rectangle(figure.homeX + (Math.random() - 0.5) * 60, figure.homeY - Math.random() * height * 0.8, 4, 4, colour).setDepth(7);
+      this.tweens.add({ targets: spark, y: spark.y - 40 - Math.random() * 40, alpha: 0, duration: 700 + Math.random() * 400, onComplete: () => spark.destroy() });
+    }
+    const text = this.add
+      .text(figure.homeX, figure.homeY - height - 14, label, {
+        fontFamily: 'Palatino, Georgia, serif', fontStyle: 'bold', fontSize: '28px', color: `#${colour.toString(16).padStart(6, '0')}`, stroke: '#0d0a0e', strokeThickness: 5,
+      })
+      .setOrigin(0.5)
+      .setDepth(8);
+    this.tweens.add({ targets: text, y: text.y - 70, alpha: 0, duration: 1300, onComplete: () => text.destroy() });
+    await this.wait(900);
   }
 
   private resolveImpact(shot: ShotView): void {

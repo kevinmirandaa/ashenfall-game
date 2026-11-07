@@ -24,6 +24,9 @@
         "shoot": {
           "$ref": "#/components/messages/shoot"
         },
+        "use_potion": {
+          "$ref": "#/components/messages/use_potion"
+        },
         "sync": {
           "$ref": "#/components/messages/sync"
         },
@@ -55,6 +58,9 @@
       "messages": [
         {
           "$ref": "#/channels/game/messages/shoot"
+        },
+        {
+          "$ref": "#/channels/game/messages/use_potion"
         },
         {
           "$ref": "#/channels/game/messages/sync"
@@ -141,6 +147,10 @@
                   "type": "string"
                 },
                 {
+                  "const": "dagger_4",
+                  "type": "string"
+                },
+                {
                   "const": "bow",
                   "type": "string"
                 },
@@ -150,6 +160,10 @@
                 },
                 {
                   "const": "bow_3",
+                  "type": "string"
+                },
+                {
+                  "const": "bow_4",
                   "type": "string"
                 },
                 {
@@ -165,6 +179,10 @@
                   "type": "string"
                 },
                 {
+                  "const": "crossbow_4",
+                  "type": "string"
+                },
+                {
                   "const": "axe",
                   "type": "string"
                 },
@@ -174,6 +192,10 @@
                 },
                 {
                   "const": "axe_3",
+                  "type": "string"
+                },
+                {
+                  "const": "axe_4",
                   "type": "string"
                 },
                 {
@@ -189,6 +211,10 @@
                   "type": "string"
                 },
                 {
+                  "const": "sword_4",
+                  "type": "string"
+                },
+                {
                   "const": "staff",
                   "type": "string"
                 },
@@ -198,6 +224,10 @@
                 },
                 {
                   "const": "staff_3",
+                  "type": "string"
+                },
+                {
+                  "const": "staff_4",
                   "type": "string"
                 },
                 {
@@ -213,6 +243,10 @@
                   "type": "string"
                 },
                 {
+                  "const": "flask_4",
+                  "type": "string"
+                },
+                {
                   "const": "mace",
                   "type": "string"
                 },
@@ -222,6 +256,10 @@
                 },
                 {
                   "const": "mace_3",
+                  "type": "string"
+                },
+                {
+                  "const": "mace_4",
                   "type": "string"
                 }
               ]
@@ -250,6 +288,78 @@
               "weaponId": "dagger",
               "angleDeg": 42.5,
               "power": 70
+            }
+          }
+        ]
+      },
+      "use_potion": {
+        "name": "use_potion",
+        "contentType": "application/json",
+        "description": "Usa una poción de las que llevas a la partida. Ocupa el turno y solo vale con tu turno y tu versión; el servidor comprueba que la llevas. Errores posibles: ver el mensaje error.",
+        "payload": {
+          "additionalProperties": false,
+          "type": "object",
+          "required": [
+            "v",
+            "type",
+            "matchId",
+            "actionId",
+            "expectedVersion",
+            "potionId"
+          ],
+          "properties": {
+            "v": {
+              "const": 1,
+              "type": "number"
+            },
+            "type": {
+              "const": "use_potion",
+              "type": "string"
+            },
+            "matchId": {
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+              "type": "string"
+            },
+            "actionId": {
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+              "type": "string"
+            },
+            "expectedVersion": {
+              "minimum": 1,
+              "type": "integer"
+            },
+            "potionId": {
+              "anyOf": [
+                {
+                  "const": "vital",
+                  "type": "string"
+                },
+                {
+                  "const": "ward",
+                  "type": "string"
+                },
+                {
+                  "const": "fury",
+                  "type": "string"
+                },
+                {
+                  "const": "focus",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        "examples": [
+          {
+            "name": "ejemplo",
+            "payload": {
+              "v": 1,
+              "type": "use_potion",
+              "matchId": "6f1c2f5e-3a54-4a7e-9b1d-2c8f0a4e7d11",
+              "actionId": "0b9a7c3e-52d1-4f60-8a2b-7e1d3c5f9a22",
+              "expectedVersion": 3,
+              "potionId": "vital"
             }
           }
         ]
@@ -475,6 +585,7 @@
                     "connected",
                     "characterId",
                     "weaponId",
+                    "buffs",
                     "displayName"
                   ],
                   "properties": {
@@ -557,6 +668,46 @@
                         {
                           "const": "rurik",
                           "type": "string"
+                        },
+                        {
+                          "const": "skeleton",
+                          "type": "string"
+                        },
+                        {
+                          "const": "spider",
+                          "type": "string"
+                        },
+                        {
+                          "const": "werewolf",
+                          "type": "string"
+                        },
+                        {
+                          "const": "specter",
+                          "type": "string"
+                        },
+                        {
+                          "const": "witch",
+                          "type": "string"
+                        },
+                        {
+                          "const": "vampire",
+                          "type": "string"
+                        },
+                        {
+                          "const": "treant",
+                          "type": "string"
+                        },
+                        {
+                          "const": "wraith",
+                          "type": "string"
+                        },
+                        {
+                          "const": "dark_knight",
+                          "type": "string"
+                        },
+                        {
+                          "const": "golem",
+                          "type": "string"
                         }
                       ]
                     },
@@ -575,6 +726,10 @@
                           "type": "string"
                         },
                         {
+                          "const": "dagger_4",
+                          "type": "string"
+                        },
+                        {
                           "const": "bow",
                           "type": "string"
                         },
@@ -584,6 +739,10 @@
                         },
                         {
                           "const": "bow_3",
+                          "type": "string"
+                        },
+                        {
+                          "const": "bow_4",
                           "type": "string"
                         },
                         {
@@ -599,6 +758,10 @@
                           "type": "string"
                         },
                         {
+                          "const": "crossbow_4",
+                          "type": "string"
+                        },
+                        {
                           "const": "axe",
                           "type": "string"
                         },
@@ -608,6 +771,10 @@
                         },
                         {
                           "const": "axe_3",
+                          "type": "string"
+                        },
+                        {
+                          "const": "axe_4",
                           "type": "string"
                         },
                         {
@@ -623,6 +790,10 @@
                           "type": "string"
                         },
                         {
+                          "const": "sword_4",
+                          "type": "string"
+                        },
+                        {
                           "const": "staff",
                           "type": "string"
                         },
@@ -632,6 +803,10 @@
                         },
                         {
                           "const": "staff_3",
+                          "type": "string"
+                        },
+                        {
+                          "const": "staff_4",
                           "type": "string"
                         },
                         {
@@ -647,6 +822,10 @@
                           "type": "string"
                         },
                         {
+                          "const": "flask_4",
+                          "type": "string"
+                        },
+                        {
                           "const": "mace",
                           "type": "string"
                         },
@@ -657,8 +836,57 @@
                         {
                           "const": "mace_3",
                           "type": "string"
+                        },
+                        {
+                          "const": "mace_4",
+                          "type": "string"
                         }
                       ]
+                    },
+                    "buffs": {
+                      "additionalProperties": false,
+                      "description": "Efectos de pociones activos; públicos",
+                      "type": "object",
+                      "required": [
+                        "ward",
+                        "fury",
+                        "focus"
+                      ],
+                      "properties": {
+                        "ward": {
+                          "type": "boolean"
+                        },
+                        "fury": {
+                          "type": "boolean"
+                        },
+                        "focus": {
+                          "type": "boolean"
+                        }
+                      }
+                    },
+                    "potions": {
+                      "description": "Solo las recibe el propio jugador",
+                      "type": "array",
+                      "items": {
+                        "anyOf": [
+                          {
+                            "const": "vital",
+                            "type": "string"
+                          },
+                          {
+                            "const": "ward",
+                            "type": "string"
+                          },
+                          {
+                            "const": "fury",
+                            "type": "string"
+                          },
+                          {
+                            "const": "focus",
+                            "type": "string"
+                          }
+                        ]
+                      }
                     },
                     "displayName": {
                       "type": "string"
@@ -676,6 +904,7 @@
                     "connected",
                     "characterId",
                     "weaponId",
+                    "buffs",
                     "displayName"
                   ],
                   "properties": {
@@ -758,6 +987,46 @@
                         {
                           "const": "rurik",
                           "type": "string"
+                        },
+                        {
+                          "const": "skeleton",
+                          "type": "string"
+                        },
+                        {
+                          "const": "spider",
+                          "type": "string"
+                        },
+                        {
+                          "const": "werewolf",
+                          "type": "string"
+                        },
+                        {
+                          "const": "specter",
+                          "type": "string"
+                        },
+                        {
+                          "const": "witch",
+                          "type": "string"
+                        },
+                        {
+                          "const": "vampire",
+                          "type": "string"
+                        },
+                        {
+                          "const": "treant",
+                          "type": "string"
+                        },
+                        {
+                          "const": "wraith",
+                          "type": "string"
+                        },
+                        {
+                          "const": "dark_knight",
+                          "type": "string"
+                        },
+                        {
+                          "const": "golem",
+                          "type": "string"
                         }
                       ]
                     },
@@ -776,6 +1045,10 @@
                           "type": "string"
                         },
                         {
+                          "const": "dagger_4",
+                          "type": "string"
+                        },
+                        {
                           "const": "bow",
                           "type": "string"
                         },
@@ -785,6 +1058,10 @@
                         },
                         {
                           "const": "bow_3",
+                          "type": "string"
+                        },
+                        {
+                          "const": "bow_4",
                           "type": "string"
                         },
                         {
@@ -800,6 +1077,10 @@
                           "type": "string"
                         },
                         {
+                          "const": "crossbow_4",
+                          "type": "string"
+                        },
+                        {
                           "const": "axe",
                           "type": "string"
                         },
@@ -809,6 +1090,10 @@
                         },
                         {
                           "const": "axe_3",
+                          "type": "string"
+                        },
+                        {
+                          "const": "axe_4",
                           "type": "string"
                         },
                         {
@@ -824,6 +1109,10 @@
                           "type": "string"
                         },
                         {
+                          "const": "sword_4",
+                          "type": "string"
+                        },
+                        {
                           "const": "staff",
                           "type": "string"
                         },
@@ -833,6 +1122,10 @@
                         },
                         {
                           "const": "staff_3",
+                          "type": "string"
+                        },
+                        {
+                          "const": "staff_4",
                           "type": "string"
                         },
                         {
@@ -848,6 +1141,10 @@
                           "type": "string"
                         },
                         {
+                          "const": "flask_4",
+                          "type": "string"
+                        },
+                        {
                           "const": "mace",
                           "type": "string"
                         },
@@ -858,8 +1155,57 @@
                         {
                           "const": "mace_3",
                           "type": "string"
+                        },
+                        {
+                          "const": "mace_4",
+                          "type": "string"
                         }
                       ]
+                    },
+                    "buffs": {
+                      "additionalProperties": false,
+                      "description": "Efectos de pociones activos; públicos",
+                      "type": "object",
+                      "required": [
+                        "ward",
+                        "fury",
+                        "focus"
+                      ],
+                      "properties": {
+                        "ward": {
+                          "type": "boolean"
+                        },
+                        "fury": {
+                          "type": "boolean"
+                        },
+                        "focus": {
+                          "type": "boolean"
+                        }
+                      }
+                    },
+                    "potions": {
+                      "description": "Solo las recibe el propio jugador",
+                      "type": "array",
+                      "items": {
+                        "anyOf": [
+                          {
+                            "const": "vital",
+                            "type": "string"
+                          },
+                          {
+                            "const": "ward",
+                            "type": "string"
+                          },
+                          {
+                            "const": "fury",
+                            "type": "string"
+                          },
+                          {
+                            "const": "focus",
+                            "type": "string"
+                          }
+                        ]
+                      }
                     },
                     "displayName": {
                       "type": "string"
@@ -983,7 +1329,16 @@
                   "connected": true,
                   "characterId": "edrik",
                   "displayName": "Edrik",
-                  "weaponId": "dagger"
+                  "weaponId": "dagger",
+                  "buffs": {
+                    "ward": false,
+                    "fury": true,
+                    "focus": false
+                  },
+                  "potions": [
+                    "vital",
+                    "ward"
+                  ]
                 },
                 "opponent": {
                   "playerId": "0b9a7c3e-52d1-4f60-8a2b-7e1d3c5f9a22",
@@ -994,9 +1349,14 @@
                   },
                   "facing": -1,
                   "connected": true,
-                  "characterId": "sylwen",
-                  "displayName": "Sylwen",
-                  "weaponId": "bow_3"
+                  "characterId": "skeleton",
+                  "displayName": "Esqueleto guerrero",
+                  "weaponId": "bow",
+                  "buffs": {
+                    "ward": false,
+                    "fury": false,
+                    "focus": false
+                  }
                 },
                 "result": null
               }
@@ -1184,6 +1544,7 @@
                                 "connected",
                                 "characterId",
                                 "weaponId",
+                                "buffs",
                                 "displayName"
                               ],
                               "properties": {
@@ -1266,6 +1627,46 @@
                                     {
                                       "const": "rurik",
                                       "type": "string"
+                                    },
+                                    {
+                                      "const": "skeleton",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "spider",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "werewolf",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "specter",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "witch",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "vampire",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "treant",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "wraith",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "dark_knight",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "golem",
+                                      "type": "string"
                                     }
                                   ]
                                 },
@@ -1284,6 +1685,10 @@
                                       "type": "string"
                                     },
                                     {
+                                      "const": "dagger_4",
+                                      "type": "string"
+                                    },
+                                    {
                                       "const": "bow",
                                       "type": "string"
                                     },
@@ -1293,6 +1698,10 @@
                                     },
                                     {
                                       "const": "bow_3",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "bow_4",
                                       "type": "string"
                                     },
                                     {
@@ -1308,6 +1717,10 @@
                                       "type": "string"
                                     },
                                     {
+                                      "const": "crossbow_4",
+                                      "type": "string"
+                                    },
+                                    {
                                       "const": "axe",
                                       "type": "string"
                                     },
@@ -1317,6 +1730,10 @@
                                     },
                                     {
                                       "const": "axe_3",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "axe_4",
                                       "type": "string"
                                     },
                                     {
@@ -1332,6 +1749,10 @@
                                       "type": "string"
                                     },
                                     {
+                                      "const": "sword_4",
+                                      "type": "string"
+                                    },
+                                    {
                                       "const": "staff",
                                       "type": "string"
                                     },
@@ -1341,6 +1762,10 @@
                                     },
                                     {
                                       "const": "staff_3",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "staff_4",
                                       "type": "string"
                                     },
                                     {
@@ -1356,6 +1781,10 @@
                                       "type": "string"
                                     },
                                     {
+                                      "const": "flask_4",
+                                      "type": "string"
+                                    },
+                                    {
                                       "const": "mace",
                                       "type": "string"
                                     },
@@ -1366,8 +1795,57 @@
                                     {
                                       "const": "mace_3",
                                       "type": "string"
+                                    },
+                                    {
+                                      "const": "mace_4",
+                                      "type": "string"
                                     }
                                   ]
+                                },
+                                "buffs": {
+                                  "additionalProperties": false,
+                                  "description": "Efectos de pociones activos; públicos",
+                                  "type": "object",
+                                  "required": [
+                                    "ward",
+                                    "fury",
+                                    "focus"
+                                  ],
+                                  "properties": {
+                                    "ward": {
+                                      "type": "boolean"
+                                    },
+                                    "fury": {
+                                      "type": "boolean"
+                                    },
+                                    "focus": {
+                                      "type": "boolean"
+                                    }
+                                  }
+                                },
+                                "potions": {
+                                  "description": "Solo las recibe el propio jugador",
+                                  "type": "array",
+                                  "items": {
+                                    "anyOf": [
+                                      {
+                                        "const": "vital",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "ward",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "fury",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "focus",
+                                        "type": "string"
+                                      }
+                                    ]
+                                  }
                                 },
                                 "displayName": {
                                   "type": "string"
@@ -1385,6 +1863,7 @@
                                 "connected",
                                 "characterId",
                                 "weaponId",
+                                "buffs",
                                 "displayName"
                               ],
                               "properties": {
@@ -1467,6 +1946,46 @@
                                     {
                                       "const": "rurik",
                                       "type": "string"
+                                    },
+                                    {
+                                      "const": "skeleton",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "spider",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "werewolf",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "specter",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "witch",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "vampire",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "treant",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "wraith",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "dark_knight",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "golem",
+                                      "type": "string"
                                     }
                                   ]
                                 },
@@ -1485,6 +2004,10 @@
                                       "type": "string"
                                     },
                                     {
+                                      "const": "dagger_4",
+                                      "type": "string"
+                                    },
+                                    {
                                       "const": "bow",
                                       "type": "string"
                                     },
@@ -1494,6 +2017,10 @@
                                     },
                                     {
                                       "const": "bow_3",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "bow_4",
                                       "type": "string"
                                     },
                                     {
@@ -1509,6 +2036,10 @@
                                       "type": "string"
                                     },
                                     {
+                                      "const": "crossbow_4",
+                                      "type": "string"
+                                    },
+                                    {
                                       "const": "axe",
                                       "type": "string"
                                     },
@@ -1518,6 +2049,10 @@
                                     },
                                     {
                                       "const": "axe_3",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "axe_4",
                                       "type": "string"
                                     },
                                     {
@@ -1533,6 +2068,10 @@
                                       "type": "string"
                                     },
                                     {
+                                      "const": "sword_4",
+                                      "type": "string"
+                                    },
+                                    {
                                       "const": "staff",
                                       "type": "string"
                                     },
@@ -1542,6 +2081,10 @@
                                     },
                                     {
                                       "const": "staff_3",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "staff_4",
                                       "type": "string"
                                     },
                                     {
@@ -1557,6 +2100,10 @@
                                       "type": "string"
                                     },
                                     {
+                                      "const": "flask_4",
+                                      "type": "string"
+                                    },
+                                    {
                                       "const": "mace",
                                       "type": "string"
                                     },
@@ -1567,8 +2114,57 @@
                                     {
                                       "const": "mace_3",
                                       "type": "string"
+                                    },
+                                    {
+                                      "const": "mace_4",
+                                      "type": "string"
                                     }
                                   ]
+                                },
+                                "buffs": {
+                                  "additionalProperties": false,
+                                  "description": "Efectos de pociones activos; públicos",
+                                  "type": "object",
+                                  "required": [
+                                    "ward",
+                                    "fury",
+                                    "focus"
+                                  ],
+                                  "properties": {
+                                    "ward": {
+                                      "type": "boolean"
+                                    },
+                                    "fury": {
+                                      "type": "boolean"
+                                    },
+                                    "focus": {
+                                      "type": "boolean"
+                                    }
+                                  }
+                                },
+                                "potions": {
+                                  "description": "Solo las recibe el propio jugador",
+                                  "type": "array",
+                                  "items": {
+                                    "anyOf": [
+                                      {
+                                        "const": "vital",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "ward",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "fury",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "focus",
+                                        "type": "string"
+                                      }
+                                    ]
+                                  }
                                 },
                                 "displayName": {
                                   "type": "string"
@@ -1701,6 +2297,10 @@
                               "type": "string"
                             },
                             {
+                              "const": "dagger_4",
+                              "type": "string"
+                            },
+                            {
                               "const": "bow",
                               "type": "string"
                             },
@@ -1710,6 +2310,10 @@
                             },
                             {
                               "const": "bow_3",
+                              "type": "string"
+                            },
+                            {
+                              "const": "bow_4",
                               "type": "string"
                             },
                             {
@@ -1725,6 +2329,10 @@
                               "type": "string"
                             },
                             {
+                              "const": "crossbow_4",
+                              "type": "string"
+                            },
+                            {
                               "const": "axe",
                               "type": "string"
                             },
@@ -1734,6 +2342,10 @@
                             },
                             {
                               "const": "axe_3",
+                              "type": "string"
+                            },
+                            {
+                              "const": "axe_4",
                               "type": "string"
                             },
                             {
@@ -1749,6 +2361,10 @@
                               "type": "string"
                             },
                             {
+                              "const": "sword_4",
+                              "type": "string"
+                            },
+                            {
                               "const": "staff",
                               "type": "string"
                             },
@@ -1758,6 +2374,10 @@
                             },
                             {
                               "const": "staff_3",
+                              "type": "string"
+                            },
+                            {
+                              "const": "staff_4",
                               "type": "string"
                             },
                             {
@@ -1773,6 +2393,10 @@
                               "type": "string"
                             },
                             {
+                              "const": "flask_4",
+                              "type": "string"
+                            },
+                            {
                               "const": "mace",
                               "type": "string"
                             },
@@ -1782,6 +2406,10 @@
                             },
                             {
                               "const": "mace_3",
+                              "type": "string"
+                            },
+                            {
+                              "const": "mace_4",
                               "type": "string"
                             }
                           ]
@@ -1945,6 +2573,63 @@
                             },
                             "power": {
                               "type": "number"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "additionalProperties": false,
+                      "type": "object",
+                      "required": [
+                        "type",
+                        "playerId",
+                        "potionId",
+                        "hpAfter"
+                      ],
+                      "properties": {
+                        "type": {
+                          "const": "potion_used",
+                          "type": "string"
+                        },
+                        "playerId": {
+                          "description": "UUID",
+                          "type": "string"
+                        },
+                        "potionId": {
+                          "anyOf": [
+                            {
+                              "const": "vital",
+                              "type": "string"
+                            },
+                            {
+                              "const": "ward",
+                              "type": "string"
+                            },
+                            {
+                              "const": "fury",
+                              "type": "string"
+                            },
+                            {
+                              "const": "focus",
+                              "type": "string"
+                            }
+                          ]
+                        },
+                        "hpAfter": {
+                          "type": "integer"
+                        },
+                        "own": {
+                          "additionalProperties": false,
+                          "description": "Solo lo recibe quien la usó",
+                          "type": "object",
+                          "required": [
+                            "actionId"
+                          ],
+                          "properties": {
+                            "actionId": {
+                              "description": "UUID",
+                              "type": "string"
                             }
                           }
                         }
@@ -2200,7 +2885,7 @@
       "error": {
         "name": "error",
         "contentType": "application/json",
-        "description": "Rechazo tipado que no cierra la conexión. Códigos: INVALID_MESSAGE, RATE_LIMITED, INTERNAL_ERROR, MATCH_NOT_FOUND, MATCH_FINISHED, NOT_YOUR_TURN, STALE_VERSION, TURN_EXPIRED, INVALID_WEAPON, INVALID_ANGLE, INVALID_POWER, ACTION_ID_CONFLICT.",
+        "description": "Rechazo tipado que no cierra la conexión. Códigos: INVALID_MESSAGE, RATE_LIMITED, INTERNAL_ERROR, MATCH_NOT_FOUND, MATCH_FINISHED, NOT_YOUR_TURN, STALE_VERSION, TURN_EXPIRED, INVALID_WEAPON, INVALID_ANGLE, INVALID_POWER, POTION_NOT_AVAILABLE, ACTION_ID_CONFLICT.",
         "payload": {
           "additionalProperties": false,
           "type": "object",
@@ -2262,6 +2947,10 @@
                 },
                 {
                   "const": "INVALID_POWER",
+                  "type": "string"
+                },
+                {
+                  "const": "POTION_NOT_AVAILABLE",
                   "type": "string"
                 },
                 {

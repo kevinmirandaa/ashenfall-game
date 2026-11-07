@@ -99,12 +99,12 @@ describe('autorización en todo el contrato', () => {
     path.replace(':cosmeticId', 'frame-ash').replace(/:\w+/g, randomUUID());
 
   it.each(authRoutes.map(([route]) => route))('%s rechaza sin token', async (route) => {
-    const [method, path] = route.split(' ') as ['GET' | 'POST' | 'DELETE', string];
+    const [method, path] = route.split(' ') as ['GET' | 'POST' | 'PUT' | 'DELETE', string];
     await withApp(base(), async (app) => {
       const response = await app.inject({
         method,
         url: `${concrete(path)}${method === 'GET' ? '?limit=1' : ''}`,
-        ...(method === 'POST' ? { payload: validBodies(path) } : {}),
+        ...(method === 'POST' || method === 'PUT' ? { payload: validBodies(path) } : {}),
       });
       expect(response.statusCode).toBe(401);
     });
@@ -127,6 +127,9 @@ function validBodies(path: string): object {
   if (path.endsWith('/rooms')) return { visibility: 'public' };
   if (path.endsWith('join-by-code')) return { inviteCode: 'ABCDEFGH' };
   if (path.endsWith('/ready')) return { ready: true };
+  if (path.endsWith('/potions')) return { potionId: 'vital', purchaseId: randomUUID() };
+  if (path.endsWith('/loadout')) return { potions: [] };
+  if (path.endsWith('/matches/bot')) return { mode: 'quick' };
   if (path.endsWith('/purchases')) return { cosmeticId: 'frame-ash', purchaseId: randomUUID() };
   if (path.endsWith('/character')) return { characterId: 'sylwen' };
   if (path.endsWith('/equip')) return { equipped: true };
