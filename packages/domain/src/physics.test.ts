@@ -9,7 +9,7 @@ import {
   STEP_SECONDS,
   type ShotInput,
 } from './physics.js';
-import { computeDamage, MAX_DAMAGE_PER_SHOT, WEAPONS, WEAPON_IDS } from './weapons.js';
+import { CHARACTER_WEAPON, computeDamage, powerTier, MAX_DAMAGE_PER_SHOT, WEAPONS, WEAPON_IDS } from './weapons.js';
 
 const emptyArena: ArenaDefinition = { id: 'ashen_desert', width: 2000, obstacles: [], spawnPairs: [], maxWind: 0 };
 
@@ -27,6 +27,7 @@ function shot(overrides: Partial<ShotInput> = {}): ShotInput {
   };
 }
 
+import { hitZone } from './physics.js';
 describe('segmentEntryFraction', () => {
   const rect = { x: 10, y: 10, width: 10, height: 10 };
 
@@ -91,10 +92,10 @@ describe('simulateShot', () => {
 
   it('un proyectil rápido no atraviesa un objetivo entre dos pasos', () => {
     // A máxima velocidad el proyectil avanza más que el grosor del objetivo en cada paso.
-    const stepLength = WEAPONS.dagger.maxSpeed * STEP_SECONDS;
+    const stepLength = WEAPONS.spear.maxSpeed * STEP_SECONDS;
     const thin = { x: 600, y: 0, width: 2, height: 400 };
-    expect(stepLength).toBeGreaterThan(thin.width + WEAPONS.dagger.radius * 2);
-    const outcome = simulateShot(shot({ weapon: WEAPONS.dagger, power: 100, angleDeg: 5, target: thin }));
+    expect(stepLength).toBeGreaterThan(thin.width + WEAPONS.spear.radius * 2);
+    const outcome = simulateShot(shot({ weapon: WEAPONS.spear, power: 100, angleDeg: 5, target: thin }));
     expect(outcome.impactKind).toBe('player');
     expect(outcome.impact.x).toBeLessThanOrEqual(thin.x);
   });
@@ -108,7 +109,7 @@ describe('simulateShot', () => {
   });
 
   it('un disparo fuera de la arena termina como out_of_bounds', () => {
-    const outcome = simulateShot(shot({ origin: { x: 1950, y: 72 }, power: 100, weapon: WEAPONS.dagger }));
+    const outcome = simulateShot(shot({ origin: { x: 1950, y: 72 }, power: 100, weapon: WEAPONS.spear }));
     expect(outcome.impactKind).toBe('out_of_bounds');
   });
 
@@ -199,5 +200,23 @@ describe('arenas', () => {
         }
       }
     }
+  });
+});
+
+describe('daño por zona y potencia', () => {
+  const box = { x: 0, y: 0, width: 48, height: 96 };
+  it('distingue cabeza, torso y piernas por la altura del impacto', () => {
+    expect(hitZone({ x: 0, y: 90 }, box)).toBe('head');
+    expect(hitZone({ x: 0, y: 50 }, box)).toBe('body');
+    expect(hitZone({ x: 0, y: 10 }, box)).toBe('legs');
+  });
+  it('aplica niveles de potencia y zona, con el mismo daño para todas las armas', () => {
+    expect([powerTier(39), powerTier(40), powerTier(75)]).toEqual(['weak', 'medium', 'strong']);
+    for (const id of WEAPON_IDS) {
+      expect(computeDamage(WEAPONS[id], 50, 'body')).toBe(26);
+      expect(computeDamage(WEAPONS[id], 100, 'head')).toBe(MAX_DAMAGE_PER_SHOT);
+      expect(computeDamage(WEAPONS[id], 10, 'legs')).toBe(13);
+    }
+    expect(CHARACTER_WEAPON.borgrim).toBe('axe');
   });
 });

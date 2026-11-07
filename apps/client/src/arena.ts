@@ -29,6 +29,8 @@ const SHOT_MIN_MS = 500;
 const PARTICLES = 28;
 const TRAIL_POOL = 14;
 const HIP = 0.5;
+const POWER_MIN = 10;
+const CHARGE_MS = 1500;
 /** Fotogramas que existen en las hojas de referencia; lo demás se anima con el muñeco. */
 const POSES: Readonly<Partial<Record<CharacterId, readonly ('hit' | 'down' | 'win' | 'shoot')[]>>> = {};
 const BODY_HEIGHT: Readonly<Record<CharacterId, number>> = { edrik: 146, sylwen: 144, borgrim: 128 };
@@ -36,7 +38,6 @@ const WEAPON_ART: Readonly<Record<WeaponId, { length: number; originX: number }>
   bow: { length: 112, originX: 0.3 },
   spear: { length: 150, originX: 0.38 },
   axe: { length: 104, originX: 0.3 },
-  dagger: { length: 58, originX: 0.22 },
 };
 
 const toScreen = (point: Vec2): Vec2 => ({ x: point.x, y: GROUND_Y - point.y });
@@ -45,6 +46,8 @@ export interface ArenaHooks {
   /** La animación terminó y la vista puede mostrar el estado confirmado. */
   onAnimationsIdle(): void;
   onAim(): void;
+  /** Se soltó el botón: dispara con el ángulo y la potencia actuales. */
+  onRelease(): void;
   /** El proyectil llegó: el HUD muestra el daño ahora, no cuando el servidor lo resolvió. */
   onImpact(shot: ShotView): void;
   onIntro(active: boolean): void;
@@ -104,14 +107,15 @@ export class ArenaScene extends Phaser.Scene {
   private figures = new Map<string, Figure>();
   private queue: (() => Promise<void>)[] = [];
   private playing = false;
-  private aiming = false;
+  private charging = false;
+  private chargeMs = 0;
   private moteList: Mote[] = [];
   private moteColor = 0xffffff;
   private arenaId: PlayerMatchView['arenaId'] = 'whispering_forest';
   private blades: { x: number; height: number; phase: number }[] = [];
   private grass: Phaser.GameObjects.Graphics | null = null;
   private birds: { x: number; y: number; speed: number; phase: number }[] = [];
-  private hooks: ArenaHooks = { onAnimationsIdle: () => undefined, onAim: () => undefined, onImpact: () => undefined, onIntro: () => undefined };
+  private hooks: ArenaHooks = { onAnimationsIdle: () => undefined, onAim: () => undefined, onRelease: () => undefined, onImpact: () => undefined, onIntro: () => undefined };
 
   constructor(private readonly onReady: () => void) {
     super('arena');
@@ -123,7 +127,7 @@ export class ArenaScene extends Phaser.Scene {
 
   preload(): void {
     for (const hero of CHARACTERS) this.load.image(`body-${hero.id}`, `/art/body-${hero.id}.webp`);
-    for (const id of ['bow', 'spear', 'axe', 'dagger'] as const) this.load.image(`weapon-${id}`, `/art/weapon-${id}.webp`);
+    for (const id of ['bow', 'spear', 'axe'] as const) this.load.image(`weapon-${id}`, `/art/weapon-${id}.webp`);
     for (const [hero, poses] of Object.entries(POSES)) for (const pose of poses) this.load.image(`pose-${hero}-${pose}`, `/art/pose-${hero}-${pose}.webp`);
     for (const id of ['whispering_forest', 'frostlands', 'ashen_desert']) this.load.image(`biome-${id}`, `/art/biome-${id}.webp`);
     this.load.image('fx-arrow', '/art/fx-arrow.webp');
@@ -152,21 +156,43 @@ export class ArenaScene extends Phaser.Scene {
       softCtx.fillRect(0, 0, 128, 128);
     }
     this.textures.addCanvas('soft-glow', soft);
-    this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
-      this.aiming = this.canAim;
+    // Solo ratón: su posición da el ángulo; mantener pulsado carga la potencia; soltar dispara.
+    this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
       this.aimAt(pointer);
     });
-    this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
-      if (this.aiming && pointer.isDown) this.aimAt(pointer);
+    this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      if (!this.canAim) return;
+      this.aimAt(pointer);
+      this.charging = true;
+      this.chargeMs = performance.now();
+      this.power = POWER_MIN;
+      this.hooks.onAim();
     });
-    this.input.on('pointerup', () => {
-      this.aiming = false;
-    });
+    const release = (): void => {
+      if (!this.charging) return;
+      this.charging = false;
+      this.hooks.onRelease();
+    };
+    this.input.on('pointerup', release);
+    this.input.on('pointerupoutside', release);
     this.onReady();
   }
 
   override update(time: number, delta: number): void {
     this.animateFigures(time);
+    if (this.charging) {
+      if (!this.canAim) {
+        this.charging = false;
+      } else {
+        // Sube y baja: quien se pasa de fuerza puede esperar a que vuelva.
+        // Tiempo real, no fotogramas: la misma pulsación da la misma potencia en cualquier equipo.
+        const phase = ((performance.now() - this.chargeMs) % (CHARGE_MS * 2)) / CHARGE_MS;
+        const level = phase <= 1 ? phase : 2 - phase;
+        this.power = Math.round(POWER_MIN + (100 - POWER_MIN) * level);
+        this.drawGuide();
+        this.hooks.onAim();
+      }
+    }
     this.animateBiome(time, delta);
     if (this.trailOn && time > this.trailAt && this.projectile !== null) {
       this.trailAt = time + 28;
@@ -518,7 +544,6 @@ export class ArenaScene extends Phaser.Scene {
     const angle = Phaser.Math.RadToDeg(Math.atan2(dy, dx));
     const clamped = dx < 0 ? (dy > 0 ? 90 : 0) : Phaser.Math.Clamp(angle, 0, 90);
     this.angleDeg = Math.round(clamped);
-    this.power = Math.round(Phaser.Math.Clamp(Math.hypot(dx, dy) / 5, 10, 100));
     this.drawGuide();
     this.hooks.onAim();
   }
@@ -582,7 +607,7 @@ export class ArenaScene extends Phaser.Scene {
     const aim = second === undefined ? 30 : Phaser.Math.RadToDeg(Math.atan2(start.y - second.y, Math.abs(second.x - start.x)));
     await this.animateShot(shooter, aim, shot.weaponId);
 
-    const spin = shot.weaponId === 'axe' || shot.weaponId === 'dagger';
+    const spin = shot.weaponId === 'axe';
     const arrow = shot.weaponId === 'bow';
     projectile.setTexture(arrow ? 'fx-arrow' : `weapon-${shot.weaponId}`).setPosition(start.x, start.y).setVisible(true).clearTint();
     projectile.setScale(arrow ? 1 : 0.5).setOrigin(arrow ? 0.8 : 0.5, 0.5);
@@ -657,7 +682,8 @@ export class ArenaScene extends Phaser.Scene {
       });
     }
     if (hit) this.cameras.main.shake(180, 0.007);
-    const text = hit ? `-${String(shot.damage)}` : shot.impactKind === 'out_of_bounds' ? 'Fuera' : 'Fallo';
+    const zone = shot.zone === 'head' ? '¡Cabeza! ' : shot.zone === 'legs' ? 'Piernas ' : '';
+    const text = hit ? `${zone}-${String(shot.damage)}` : shot.impactKind === 'out_of_bounds' ? 'Fuera' : 'Fallo';
     const label = this.add
       .text(x, y - 40, text, { fontFamily: 'Palatino, Georgia, serif', fontStyle: 'bold', fontSize: hit ? '38px' : '26px', color: hit ? '#ff6a58' : '#e8d8b0', stroke: '#0d0a0e', strokeThickness: 6 })
       .setOrigin(0.5)

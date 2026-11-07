@@ -119,9 +119,9 @@ BIOMES = {'whispering_forest': (REF, (24, 652, 452, 826)), 'frostlands': (PITCH,
 for name, (source, box) in BIOMES.items():
     webp(source.crop(box), f'biome-{name}', colors=48)
 
-WEAPON_LENGTH = {'bow': 112, 'spear': 150, 'axe': 104, 'dagger': 58}
+WEAPON_LENGTH = {'bow': 112, 'spear': 150, 'axe': 104}
 # ---------- Armas: se giran para apuntar a +x; `angle` compensa su inclinación en la hoja ----------
-for name, box, angle, seeds in (('bow', (630, 358, 695, 430), -45, ((30, 25), (25, 30), (20, 20), (38, 40), (30, 45), (45, 30), (35, 55), (50, 35))), ('spear', (720, 353, 780, 430), -45, ()), ('axe', (810, 353, 868, 434), -85, ()), ('dagger', (898, 358, 955, 430), -48, ())):
+for name, box, angle, seeds in (('bow', (630, 358, 695, 430), -45, ((30, 25), (25, 30), (20, 20), (38, 40), (30, 45), (45, 30), (35, 55), (50, 35))), ('spear', (720, 353, 780, 430), -45, ()), ('axe', (810, 353, 868, 434), -85, ())):
     art = cut_out(PLAY, box, 9, seeds)
     webp(art, f'icon-{name}')
     # El arco se voltea: su vientre debe mirar hacia el blanco, con la cuerda del lado del tirador.

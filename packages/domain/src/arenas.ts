@@ -37,7 +37,7 @@ export const ARENAS: Readonly<Record<ArenaId, ArenaDefinition>> = {
     id: 'whispering_forest',
     width: ARENA_WIDTH,
     maxWind: 60,
-    obstacles: [{ x: 960, y: 0, width: 80, height: 180 }, ...mirroredRects(640, 0, 60, 90)],
+    obstacles: [{ x: 960, y: 0, width: 80, height: 180 }, ...mirroredRects(640, 0, 60, 90), ...mirroredRects(820, 0, 56, 44)],
     spawnPairs: [mirroredPair(250), mirroredPair(320), mirroredPair(400)],
   },
   frostlands: {
@@ -48,6 +48,7 @@ export const ARENAS: Readonly<Record<ArenaId, ArenaDefinition>> = {
       // Repisas de roca sobre las que aparece el jugador en uno de los puntos.
       ...mirroredRects(220, 0, 160, 110),
       ...mirroredRects(760, 0, 90, 150),
+      ...mirroredRects(620, 0, 60, 56),
     ],
     spawnPairs: [mirroredPair(300, 110), mirroredPair(450), mirroredPair(520)],
   },
@@ -55,7 +56,7 @@ export const ARENAS: Readonly<Record<ArenaId, ArenaDefinition>> = {
     id: 'ashen_desert',
     width: ARENA_WIDTH,
     maxWind: 100,
-    obstacles: [{ x: 930, y: 0, width: 140, height: 120 }, ...mirroredRects(600, 0, 70, 130)],
+    obstacles: [{ x: 930, y: 0, width: 140, height: 120 }, ...mirroredRects(600, 0, 70, 130), ...mirroredRects(800, 0, 50, 62)],
     spawnPairs: [mirroredPair(260), mirroredPair(360), mirroredPair(470)],
   },
 };

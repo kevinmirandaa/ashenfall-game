@@ -139,10 +139,6 @@
                 {
                   "const": "axe",
                   "type": "string"
-                },
-                {
-                  "const": "dagger",
-                  "type": "string"
                 }
               ]
             },
@@ -376,7 +372,9 @@
                     "hp",
                     "position",
                     "facing",
-                    "connected"
+                    "connected",
+                    "characterId",
+                    "displayName"
                   ],
                   "properties": {
                     "playerId": {
@@ -416,6 +414,25 @@
                     },
                     "connected": {
                       "type": "boolean"
+                    },
+                    "characterId": {
+                      "anyOf": [
+                        {
+                          "const": "edrik",
+                          "type": "string"
+                        },
+                        {
+                          "const": "sylwen",
+                          "type": "string"
+                        },
+                        {
+                          "const": "borgrim",
+                          "type": "string"
+                        }
+                      ]
+                    },
+                    "displayName": {
+                      "type": "string"
                     }
                   }
                 },
@@ -427,7 +444,9 @@
                     "hp",
                     "position",
                     "facing",
-                    "connected"
+                    "connected",
+                    "characterId",
+                    "displayName"
                   ],
                   "properties": {
                     "playerId": {
@@ -467,6 +486,25 @@
                     },
                     "connected": {
                       "type": "boolean"
+                    },
+                    "characterId": {
+                      "anyOf": [
+                        {
+                          "const": "edrik",
+                          "type": "string"
+                        },
+                        {
+                          "const": "sylwen",
+                          "type": "string"
+                        },
+                        {
+                          "const": "borgrim",
+                          "type": "string"
+                        }
+                      ]
+                    },
+                    "displayName": {
+                      "type": "string"
                     }
                   }
                 },
@@ -570,7 +608,7 @@
                 "windAccel": -40,
                 "maxRounds": 12,
                 "round": 1,
-                "physicsVersion": 1,
+                "physicsVersion": 2,
                 "turn": {
                   "playerId": "c4e8a1d2-7b36-49f0-a5c3-1f2e6d8b0a33",
                   "round": 1,
@@ -584,7 +622,9 @@
                     "y": 0
                   },
                   "facing": 1,
-                  "connected": true
+                  "connected": true,
+                  "characterId": "edrik",
+                  "displayName": "Edrik"
                 },
                 "opponent": {
                   "playerId": "0b9a7c3e-52d1-4f60-8a2b-7e1d3c5f9a22",
@@ -594,7 +634,9 @@
                     "y": 0
                   },
                   "facing": -1,
-                  "connected": true
+                  "connected": true,
+                  "characterId": "edrik",
+                  "displayName": "Edrik"
                 },
                 "result": null
               }
@@ -763,7 +805,9 @@
                                 "hp",
                                 "position",
                                 "facing",
-                                "connected"
+                                "connected",
+                                "characterId",
+                                "displayName"
                               ],
                               "properties": {
                                 "playerId": {
@@ -803,6 +847,25 @@
                                 },
                                 "connected": {
                                   "type": "boolean"
+                                },
+                                "characterId": {
+                                  "anyOf": [
+                                    {
+                                      "const": "edrik",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "sylwen",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "borgrim",
+                                      "type": "string"
+                                    }
+                                  ]
+                                },
+                                "displayName": {
+                                  "type": "string"
                                 }
                               }
                             },
@@ -814,7 +877,9 @@
                                 "hp",
                                 "position",
                                 "facing",
-                                "connected"
+                                "connected",
+                                "characterId",
+                                "displayName"
                               ],
                               "properties": {
                                 "playerId": {
@@ -854,6 +919,25 @@
                                 },
                                 "connected": {
                                   "type": "boolean"
+                                },
+                                "characterId": {
+                                  "anyOf": [
+                                    {
+                                      "const": "edrik",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "sylwen",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "borgrim",
+                                      "type": "string"
+                                    }
+                                  ]
+                                },
+                                "displayName": {
+                                  "type": "string"
                                 }
                               }
                             },
@@ -954,6 +1038,7 @@
                         "flightMs",
                         "path",
                         "damage",
+                        "zone",
                         "targetHpAfter"
                       ],
                       "properties": {
@@ -977,10 +1062,6 @@
                             },
                             {
                               "const": "axe",
-                              "type": "string"
-                            },
-                            {
-                              "const": "dagger",
                               "type": "string"
                             }
                           ]
@@ -1045,6 +1126,29 @@
                         },
                         "damage": {
                           "type": "integer"
+                        },
+                        "zone": {
+                          "anyOf": [
+                            {
+                              "anyOf": [
+                                {
+                                  "const": "head",
+                                  "type": "string"
+                                },
+                                {
+                                  "const": "body",
+                                  "type": "string"
+                                },
+                                {
+                                  "const": "legs",
+                                  "type": "string"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
                         },
                         "targetHpAfter": {
                           "type": "integer"

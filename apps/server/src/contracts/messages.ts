@@ -27,6 +27,8 @@ const Side = Type.Object(
     position: Point,
     facing: Type.Union([Type.Literal(1), Type.Literal(-1)]),
     connected: Type.Boolean(),
+    characterId: literalUnion(['edrik', 'sylwen', 'borgrim']),
+    displayName: Type.String(),
   },
   strict,
 );
@@ -58,12 +60,13 @@ const eventPayloads = [
     {
       type: Type.Literal('shot_resolved'),
       shooterId: Id,
-      weaponId: literalUnion(['bow', 'spear', 'axe', 'dagger']),
+      weaponId: literalUnion(['bow', 'spear', 'axe']),
       impactKind: literalUnion(['player', 'obstacle', 'ground', 'out_of_bounds']),
       impact: Point,
       flightMs: Type.Integer(),
       path: Type.Array(Point),
       damage: Type.Integer(),
+      zone: Type.Union([literalUnion(['head', 'body', 'legs']), Type.Null()]),
       targetHpAfter: Type.Integer(),
       own: Type.Optional(
         Type.Object({ actionId: Id, angleDeg: Type.Number(), power: Type.Number() }, { ...strict, description: 'Solo lo recibe quien disparó' }),

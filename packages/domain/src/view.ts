@@ -2,7 +2,7 @@ import type { ArenaId } from './arenas.js';
 import type { EventPayload, MatchEvent, MatchResult, MatchState, PlayerSetup, TurnState } from './match.js';
 import type { ImpactKind } from './physics.js';
 import type { ActionId, MatchId, PlayerId, Vec2 } from './types.js';
-import type { WeaponId } from './weapons.js';
+import type { CharacterId, HitZone, WeaponId } from './weapons.js';
 
 export interface PlayerSideView {
   readonly playerId: PlayerId;
@@ -10,6 +10,8 @@ export interface PlayerSideView {
   readonly position: Vec2;
   readonly facing: 1 | -1;
   readonly connected: boolean;
+  readonly characterId: CharacterId;
+  readonly displayName: string;
 }
 
 /** Lo único que un jugador recibe del estado de la partida, también al reconectar. */
@@ -38,6 +40,7 @@ export interface ShotView {
   readonly flightMs: number;
   readonly path: readonly Vec2[];
   readonly damage: number;
+  readonly zone: HitZone | null;
   readonly targetHpAfter: number;
   /** Solo para quien disparó: confirma su intención. El rival nunca recibe estos tres campos. */
   readonly own?: { readonly actionId: ActionId; readonly angleDeg: number; readonly power: number };
@@ -65,6 +68,8 @@ function sideView(state: MatchState, setup: PlayerSetup): PlayerSideView {
     position: setup.position,
     facing: setup.facing,
     connected: player.connected,
+    characterId: setup.characterId ?? 'edrik',
+    displayName: setup.displayName ?? 'Mercenario',
   };
 }
 
@@ -113,6 +118,7 @@ export function toPlayerEvent(event: MatchEvent, stateAfter: MatchState, viewerI
         flightMs: payload.outcome.flightMs,
         path: payload.outcome.path,
         damage: payload.damage,
+        zone: payload.zone ?? null,
         targetHpAfter: payload.targetHpAfter,
       };
       return {

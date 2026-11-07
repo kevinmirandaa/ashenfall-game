@@ -1,13 +1,13 @@
 /** Datos de personajes y acceso al arte recortado de las hojas de referencia (public/art). */
-import type { WeaponId } from '@ashenfall/domain';
+import { CHARACTER_WEAPON, type CharacterId } from '@ashenfall/domain';
 
-export type CharacterId = 'edrik' | 'sylwen' | 'borgrim';
+export type { CharacterId } from '@ashenfall/domain';
 export const CHARACTERS: readonly { id: CharacterId; name: string; race: string; weapon: string; lore: string }[] = [
   { id: 'edrik', name: 'Edrik', race: 'El Errante', weapon: 'Arco', lore: 'Un mercenario veterano que busca un nuevo propósito.' },
   { id: 'sylwen', name: 'Sylwen', race: 'La Última Elfa', weapon: 'Lanza', lore: 'Una arquera experta, silenciosa y precisa.' },
   { id: 'borgrim', name: 'Borgrim', race: 'El Forjador', weapon: 'Hacha', lore: 'Un enano orgulloso con un gran corazón.' },
 ];
-export const DEFAULT_WEAPON: Readonly<Record<CharacterId, WeaponId>> = { edrik: 'bow', sylwen: 'spear', borgrim: 'axe' };
+export const DEFAULT_WEAPON = CHARACTER_WEAPON;
 
 /** Apariencia equipada. Es solo visual: nada de esto llega a la física ni al daño. */
 export interface Look {
@@ -27,7 +27,7 @@ export const baseLook = (character: CharacterId): Look => ({ character, cloak: f
 export const bodyTint = (look: Look): number => (look.cloak ? 0xc4dcff : look.veteran ? 0xffd4b8 : 0xffffff);
 export const bodyFilter = (look: Look): string => (look.cloak ? 'saturate(.7) hue-rotate(190deg) brightness(1.1)' : look.veteran ? 'sepia(.35) saturate(1.4)' : 'none');
 
-export type IconName = WeaponId | 'coin' | 'gear' | 'heart' | 'cloak' | 'helm' | 'hood' | 'emblem' | 'star' | 'potion' | 'trophy' | 'swords' | 'check' | 'cross' | 'shield' | 'crown' | 'pouch' | 'scroll';
+export type IconName = 'bow' | 'spear' | 'axe' | 'coin' | 'gear' | 'heart' | 'cloak' | 'helm' | 'hood' | 'emblem' | 'star' | 'potion' | 'trophy' | 'swords' | 'check' | 'cross' | 'shield' | 'crown' | 'pouch' | 'scroll';
 
 export const iconUrl = (name: IconName): string => `/art/icon-${name}.webp`;
 export const icon = (name: IconName, size = 24): string => `<img class="ico" src="${iconUrl(name)}" style="height:${String(size)}px" alt="" />`;

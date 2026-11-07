@@ -1,5 +1,6 @@
 import { ARENAS, ARENA_IDS, type ArenaId } from './arenas.js';
 import {
+  hitZone,
   muzzlePosition,
   playerHitbox,
   simulateShot,
@@ -8,7 +9,7 @@ import {
   type ShotOutcome,
 } from './physics.js';
 import type { ActionId, MatchId, PlayerId, RandomSource, Vec2 } from './types.js';
-import { computeDamage, isWeaponId, WEAPONS, type WeaponId } from './weapons.js';
+import { CHARACTER_WEAPON, computeDamage, isWeaponId, WEAPONS, type CharacterId, type HitZone, type WeaponId } from './weapons.js';
 
 export const ANGLE_RANGE = { min: 0, max: 90 } as const;
 export const POWER_RANGE = { min: 10, max: 100 } as const;
@@ -33,6 +34,9 @@ export interface PlayerSetup {
   readonly playerId: PlayerId;
   readonly position: Vec2;
   readonly facing: Facing;
+  /** Fijados al empezar. Ausentes en partidas anteriores a este cambio. */
+  readonly characterId?: CharacterId;
+  readonly displayName?: string;
 }
 
 export interface MatchSetup {
@@ -73,6 +77,7 @@ export type EventPayload =
       readonly power: number;
       readonly outcome: ShotOutcome;
       readonly damage: number;
+      readonly zone?: HitZone | null;
       readonly targetHpAfter: number;
     }
   | { readonly type: 'turn_timed_out'; readonly playerId: PlayerId }
@@ -160,6 +165,8 @@ export interface CreateSetupInput {
   readonly matchId: MatchId;
   readonly playerIds: readonly [PlayerId, PlayerId];
   readonly config?: MatchConfig;
+  /** Por jugador; quien no aparezca juega como Edrik. */
+  readonly profiles?: Readonly<Record<PlayerId, { readonly characterId: CharacterId; readonly displayName: string }>>;
 }
 
 /** Arena, posiciones, viento y primer jugador los decide siempre el servidor. */
@@ -179,8 +186,8 @@ export function createMatchSetup(input: CreateSetupInput, random: RandomSource):
     arenaId,
     windAccel,
     players: [
-      { playerId: leftId, position: spawn.left, facing: 1 },
-      { playerId: rightId, position: spawn.right, facing: -1 },
+      { playerId: leftId, position: spawn.left, facing: 1, ...(input.profiles?.[leftId] ?? {}) },
+      { playerId: rightId, position: spawn.right, facing: -1, ...(input.profiles?.[rightId] ?? {}) },
     ],
     firstPlayerId: random.intBelow(2) === 0 ? firstId : secondId,
     config: input.config ?? DEFAULT_MATCH_CONFIG,
@@ -410,7 +417,9 @@ function decideShoot(state: MatchState, command: Extract<MatchCommand, { type: '
 
   const weapon = WEAPONS[command.weaponId];
   const shooter = setupOf(state, playerId);
+  if (shooter.characterId !== undefined && CHARACTER_WEAPON[shooter.characterId] !== weapon.id) return rejected('INVALID_WEAPON');
   const opponent = opponentOf(state, playerId);
+  const targetBox = playerHitbox(setupOf(state, opponent.playerId).position);
   const outcome = simulateShot({
     origin: muzzlePosition(shooter.position, shooter.facing),
     facing: shooter.facing,
@@ -419,9 +428,10 @@ function decideShoot(state: MatchState, command: Extract<MatchCommand, { type: '
     weapon,
     windAccel: state.setup.windAccel,
     arena: ARENAS[state.setup.arenaId],
-    target: playerHitbox(setupOf(state, opponent.playerId).position),
+    target: targetBox,
   });
-  const damage = outcome.impactKind === 'player' ? computeDamage(weapon, command.power) : 0;
+  const zone = outcome.impactKind === 'player' ? hitZone(outcome.impact, targetBox) : null;
+  const damage = zone === null ? 0 : computeDamage(weapon, command.power, zone);
 
   return emit(
     state,
@@ -435,6 +445,7 @@ function decideShoot(state: MatchState, command: Extract<MatchCommand, { type: '
       power: command.power,
       outcome,
       damage,
+      zone,
       targetHpAfter: Math.max(0, opponent.hp - damage),
     },
     (after) => followUp(after, playerId, nowMs),

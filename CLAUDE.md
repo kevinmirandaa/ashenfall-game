@@ -8,7 +8,7 @@ Idioma con el usuario: español.
 Solo el **servidor** (juego/arte/cliente sin nota, pero el juego debe cumplir restricciones). Pesos: Arquitectura 20, Sesiones/concurrencia 20, Seguridad 20, Rendimiento 15, Azure/IaC/CI-CD 10, Contratos/pruebas 10, Docs/observabilidad 5. Un secreto en el repo limita Seguridad al 50%.
 
 ## Juego
-Duelo 1v1 por turnos de proyectiles, fantasía oscura, pixel art 2D, web. Personajes fijos (nunca se mueven). Armas: arco, lanza, hacha, daga. Biomas: Bosque de los Susurros, Tierras del Invierno, Desierto de Ceniza. Personajes: Edrik, Sylwen, Borgrim (sin diferencias de stats). Viento fijo por partida. 100 HP, turno 30 s, máx 12 rondas. Victoria = +100 monedas (Marcas de Ceniza), derrota/empate = 0. Tienda solo cosmética (no pay-to-win). Pueblo estático con hotspots (Taberna, Forja, Caldero, Arsenal, Hermandad).
+Duelo 1v1 por turnos de proyectiles, fantasía oscura, pixel art 2D, web. Personajes fijos (nunca se mueven). Armas: arco (Edrik), lanza (Sylwen), hacha (Borgrim); cada personaje solo usa la suya. Biomas: Bosque de los Susurros, Tierras del Invierno, Desierto de Ceniza. Personajes: Edrik, Sylwen, Borgrim (sin diferencias de stats: mismo daño base; ver SCRUM-55 en DECISIONS.md). Viento fijo por partida. 100 HP, turno 30 s, máx 12 rondas. Victoria = +100 monedas (Marcas de Ceniza), derrota/empate = 0. Tienda solo cosmética (no pay-to-win). Pueblo estático con hotspots (Taberna, Forja, Caldero, Arsenal, Hermandad).
 
 ### Regla de visibilidad (decidida por el usuario)
 - Arena aleatoria; cada jugador aparece en una coordenada (x, y) de esa arena y no se mueve en toda la partida.

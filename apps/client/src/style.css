@@ -25,7 +25,6 @@ html, body { margin: 0; height: 100%; background: #000; color: var(--bone); font
 #screen > *, #modal > * { pointer-events: auto; }
 #screen.hud { pointer-events: none; }
 #screen.hud > * { pointer-events: none; }
-#screen.hud .controls { pointer-events: auto; }
 #screen:not(.hud) { background: var(--ink); pointer-events: auto; }
 .backdrop { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; pointer-events: none !important; }
 
@@ -154,7 +153,7 @@ button.primary:hover:not(:disabled) { background: linear-gradient(#37436a, #232b
 .biome-card { display: grid; justify-items: center; gap: 4px; padding: 8px; background: #120e16e6; border: 2px solid var(--bronze); box-shadow: 0 0 0 2px #000; }
 .biome-card img { width: 386px; height: 142px; }
 .biome-card b { font-size: 22px; color: var(--gold); }
-.controls { position: absolute; left: 14px; right: 14px; bottom: 10px; display: grid; grid-template-columns: auto 1fr 1fr 180px; gap: 18px; align-items: center; padding: 6px 12px; background: #120e16e6; border: 2px solid var(--bronze); box-shadow: 0 0 0 2px #000; transition: opacity 120ms; }
+.controls { position: absolute; left: 14px; right: 14px; bottom: 10px; display: grid; grid-template-columns: auto auto 1fr 1.3fr; gap: 18px; align-items: center; padding: 6px 12px; background: #120e16e6; border: 2px solid var(--bronze); box-shadow: 0 0 0 2px #000; transition: opacity 120ms; }
 .controls.idle { opacity: 0.72; }
 .weapons { display: flex; gap: 4px; }
 .weapon { display: grid; justify-items: center; width: 58px; padding: 3px 4px 1px; line-height: 1; background: #0b0910; border-color: #3a2c1c; }
@@ -180,3 +179,12 @@ input[type='range']:disabled { cursor: not-allowed; }
 #toast { position: absolute; left: 50%; bottom: 96px; transform: translateX(-50%); margin: 0; padding: 7px 16px; background: #3f120fee; border: 2px solid var(--blood); box-shadow: 0 0 0 2px #000; white-space: nowrap; z-index: 5; }
 #toast:empty { display: none; }
 .wpn { display: block; height: 42px; width: 46px; object-fit: contain; }
+.own-weapon { display: grid; justify-items: center; line-height: 1; color: var(--gold-hi); }
+.readout { display: grid; justify-items: center; font-size: 15px; color: var(--dim); }
+.readout b { font-size: 24px; color: var(--gold-hi); font-weight: 600; }
+.charge { display: grid; gap: 4px; font-size: 17px; }
+.charge b { color: var(--gold-hi); }
+.charge em { color: #ef8a7d; font-style: normal; }
+.meter { display: block; height: 16px; background: #0b0910; border: 2px solid var(--bronze); box-shadow: 0 0 0 1px #000; }
+.meter u { display: block; height: 100%; width: 0; background: linear-gradient(to right, #3f8fb0, #d8b47a 50%, #c0392b); background-size: 420px 100%; }
+.hint { margin: 0; font-size: 14px; color: var(--dim); text-align: right; }

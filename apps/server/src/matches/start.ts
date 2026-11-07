@@ -1,5 +1,5 @@
 import { randomInt, randomUUID } from 'node:crypto';
-import { createMatchSetup, startMatch, type MatchConfig, type RandomSource } from '@ashenfall/domain';
+import { CHARACTER_IDS, createMatchSetup, isCharacterId, startMatch, type CharacterId, type MatchConfig, type RandomSource } from '@ashenfall/domain';
 import type pg from 'pg';
 import { isUniqueViolation } from '../db/transaction.js';
 import { ProblemError } from '../problem.js';
@@ -18,7 +18,15 @@ export async function createMatchInTransaction(
   config?: MatchConfig,
 ): Promise<string> {
   const matchId = randomUUID();
-  const setup = createMatchSetup({ matchId, playerIds, ...(config === undefined ? {} : { config }) }, cryptoRandom);
+  const { rows } = await client.query<{ id: string; display_name: string; character_id: string }>(
+    'SELECT id, display_name, character_id FROM users WHERE id = ANY($1::uuid[])',
+    [[...playerIds]],
+  );
+  const profiles: Record<string, { characterId: CharacterId; displayName: string }> = {};
+  for (const row of rows) {
+    profiles[row.id] = { characterId: isCharacterId(row.character_id) ? row.character_id : CHARACTER_IDS[0], displayName: row.display_name };
+  }
+  const setup = createMatchSetup({ matchId, playerIds, profiles, ...(config === undefined ? {} : { config }) }, cryptoRandom);
   const first = startMatch(setup, nowMs);
   // Un SAVEPOINT no hace falta: si falla, toda la transacción de origen se revierte.
   try {

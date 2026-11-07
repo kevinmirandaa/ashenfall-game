@@ -17,6 +17,7 @@ export function escapeHtml(text: string): string {
 }
 
 export interface Profile {
+  characterId: CharacterId;
   id: string;
   displayName: string;
   balance: number;
