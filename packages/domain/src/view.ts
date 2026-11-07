@@ -42,6 +42,8 @@ export interface ShotView {
   readonly damage: number;
   readonly zone: HitZone | null;
   readonly targetHpAfter: number;
+  /** Posición del impactado tras retroceder; la misma que tenía si no hubo daño. Pública para ambos jugadores. */
+  readonly targetPosition: Vec2;
   /** Solo para quien disparó: confirma su intención. El rival nunca recibe estos tres campos. */
   readonly own?: { readonly actionId: ActionId; readonly angleDeg: number; readonly power: number };
 }
@@ -65,12 +67,19 @@ function sideView(state: MatchState, setup: PlayerSetup): PlayerSideView {
   return {
     playerId: player.playerId,
     hp: player.hp,
-    position: setup.position,
+    position: player.position,
     facing: setup.facing,
     connected: player.connected,
     characterId: setup.characterId ?? 'edrik',
     displayName: setup.displayName ?? 'Mercenario',
   };
+}
+
+/** Eventos de partidas anteriores al retroceso no traen posición: el impactado seguía donde estaba. */
+function targetPositionBefore(stateAfter: MatchState, shooterId: PlayerId): Vec2 {
+  const target = stateAfter.players.find((player) => player.playerId !== shooterId);
+  if (target === undefined) throw new Error('Estado corrupto: partida sin rival');
+  return target.position;
 }
 
 /**
@@ -120,6 +129,7 @@ export function toPlayerEvent(event: MatchEvent, stateAfter: MatchState, viewerI
         damage: payload.damage,
         zone: payload.zone ?? null,
         targetHpAfter: payload.targetHpAfter,
+        targetPosition: payload.targetPosition ?? targetPositionBefore(stateAfter, payload.shooterId),
       };
       return {
         ...base,

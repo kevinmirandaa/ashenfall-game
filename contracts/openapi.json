@@ -6281,7 +6281,8 @@
                                   "path",
                                   "damage",
                                   "zone",
-                                  "targetHpAfter"
+                                  "targetHpAfter",
+                                  "targetPosition"
                                 ],
                                 "properties": {
                                   "type": {
@@ -6416,6 +6417,22 @@
                                   },
                                   "targetHpAfter": {
                                     "type": "integer"
+                                  },
+                                  "targetPosition": {
+                                    "additionalProperties": false,
+                                    "type": "object",
+                                    "required": [
+                                      "x",
+                                      "y"
+                                    ],
+                                    "properties": {
+                                      "x": {
+                                        "type": "number"
+                                      },
+                                      "y": {
+                                        "type": "number"
+                                      }
+                                    }
                                   },
                                   "own": {
                                     "additionalProperties": false,

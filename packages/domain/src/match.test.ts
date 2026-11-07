@@ -58,18 +58,22 @@ function run(state: MatchState, command: MatchCommand): MatchState {
 function aimingAtOpponent(state: MatchState, shooterId: string): { angleDeg: number; power: number } {
   const shooter = state.setup.players.find((player) => player.playerId === shooterId);
   const target = state.setup.players.find((player) => player.playerId !== shooterId);
-  if (shooter === undefined || target === undefined) throw new Error('Jugadores inválidos');
+  const shooterPosition = state.players.find((player) => player.playerId === shooterId)?.position;
+  const targetPosition = state.players.find((player) => player.playerId !== shooterId)?.position;
+  if (shooter === undefined || target === undefined || shooterPosition === undefined || targetPosition === undefined) {
+    throw new Error('Jugadores inválidos');
+  }
   for (let angleDeg = 10; angleDeg <= 85; angleDeg += 1) {
     for (let power = 30; power <= 100; power += 1) {
       const outcome = simulateShot({
-        origin: muzzlePosition(shooter.position, shooter.facing),
+        origin: muzzlePosition(shooterPosition, shooter.facing),
         facing: shooter.facing,
         angleDeg,
         power,
         weapon: WEAPONS.bow,
         windAccel: state.setup.windAccel,
         arena: ARENAS[state.setup.arenaId],
-        target: playerHitbox(target.position),
+        target: playerHitbox(targetPosition),
       });
       if (outcome.impactKind === 'player') return { angleDeg, power };
     }
@@ -128,13 +132,46 @@ describe('createMatchSetup', () => {
     expect(seen.first).toEqual(new Set([A, B]));
   });
 
-  it('los jugadores se enfrentan y no cambian de posición durante la partida', () => {
+  it('los jugadores se enfrentan y un disparo que falla no mueve a nadie', () => {
     let state = begin();
-    const positions = state.setup.players.map((player) => player.position);
+    const positions = state.players.map((player) => player.position);
     expect(state.setup.players[0].facing).toBe(1);
     expect(state.setup.players[1].facing).toBe(-1);
     state = run(state, shoot(state, currentPlayer(state), MISS));
-    expect(state.setup.players.map((player) => player.position)).toEqual(positions);
+    expect(state.players.map((player) => player.position)).toEqual(positions);
+  });
+
+  it('un impacto hace retroceder al rival, de forma permanente y sin tocar al tirador', () => {
+    let state = begin();
+    const shooterId = currentPlayer(state);
+    const before = state.players.map((player) => ({ id: player.playerId, position: player.position }));
+    const target = before.find((player) => player.id !== shooterId);
+    const shooter = before.find((player) => player.id === shooterId);
+    const facing = state.setup.players.find((player) => player.playerId !== shooterId)?.facing;
+    if (target === undefined || shooter === undefined || facing === undefined) throw new Error('Jugadores inválidos');
+
+    state = run(state, shoot(state, shooterId, aimingAtOpponent(state, shooterId)));
+
+    const after = state.players.map((player) => ({ id: player.playerId, position: player.position }));
+    const targetAfter = after.find((player) => player.id === target.id);
+    expect(targetAfter?.position.x).not.toBe(target.position.x);
+    // retrocede alejándose del tirador: en sentido contrario a hacia donde mira
+    expect(Math.sign((targetAfter?.position.x ?? 0) - target.position.x)).toBe(-facing);
+    expect(after.find((player) => player.id === shooterId)?.position).toEqual(shooter.position);
+
+    // un turno después de fallar, sigue donde quedó
+    const next = run(state, shoot(state, currentPlayer(state), MISS));
+    expect(next.players.find((player) => player.playerId === target.id)?.position).toEqual(targetAfter?.position);
+  });
+
+  it('reproducir la partida deja a los personajes en las mismas posiciones', () => {
+    const events: MatchEvent[] = [startMatch(setup(), T0)];
+    let state = initialState(events[0] as MatchEvent);
+    const shooterId = currentPlayer(state);
+    const decided = applied(decide(state, shoot(state, shooterId, aimingAtOpponent(state, shooterId))));
+    events.push(...decided);
+    state = decided.reduce(evolve, state);
+    expect(replay(events).players.map((player) => player.position)).toEqual(state.players.map((player) => player.position));
   });
 });
 

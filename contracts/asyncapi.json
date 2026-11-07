@@ -608,7 +608,7 @@
                 "windAccel": -40,
                 "maxRounds": 12,
                 "round": 1,
-                "physicsVersion": 2,
+                "physicsVersion": 3,
                 "turn": {
                   "playerId": "c4e8a1d2-7b36-49f0-a5c3-1f2e6d8b0a33",
                   "round": 1,
@@ -1039,7 +1039,8 @@
                         "path",
                         "damage",
                         "zone",
-                        "targetHpAfter"
+                        "targetHpAfter",
+                        "targetPosition"
                       ],
                       "properties": {
                         "type": {
@@ -1152,6 +1153,22 @@
                         },
                         "targetHpAfter": {
                           "type": "integer"
+                        },
+                        "targetPosition": {
+                          "additionalProperties": false,
+                          "type": "object",
+                          "required": [
+                            "x",
+                            "y"
+                          ],
+                          "properties": {
+                            "x": {
+                              "type": "number"
+                            },
+                            "y": {
+                              "type": "number"
+                            }
+                          }
                         },
                         "own": {
                           "additionalProperties": false,

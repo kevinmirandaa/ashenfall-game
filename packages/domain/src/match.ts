@@ -1,5 +1,6 @@
 import { ARENAS, ARENA_IDS, type ArenaId } from './arenas.js';
 import {
+  applyKnockback,
   hitZone,
   muzzlePosition,
   playerHitbox,
@@ -79,6 +80,8 @@ export type EventPayload =
       readonly damage: number;
       readonly zone?: HitZone | null;
       readonly targetHpAfter: number;
+      /** Dónde queda el impactado tras retroceder. Ausente en partidas anteriores: no se movía. */
+      readonly targetPosition?: Vec2;
     }
   | { readonly type: 'turn_timed_out'; readonly playerId: PlayerId }
   | { readonly type: 'turn_started'; readonly playerId: PlayerId; readonly round: number; readonly deadlineMs: number }
@@ -95,6 +98,8 @@ export interface MatchEvent {
 export interface PlayerState {
   readonly playerId: PlayerId;
   readonly hp: number;
+  /** Posición actual: parte de la de aparición y cambia con cada impacto recibido. */
+  readonly position: Vec2;
   readonly connected: boolean;
   readonly graceDeadlineMs: number | null;
   readonly consecutiveTimeouts: number;
@@ -225,6 +230,7 @@ export function initialState(event: MatchEvent): MatchState {
   const toPlayer = (player: PlayerSetup): PlayerState => ({
     playerId: player.playerId,
     hp: setup.config.startingHp,
+    position: player.position,
     connected: true,
     graceDeadlineMs: null,
     consecutiveTimeouts: 0,
@@ -272,7 +278,7 @@ export function evolve(state: MatchState, event: MatchEvent): MatchState {
         players: updatePlayer(
           updatePlayer(state.players, payload.shooterId, (player) => ({ ...player, consecutiveTimeouts: 0 })),
           opponentOf(state, payload.shooterId).playerId,
-          (player) => ({ ...player, hp: payload.targetHpAfter }),
+          (player) => ({ ...player, hp: payload.targetHpAfter, position: payload.targetPosition ?? player.position }),
         ),
         appliedActions: [
           ...state.appliedActions,
@@ -419,9 +425,10 @@ function decideShoot(state: MatchState, command: Extract<MatchCommand, { type: '
   const shooter = setupOf(state, playerId);
   if (shooter.characterId !== undefined && CHARACTER_WEAPON[shooter.characterId] !== weapon.id) return rejected('INVALID_WEAPON');
   const opponent = opponentOf(state, playerId);
-  const targetBox = playerHitbox(setupOf(state, opponent.playerId).position);
+  const shooterPosition = opponentOf(state, opponent.playerId).position;
+  const targetBox = playerHitbox(opponent.position);
   const outcome = simulateShot({
-    origin: muzzlePosition(shooter.position, shooter.facing),
+    origin: muzzlePosition(shooterPosition, shooter.facing),
     facing: shooter.facing,
     angleDeg: command.angleDeg,
     power: command.power,
@@ -432,6 +439,10 @@ function decideShoot(state: MatchState, command: Extract<MatchCommand, { type: '
   });
   const zone = outcome.impactKind === 'player' ? hitZone(outcome.impact, targetBox) : null;
   const damage = zone === null ? 0 : computeDamage(weapon, command.power, zone);
+  const targetPosition =
+    damage > 0
+      ? applyKnockback(opponent.position, setupOf(state, opponent.playerId).facing, damage, ARENAS[state.setup.arenaId])
+      : opponent.position;
 
   return emit(
     state,
@@ -447,6 +458,7 @@ function decideShoot(state: MatchState, command: Extract<MatchCommand, { type: '
       damage,
       zone,
       targetHpAfter: Math.max(0, opponent.hp - damage),
+      targetPosition,
     },
     (after) => followUp(after, playerId, nowMs),
   );

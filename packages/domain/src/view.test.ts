@@ -42,7 +42,7 @@ describe('vista por jugador', () => {
 
   it('la posición del rival es pública en la partida, para el paneo inicial de cámara', () => {
     const state = begin();
-    expect(toPlayerView(state, A)?.opponent.position).toEqual(state.setup.players[1].position);
+    expect(toPlayerView(state, A)?.opponent.position).toEqual(state.players[1].position);
   });
 
   it('un tercero no recibe vista ni eventos', () => {

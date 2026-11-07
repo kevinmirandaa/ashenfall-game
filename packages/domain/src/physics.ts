@@ -3,7 +3,7 @@ import type { Rect, Vec2 } from './types.js';
 import type { HitZone, WeaponProfile } from './weapons.js';
 
 /** Sube si cambia cualquier constante: el cliente la compara para saber si su guía sigue siendo válida. */
-export const PHYSICS_VERSION = 2;
+export const PHYSICS_VERSION = 3;
 
 export const GRAVITY = 900;
 export const STEP_SECONDS = 1 / 60;
@@ -51,6 +51,44 @@ export function hitZone(impact: Vec2, target: Rect): HitZone {
   const height = (impact.y - target.y) / target.height;
   if (height >= 0.75) return 'head';
   return height < 1 / 3 ? 'legs' : 'body';
+}
+
+/** Unidades que retrocede un personaje por cada punto de daño recibido. */
+export const KNOCKBACK_PER_DAMAGE = 3;
+export const MAX_KNOCKBACK = 240;
+const KNOCKBACK_STEP = 2;
+/** Desnivel que se puede subir andando hacia atrás; un obstáculo más alto bloquea el retroceso. */
+const KNOCKBACK_STEP_UP = 24;
+const ARENA_EDGE_MARGIN = 40;
+
+/** Altura de la superficie bajo el personaje en `x`: el techo del obstáculo más alto que pisa, o el suelo. */
+function supportHeight(x: number, arena: ArenaDefinition): number {
+  const half = PLAYER_HITBOX.width / 2;
+  let top = 0;
+  for (const obstacle of arena.obstacles) {
+    if (obstacle.x < x + half && obstacle.x + obstacle.width > x - half) top = Math.max(top, obstacle.y + obstacle.height);
+  }
+  return top;
+}
+
+/**
+ * Posición final tras recibir un impacto: retrocede alejándose del tirador y no vuelve nunca.
+ * Se detiene en el borde de la arena o ante un obstáculo; si pierde el apoyo, cae al suelo.
+ * Es aritmética entera por pasos fijos, así que repetir la partida da siempre el mismo resultado.
+ */
+export function applyKnockback(position: Vec2, facing: Facing, damage: number, arena: ArenaDefinition): Vec2 {
+  const distance = Math.min(MAX_KNOCKBACK, Math.max(0, damage) * KNOCKBACK_PER_DAMAGE);
+  const minX = ARENA_EDGE_MARGIN + PLAYER_HITBOX.width / 2;
+  const maxX = arena.width - minX;
+  let current = position;
+  for (let moved = KNOCKBACK_STEP; moved <= distance; moved += KNOCKBACK_STEP) {
+    const x = current.x - facing * KNOCKBACK_STEP;
+    if (x < minX || x > maxX) break;
+    const support = supportHeight(x, arena);
+    if (support > current.y + KNOCKBACK_STEP_UP) break;
+    current = { x, y: support };
+  }
+  return roundPoint(current);
 }
 
 export function muzzlePosition(position: Vec2, facing: Facing): Vec2 {
