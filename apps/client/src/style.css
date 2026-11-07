@@ -199,6 +199,8 @@ input[type='range']:disabled { cursor: not-allowed; }
 .dock-hot:active { box-shadow: inset 0 0 0 3px #ffe9b8, inset 0 0 18px #f0b24acc, 0 0 20px #f0b24a88; }
 .slider { display: flex; align-items: center; justify-content: space-between; gap: 14px; font-size: 20px; }
 .slider input { flex: 1; accent-color: #c9a05a; }
+.contact { margin: 4px 0 0; font-size: 16px; color: var(--dim); text-align: center; }
+.contact a { color: var(--gold-hi); }
 
 
 /* Modo historia */

@@ -399,6 +399,7 @@ function showTown(): void {
     openModal('Ajustes', profile.displayName, `<div class="stack">
       <label class="slider">Música <input type="range" id="vol-music" min="0" max="100" value="${String(Math.round(audio.music * 100))}" style="--fill:${String(Math.round(audio.music * 100))}%" /></label>
       <label class="slider">Efectos <input type="range" id="vol-sfx" min="0" max="100" value="${String(Math.round(audio.sfxVolume * 100))}" style="--fill:${String(Math.round(audio.sfxVolume * 100))}%" /></label>
+      <p class="contact">¿Encontraste un error o un problema? Escríbenos a <a href="mailto:kevinmirandaa04@gmail.com?subject=ASHENFALL%3A%20reporte">kevinmirandaa04@gmail.com</a></p>
       <button id="logout">Cerrar sesión</button></div>`);
     // El relleno azul de cada barra sigue al control mientras se arrastra.
     const fillTo = (input: HTMLInputElement): void => {
