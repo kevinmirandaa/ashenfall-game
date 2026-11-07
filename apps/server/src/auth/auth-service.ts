@@ -2,6 +2,7 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { STARTER_CHARACTER } from '@ashenfall/domain';
 import { jwtVerify, SignJWT } from 'jose';
 import type pg from 'pg';
+import { inTransaction, isUniqueViolation } from '../db/transaction.js';
 import { ProblemError } from '../problem.js';
 import { PasswordHasher } from './password-hasher.js';
 
@@ -34,7 +35,6 @@ export interface Profile {
 
 const ISSUER = 'ashenfall';
 const AUDIENCE = 'ashenfall-api';
-const UNIQUE_VIOLATION = '23505';
 
 const invalidCredentials = (): ProblemError =>
   new ProblemError(401, 'INVALID_CREDENTIALS', 'Correo o contraseña incorrectos');
@@ -63,25 +63,19 @@ export class AuthService {
   async register(email: string, password: string, displayName: string): Promise<TokenPair> {
     const id = randomUUID();
     const passwordHash = await this.hasher.hash(password);
-    const client = await this.pool.connect();
     try {
-      await client.query('BEGIN');
-      await client.query('INSERT INTO users (id, email, display_name, password_hash) VALUES ($1, $2, $3, $4)', [
-        id,
-        email,
-        displayName,
-        passwordHash,
-      ]);
-      await client.query('INSERT INTO wallets (user_id) VALUES ($1)', [id]);
-      await client.query('COMMIT');
+      await inTransaction(this.pool, async (client) => {
+        await client.query('INSERT INTO users (id, email, display_name, password_hash) VALUES ($1, $2, $3, $4)', [
+          id,
+          email,
+          displayName,
+          passwordHash,
+        ]);
+        await client.query('INSERT INTO wallets (user_id) VALUES ($1)', [id]);
+      });
     } catch (error) {
-      await client.query('ROLLBACK');
-      if (error instanceof Error && 'code' in error && error.code === UNIQUE_VIOLATION) {
-        throw new ProblemError(409, 'EMAIL_TAKEN', 'Ese correo ya está registrado');
-      }
+      if (isUniqueViolation(error)) throw new ProblemError(409, 'EMAIL_TAKEN', 'Ese correo ya está registrado');
       throw error;
-    } finally {
-      client.release();
     }
     return this.issue({ userId: id, role: 'player' }, randomUUID());
   }

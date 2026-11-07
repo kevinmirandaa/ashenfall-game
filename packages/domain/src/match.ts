@@ -40,7 +40,7 @@ export interface PlayerSetup {
   /** Fijados al empezar. Ausentes en partidas anteriores a este cambio. */
   readonly characterId?: FighterId;
   readonly displayName?: string;
-  /** Arma equipada de la familia de su personaje, fijada al empezar. Ausente: la común. */
+  /** Arma fijada al empezar (la de un monstruo). Ausente: la común de su personaje. */
   readonly weaponId?: WeaponId;
 }
 
@@ -182,7 +182,10 @@ export interface CreateSetupInput {
   readonly profiles?: Readonly<Record<PlayerId, { readonly characterId: FighterId; readonly displayName: string; readonly weaponId?: WeaponId }>>;
 }
 
-/** Arena, posiciones, viento y primer jugador los decide siempre el servidor. */
+/**
+ * Arena, obstáculos, posiciones y primer jugador los decide siempre el servidor. Todas las arenas tienen viento 0
+ * (SCRUM-66); el campo se conserva para que las partidas guardadas se sigan reproduciendo igual.
+ */
 export function createMatchSetup(input: CreateSetupInput, random: RandomSource): MatchSetup {
   const [firstId, secondId] = input.playerIds;
   if (firstId === secondId) throw new MatchInvariantError('Una partida necesita dos jugadores distintos');
@@ -432,7 +435,7 @@ function decideShoot(state: MatchState, command: Extract<MatchCommand, { type: '
 
   const weapon = WEAPONS[command.weaponId];
   const shooter = setupOf(state, playerId);
-  // Solo el arma equipada de su familia: no puede llevar otro tipo de arma ni una que no tenga.
+  // Cada luchador dispara siempre su arma (la de su personaje o la de su monstruo): no hay cambio de armas.
   if (shooter.characterId !== undefined && (shooter.weaponId ?? defaultWeapon(shooter.characterId)) !== weapon.id) return rejected('INVALID_WEAPON');
   const opponent = opponentOf(state, playerId);
   const shooterPosition = opponentOf(state, opponent.playerId).position;

@@ -30,8 +30,6 @@ export type SoundName =
   | 'fall'
   | 'victory'
   | 'defeat'
-  | 'potion'
-  | 'heal'
   | 'match_start';
 
 interface Volumes {
@@ -252,16 +250,6 @@ class AudioEngine {
         break;
       case 'defeat':
         this.fanfare(t, [7, 5, 3, 0, -5], 0.3, true);
-        break;
-      case 'potion':
-        this.blip(t, 640, 0.05, 'sine', 0.2);
-        this.blip(t + 0.07, 520, 0.05, 'sine', 0.18);
-        this.noiseSweep(t + 0.12, 0.3, 400, 1600, 0.12);
-        this.sweep(t + 0.15, 330, 660, 0.3, 'triangle', 0.16, 2000);
-        break;
-      case 'heal':
-        for (let i = 0; i < 4; i += 1) this.blip(t + i * 0.09, 660 * 2 ** (i / 4), 0.35, 'sine', 0.2);
-        this.noiseSweep(t, 0.3, 600, 2400, 0.08);
         break;
       case 'match_start':
         this.drum(t, 'tom');

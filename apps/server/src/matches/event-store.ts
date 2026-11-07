@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
-import { MONSTER_IDS, type EventPayload, type MatchEvent, type MatchSetup, type MonsterId } from '@ashenfall/domain';
+import { isMonsterId, storyLevelOf, type EventPayload, type MatchEvent, type MatchSetup } from '@ashenfall/domain';
 import type pg from 'pg';
+import { inTransaction, isUniqueViolation } from '../db/transaction.js';
 
 /** Otra réplica confirmó antes esa secuencia: hay que recargar el log y volver a decidir. */
 export class SequenceConflictError extends Error {
@@ -9,12 +10,6 @@ export class SequenceConflictError extends Error {
 
 /** Marcas de Ceniza por victoria. */
 export const WIN_REWARD = 100;
-
-const UNIQUE_VIOLATION = '23505';
-
-function isUniqueViolation(error: unknown): boolean {
-  return error instanceof Error && 'code' in error && error.code === UNIQUE_VIOLATION;
-}
 
 interface EventRow {
   seq: number;
@@ -27,7 +22,7 @@ export class MatchEventStore {
 
   /** Crea la partida y su primer evento de forma atómica. Falla si un jugador ya está en otra partida activa. */
   async create(setup: MatchSetup, firstEvent: MatchEvent): Promise<void> {
-    await this.transaction(async (client) => {
+    await inTransaction(this.pool, async (client) => {
       await client.query(`INSERT INTO matches (id, status) VALUES ($1, 'in_progress')`, [setup.matchId]);
       for (const player of setup.players) {
         await client.query('INSERT INTO match_players (match_id, user_id) VALUES ($1, $2)', [
@@ -46,7 +41,7 @@ export class MatchEventStore {
   async append(matchId: string, events: readonly MatchEvent[], nextDeadlineMs?: number | null, botDueMs?: number | null): Promise<void> {
     if (events.length === 0) return;
     try {
-      await this.transaction(async (client) => {
+      await inTransaction(this.pool, async (client) => {
         await this.insertEvents(client, matchId, events);
         if (nextDeadlineMs !== undefined) {
           await client.query('UPDATE matches SET next_deadline_ms = $1 WHERE id = $2', [nextDeadlineMs, matchId]);
@@ -103,15 +98,12 @@ export class MatchEventStore {
     );
     if ((inserted.rowCount ?? 0) > 0) {
       await client.query('UPDATE wallets SET balance = balance + $1 WHERE user_id = $2', [row.reward, winnerId]);
-      if (row.mode === 'story' && row.monster_id !== null) {
-        const level = MONSTER_IDS.indexOf(row.monster_id as MonsterId) + 1;
-        if (level > 0) {
-          await client.query(
-            `INSERT INTO story_progress (user_id, cleared) VALUES ($1, $2)
-             ON CONFLICT (user_id) DO UPDATE SET cleared = GREATEST(story_progress.cleared, EXCLUDED.cleared)`,
-            [winnerId, level],
-          );
-        }
+      if (row.mode === 'story' && row.monster_id !== null && isMonsterId(row.monster_id)) {
+        await client.query(
+          `INSERT INTO story_progress (user_id, cleared) VALUES ($1, $2)
+           ON CONFLICT (user_id) DO UPDATE SET cleared = GREATEST(story_progress.cleared, EXCLUDED.cleared)`,
+          [winnerId, storyLevelOf(row.monster_id)],
+        );
       }
     }
   }
@@ -124,20 +116,6 @@ export class MatchEventStore {
         event.atMs,
         JSON.stringify(event.payload),
       ]);
-    }
-  }
-
-  private async transaction(work: (client: pg.PoolClient) => Promise<void>): Promise<void> {
-    const client = await this.pool.connect();
-    try {
-      await client.query('BEGIN');
-      await work(client);
-      await client.query('COMMIT');
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      client.release();
     }
   }
 }
