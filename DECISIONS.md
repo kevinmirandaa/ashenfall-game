@@ -6,7 +6,7 @@ Decisión del usuario (5 nov 2026), que reemplaza la regla anterior de ocultar a
 Consecuencia: el juego casi no tiene información oculta, algo que el enunciado recomienda pero no exige. Se mantiene la vista por jugador: el rival no recibe `actionId`, ángulo ni potencia, y un tercero no recibe nada.
 
 ## D2. Aparición sorteada por partida
-Cada arena define pares de puntos de aparición simétricos. El servidor sortea arena, par, lado, viento y primer turno. Los personajes no se mueven durante la partida. Si la posición dependiera solo de la arena, el paneo inicial no aportaría nada. Esta parte la decidió Claude a partir del ejemplo del usuario y es fácil de revertir.
+Cada arena define pares de puntos de aparición simétricos. El servidor sortea arena, par, lado, viento y primer turno. Los personajes empiezan quietos y solo se mueven por retroceso al ser impactados (ver SCRUM-58). Si la posición dependiera solo de la arena, el paneo inicial no aportaría nada. Esta parte la decidió Claude a partir del ejemplo del usuario y es fácil de revertir.
 
 ## D3. Event sourcing en el dominio
 `decide(estado, comando)` produce eventos y `evolve(estado, evento)` los aplica. Recuperar tras un reinicio y reproducir una partida es plegar el log, sin volver a simular.
@@ -55,3 +55,8 @@ Phaser con renderizador Canvas y arte por código, servido por el propio servido
 Decisión del usuario (6 nov 2026), que reemplaza la selección libre de armas. Edrik usa arco, Sylwen lanza y Borgrim hacha; se retira la daga. El servidor guarda el personaje, lo fija al empezar la partida y rechaza cualquier otra arma. Todas las armas tienen 26 de daño base, para mantener la regla de personajes sin diferencias de stats; solo cambia su vuelo. El daño se multiplica por zona (cabeza x1.5, torso x1, piernas x0.7) y por potencia (Débil x0.7, Media x1, Fuerte x1.3), con un máximo de 50 por tiro.
 
 Un ratón normal no informa de la fuerza de la pulsación al navegador: la posición da el ángulo, mantener pulsado carga la potencia y soltar dispara. Los obstáculos nuevos son rectángulos de colisión; cambia su dibujo, no su forma lógica.
+
+## Retroceso permanente, tirachinas y menú (SCRUM-56, 57, 58)
+Decisión del usuario (6 nov 2026). Un impacto con daño hace retroceder al personaje, alejándose del tirador, `3` unidades por punto de daño con tope de `240`. Nunca vuelve: la posición es estado de la partida (`PlayerState.position`), viaja en `shot_resolved.targetPosition` y se publica a ambos jugadores, porque la posición del rival ya era pública. Así un jugador que calculó dónde caía su tiro tiene que recalcularlo. Reglas: se mueve en pasos fijos de 2 unidades, se detiene en el borde de la arena (margen de 40) y ante un obstáculo de más de 24 de alto, sube desniveles menores y cae al suelo si pierde el apoyo de una repisa. Un disparo sin daño no mueve a nadie. `PHYSICS_VERSION` pasa a 3; los eventos antiguos sin `targetPosition` se reproducen sin movimiento.
+
+Disparo tirachinas, solo ratón: pulsar fija el ancla, arrastrar hacia atrás tensa (la distancia da la potencia, hasta 240 px de pantalla, y la dirección el ángulo: tirar hacia abajo y atrás lanza hacia arriba y delante) y soltar dispara. Menos de 28 px o Esc cancelan. La barra inferior del pueblo es una pieza independiente que se arrastra y recuerda su sitio durante la sesión; se retira la Taberna y «Jugar» abre el emparejamiento. Para el fondo del pueblo se borró el rótulo de la Taberna y se rellenó el suelo con adoquines de la propia imagen.
