@@ -8,6 +8,11 @@ on:
     types: [completed]
     branches: [main]
   workflow_dispatch:
+    inputs:
+      solo_prod:
+        description: 'Saltar dev y desplegar solo prod (Azure for Students permite un entorno de Container Apps por región)'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -19,7 +24,7 @@ concurrency:
 jobs:
   dev:
     # Para cuidar el crédito, tras un merge solo despliega con AUTO_DEPLOY=true; a mano, siempre.
-    if: vars.AZURE_CLIENT_ID != '' && (github.event_name == 'workflow_dispatch' || (vars.AUTO_DEPLOY == 'true' && github.event.workflow_run.conclusion == 'success'))
+    if: vars.AZURE_CLIENT_ID != '' && ((github.event_name == 'workflow_dispatch' && !inputs.solo_prod) || (vars.AUTO_DEPLOY == 'true' && github.event.workflow_run.conclusion == 'success'))
     runs-on: ubuntu-latest
     timeout-minutes: 45
     environment: dev
@@ -44,7 +49,8 @@ jobs:
 
   prod:
     needs: dev
-    if: vars.AZURE_CLIENT_ID != ''
+    # Con dev omitido solo corre si se pidió a mano solo_prod; así un CI verde sin AUTO_DEPLOY nunca llega a prod.
+    if: always() && vars.AZURE_CLIENT_ID != '' && (needs.dev.result == 'success' || (github.event_name == 'workflow_dispatch' && inputs.solo_prod))
     runs-on: ubuntu-latest
     timeout-minutes: 45
     # El environment prod exige revisores: el job espera aprobación manual antes de empezar.
