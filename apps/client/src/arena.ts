@@ -11,8 +11,8 @@ import {
   type WeaponId,
 } from '@ashenfall/domain';
 import Phaser from 'phaser';
-import { characterSheet, DEFAULT_WEAPON, FRAME_H, FRAME_W, FRAMES, projectileTexture, WEAPON_GRIP, WEAPON_SIZE, weaponTexture, type Look } from './art.js';
-import { ART_SCALE, buildBiome, GROUND_DEPTH, GROUND_HEADROOM, WORLD_LEFT, WORLD_WIDTH } from './biomes.js';
+import { bodyTint, CHARACTERS, DEFAULT_WEAPON, type CharacterId, type Look } from './art.js';
+import { BIOME_ART, drawGround, GROUND_DEPTH, GROUND_HEADROOM, WORLD_LEFT, WORLD_WIDTH } from './biomes.js';
 
 const VIEW_W = 1280;
 const VIEW_H = 720;
@@ -28,9 +28,16 @@ const PAN_MS = 900;
 const SHOT_MIN_MS = 500;
 const PARTICLES = 28;
 const TRAIL_POOL = 14;
-const FRAME_DOWN = 4;
-const FRAME_HIT = 3;
-const FRAME_SHOOT = 2;
+const HIP = 0.5;
+/** Fotogramas que existen en las hojas de referencia; lo demás se anima con el muñeco. */
+const POSES: Readonly<Partial<Record<CharacterId, readonly ('hit' | 'down' | 'win' | 'shoot')[]>>> = {};
+const BODY_HEIGHT: Readonly<Record<CharacterId, number>> = { edrik: 146, sylwen: 144, borgrim: 128 };
+const WEAPON_ART: Readonly<Record<WeaponId, { length: number; originX: number }>> = {
+  bow: { length: 112, originX: 0.3 },
+  spear: { length: 150, originX: 0.38 },
+  axe: { length: 104, originX: 0.3 },
+  dagger: { length: 58, originX: 0.22 },
+};
 
 const toScreen = (point: Vec2): Vec2 => ({ x: point.x, y: GROUND_Y - point.y });
 
@@ -43,13 +50,24 @@ export interface ArenaHooks {
   onIntro(active: boolean): void;
 }
 
+/** Muñeco de dos piezas: las piernas quedan en el suelo y el torso se inclina desde la cadera. */
 interface Figure {
-  body: Phaser.GameObjects.Sprite;
+  root: Phaser.GameObjects.Container;
+  torso: Phaser.GameObjects.Container;
+  parts: Phaser.GameObjects.Image[];
+  rigParts: (Phaser.GameObjects.Image | Phaser.GameObjects.Container)[];
+  /** Fotograma real de la hoja, cuando existe para esa acción. */
+  frame: Phaser.GameObjects.Image;
   weapon: Phaser.GameObjects.Image;
+  shadow: Phaser.GameObjects.Ellipse;
   look: Look;
   facing: 1 | -1;
+  homeX: number;
+  homeY: number;
+  phase: number;
+  /** Lo que animan los tweens; `update` lo aplica sumando la respiración. */
+  pose: { dx: number; dy: number; lean: number; fall: number; aim: number; recoil: number };
   down: boolean;
-  pose: number;
 }
 
 interface Mote {
@@ -57,6 +75,8 @@ interface Mote {
   y: number;
   speed: number;
   size: number;
+  phase: number;
+  depth: number;
 }
 
 export interface MatchLooks {
@@ -85,10 +105,12 @@ export class ArenaScene extends Phaser.Scene {
   private queue: (() => Promise<void>)[] = [];
   private playing = false;
   private aiming = false;
-  private idleAt = 0;
-  private idleFrame = 0;
   private moteList: Mote[] = [];
   private moteColor = 0xffffff;
+  private arenaId: PlayerMatchView['arenaId'] = 'whispering_forest';
+  private blades: { x: number; height: number; phase: number }[] = [];
+  private grass: Phaser.GameObjects.Graphics | null = null;
+  private birds: { x: number; y: number; speed: number; phase: number }[] = [];
   private hooks: ArenaHooks = { onAnimationsIdle: () => undefined, onAim: () => undefined, onImpact: () => undefined, onIntro: () => undefined };
 
   constructor(private readonly onReady: () => void) {
@@ -99,7 +121,37 @@ export class ArenaScene extends Phaser.Scene {
     this.hooks = hooks;
   }
 
+  preload(): void {
+    for (const hero of CHARACTERS) this.load.image(`body-${hero.id}`, `/art/body-${hero.id}.webp`);
+    for (const id of ['bow', 'spear', 'axe', 'dagger'] as const) this.load.image(`weapon-${id}`, `/art/weapon-${id}.webp`);
+    for (const [hero, poses] of Object.entries(POSES)) for (const pose of poses) this.load.image(`pose-${hero}-${pose}`, `/art/pose-${hero}-${pose}.webp`);
+    for (const id of ['whispering_forest', 'frostlands', 'ashen_desert']) this.load.image(`biome-${id}`, `/art/biome-${id}.webp`);
+    this.load.image('fx-arrow', '/art/fx-arrow.webp');
+    this.load.image('helm', '/art/icon-helm.webp');
+  }
+
   create(): void {
+    for (const hero of CHARACTERS) {
+      const texture = this.textures.get(`body-${hero.id}`);
+      const { width, height } = texture.getSourceImage();
+      const hip = Math.round(Number(height) * HIP);
+      // Se solapan unos píxeles para que no se abra una junta al inclinarse.
+      texture.add('upper', 0, 0, 0, Number(width), hip + 8);
+      texture.add('lower', 0, 0, hip, Number(width), Number(height) - hip);
+    }
+    // Un único degradado reutilizado para luces y para despegar a los personajes del fondo.
+    const soft = document.createElement('canvas');
+    soft.width = 128;
+    soft.height = 128;
+    const softCtx = soft.getContext('2d');
+    if (softCtx !== null) {
+      const gradient = softCtx.createRadialGradient(64, 64, 0, 64, 64, 64);
+      gradient.addColorStop(0, 'rgba(255,255,255,1)');
+      gradient.addColorStop(1, 'rgba(255,255,255,0)');
+      softCtx.fillStyle = gradient;
+      softCtx.fillRect(0, 0, 128, 128);
+    }
+    this.textures.addCanvas('soft-glow', soft);
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
       this.aiming = this.canAim;
       this.aimAt(pointer);
@@ -114,10 +166,10 @@ export class ArenaScene extends Phaser.Scene {
   }
 
   override update(time: number, delta: number): void {
-    this.animateIdle(time);
-    this.animateMotes(delta);
+    this.animateFigures(time);
+    this.animateBiome(time, delta);
     if (this.trailOn && time > this.trailAt && this.projectile !== null) {
-      this.trailAt = time + 35;
+      this.trailAt = time + 28;
       this.emitTrail(this.projectile.x, this.projectile.y);
     }
   }
@@ -176,7 +228,7 @@ export class ArenaScene extends Phaser.Scene {
     if (guide === null) return;
     guide.clear();
     const you = view === null ? undefined : this.figures.get(view.you.playerId);
-    if (you !== undefined) this.poseWeapon(you, this.canAim ? this.angleDeg : 25);
+    if (you !== undefined) you.pose.aim = this.canAim ? this.angleDeg : 25;
     if (view === null || !this.canAim) return;
     const side = view.you;
     const path = simulateShot({
@@ -214,39 +266,17 @@ export class ArenaScene extends Phaser.Scene {
     this.rivalLabel?.setText(name);
   }
 
-  private texture(key: string, draw: () => HTMLCanvasElement): string {
-    if (!this.textures.exists(key)) this.textures.addCanvas(key, draw());
-    return key;
-  }
-
-  private layerImage(key: string, draw: () => HTMLCanvasElement, parallax: number, baseline: number): void {
-    // Con parallax, la capa debe quedar a la altura `baseline` de pantalla cuando la cámara está en reposo.
-    this.texture(key, draw);
-    this.add
-      .image(WORLD_LEFT * parallax, baseline + REST_SCROLL_Y * parallax, key)
-      .setOrigin(0, 1)
-      .setScale(ART_SCALE)
-      .setScrollFactor(parallax);
-  }
-
   private build(view: PlayerMatchView, looks: MatchLooks): void {
     const id = view.arenaId;
+    this.arenaId = id;
     const camera = this.cameras.main;
-    const biome = this.textures.exists(`mid-${id}`) ? null : buildBiome(id);
-    const need = (part: 'sky' | 'far' | 'mid' | 'ground'): HTMLCanvasElement => {
-      if (biome === null) throw new Error('Capa de bioma sin generar');
-      return biome[part];
-    };
-    this.texture(`sky-${id}`, () => need('sky'));
-    this.add.image(0, 0, `sky-${id}`).setOrigin(0, 0).setScale(VIEW_W / 320, VIEW_H / 180).setScrollFactor(0);
-    this.layerImage(`far-${id}`, () => need('far'), 0.2, VIEW_H - 150);
-    this.layerImage(`mid-${id}`, () => need('mid'), 0.55, VIEW_H - 138);
-    this.texture(`ground-${id}`, () => need('ground'));
-    this.add.image(WORLD_LEFT, GROUND_Y - GROUND_HEADROOM, `ground-${id}`).setOrigin(0, 0).setScale(ART_SCALE);
-
-    const palette = { whispering_forest: [0x14162c, 0xa7b4d0], frostlands: [0x303c68, 0xf4f7ff], ashen_desert: [0x3f2024, 0xe8a76a] }[id];
-    camera.setBackgroundColor(palette[0] ?? 0);
-    this.moteColor = palette[1] ?? 0xffffff;
+    const art = BIOME_ART[id];
+    if (!this.textures.exists(`ground-${id}`)) this.textures.addCanvas(`ground-${id}`, drawGround(id));
+    // La imagen de referencia, ampliada por un factor entero para que cada píxel siga siendo un píxel.
+    this.add.image(WORLD_LEFT * 0.15, VIEW_H - 136 + REST_SCROLL_Y * 0.15, `biome-${id}`).setOrigin(0, 1).setScale(art.scale).setScrollFactor(0.15);
+    this.add.image(WORLD_LEFT, GROUND_Y - GROUND_HEADROOM, `ground-${id}`).setOrigin(0, 0).setScale(2);
+    camera.setBackgroundColor(art.sky);
+    this.moteColor = art.particle;
     camera.setZoom(1);
     camera.setBounds(WORLD_LEFT, WORLD_TOP, WORLD_WIDTH, WORLD_BOTTOM - WORLD_TOP);
 
@@ -255,84 +285,219 @@ export class ArenaScene extends Phaser.Scene {
     this.equip(view.you.playerId, this.weaponId);
     this.equip(view.opponent.playerId, DEFAULT_WEAPON[looks.rival.character]);
 
+    this.grass = id === 'frostlands' ? null : this.add.graphics().setDepth(4);
+    this.blades = Array.from({ length: 110 }, () => ({ x: WORLD_LEFT + Math.random() * WORLD_WIDTH, height: 8 + Math.floor(Math.random() * 7) * 2, phase: Math.random() * 6 }));
+    this.birds = id === 'frostlands' ? [] : Array.from({ length: 5 }, (_, index) => ({ x: Math.random() * VIEW_W, y: 90 + index * 26 + Math.random() * 40, speed: 0.25 + Math.random() * 0.2, phase: Math.random() * 6 }));
+
     this.guide = this.add.graphics().setDepth(5);
-    this.projectile = this.add.image(0, 0, this.projectileKey('bow', looks.you)).setScale(ART_SCALE).setDepth(6).setVisible(false);
-    for (let i = 0; i < TRAIL_POOL; i += 1) this.trail.push(this.add.rectangle(0, 0, 6, 6, 0xf2963c).setDepth(5).setVisible(false));
+    this.projectile = this.add.image(0, 0, 'fx-arrow').setDepth(6).setVisible(false);
+    for (let i = 0; i < TRAIL_POOL; i += 1) this.trail.push(this.add.rectangle(0, 0, 7, 7, 0xf2963c).setDepth(5).setVisible(false).setBlendMode(Phaser.BlendModes.ADD));
 
     this.motes = this.add.graphics().setScrollFactor(0).setDepth(9);
-    this.moteList = Array.from({ length: PARTICLES }, () => ({ x: Math.random() * VIEW_W, y: Math.random() * VIEW_H, speed: 0.4 + Math.random(), size: Math.random() < 0.25 ? 4 : 2 }));
-  }
-
-  private projectileKey(id: WeaponId, look: Look): string {
-    const skin = id === 'bow' ? String(look.boneBow) : id === 'axe' ? String(look.bronzeAxe) : '';
-    return this.texture(`shot-${id}-${skin}`, () => projectileTexture(id, look));
-  }
-
-  private weaponKey(id: WeaponId, look: Look): string {
-    const skin = id === 'bow' ? String(look.boneBow) : id === 'axe' ? String(look.bronzeAxe) : '';
-    return this.texture(`weapon-${id}-${skin}`, () => weaponTexture(id, look));
+    const count = id === 'frostlands' ? PARTICLES * 3 : PARTICLES;
+    this.moteList = Array.from({ length: count }, () => ({ x: Math.random() * VIEW_W, y: Math.random() * VIEW_H, speed: 0.4 + Math.random(), size: 1 + Math.random() * 2.4, phase: Math.random() * 6, depth: 0.4 + Math.random() * 0.8 }));
   }
 
   private createFigure(side: PlayerMatchView['you'], look: Look, name: string): void {
     const { x, y } = toScreen(side.position);
-    const key = `char-${JSON.stringify(look)}`;
-    if (!this.textures.exists(key)) {
-      const texture = this.textures.addCanvas(key, characterSheet(look));
-      if (texture === null) throw new Error('No se pudo crear el sprite');
-      for (let frame = 0; frame < FRAMES; frame += 1) texture.add(frame, 0, frame * FRAME_W, 0, FRAME_W, FRAME_H);
-    }
-    const body = this.add.sprite(x, y + 4, key, 0).setOrigin(0.5, 1).setScale(ART_SCALE).setFlipX(side.facing < 0).setDepth(3);
-    const weapon = this.add.image(x + side.facing * 10, y - 46, this.weaponKey('bow', look)).setScale(ART_SCALE).setOrigin(WEAPON_GRIP.x / WEAPON_SIZE, WEAPON_GRIP.y / WEAPON_SIZE).setFlipX(side.facing < 0).setDepth(4);
-    if (side.facing < 0) weapon.setOrigin(1 - WEAPON_GRIP.x / WEAPON_SIZE, WEAPON_GRIP.y / WEAPON_SIZE);
-    const label = this.add
-      .text(x, y - 128, name, { fontFamily: 'Palatino, Georgia, serif', fontSize: '17px', color: '#e8d8b0', stroke: '#0d0a0e', strokeThickness: 4 })
+    const key = `body-${look.character}`;
+    const hipY = -BODY_HEIGHT[look.character] * HIP;
+    const lower = this.add.image(0, 0, key, 'lower').setOrigin(0.5, 1);
+    const upper = this.add.image(0, 8, key, 'upper').setOrigin(0.5, 1);
+    const weapon = this.add.image(16, -BODY_HEIGHT[look.character] * 0.14, 'weapon-bow').setOrigin(0.5, 0.5);
+    const children: Phaser.GameObjects.GameObject[] = [upper, weapon];
+    if (look.helm) children.push(this.add.image(2, -BODY_HEIGHT[look.character] * 0.4, 'helm').setDisplaySize(34, 34));
+    const torso = this.add.container(0, hipY, children);
+    const frame = this.add.image(0, 0, key).setOrigin(0.5, 1).setVisible(false);
+    const root = this.add.container(x, y + 3, [lower, torso, frame]).setDepth(3).setScale(side.facing, 1);
+    const parts = [lower, upper, frame];
+    const tint = bodyTint(look);
+    if (tint !== 0xffffff) for (const part of parts) part.setTint(tint);
+    this.add
+      .text(x, y - BODY_HEIGHT[look.character] - 22, name, { fontFamily: 'Palatino, Georgia, serif', fontSize: '17px', color: '#e8d8b0', stroke: '#0d0a0e', strokeThickness: 4 })
       .setOrigin(0.5)
       .setDepth(4);
-    if (side.playerId === this.view?.opponent.playerId) this.rivalLabel = label;
-    this.add.ellipse(x, y + 4, 60, 10, 0x000000, 0.4).setDepth(2);
-    const figure: Figure = { body, weapon, look, facing: side.facing, down: side.hp <= 0, pose: -1 };
+    const shadow = this.add.ellipse(x, y + 4, 76, 13, 0x000000, 0.45).setDepth(2);
+    const figure: Figure = { rigParts: [lower, torso], frame, root, torso, parts, weapon, shadow, look, facing: side.facing, homeX: x, homeY: y + 3, phase: Math.random() * 6, pose: { dx: 0, dy: 0, lean: 0, fall: 0, aim: 25, recoil: 0 }, down: false };
     this.figures.set(side.playerId, figure);
-    if (figure.down) this.knockDown(figure);
-    this.poseWeapon(figure, 25);
+    if (side.hp <= 0) this.knockDown(figure, false);
+  }
+
+  /** Muestra un fotograma de la hoja; devuelve false si ese personaje no lo tiene. */
+  private showPose(figure: Figure, pose: 'hit' | 'down' | 'win' | 'shoot' | null): boolean {
+    const available = pose !== null && (POSES[figure.look.character]?.includes(pose) ?? false);
+    figure.frame.setVisible(available);
+    for (const part of figure.rigParts) part.setVisible(!available);
+    if (available) figure.frame.setTexture(`pose-${figure.look.character}-${pose}`);
+    return available;
   }
 
   private equip(playerId: string, id: WeaponId): void {
     const figure = this.figures.get(playerId);
-    if (figure !== undefined) figure.weapon.setTexture(this.weaponKey(id, figure.look));
+    if (figure === undefined) return;
+    const art = WEAPON_ART[id];
+    // Cada sprite ya lleva dibujada su arma: solo se superpone si elige otra.
+    const image = figure.weapon.setTexture(`weapon-${id}`).clearTint().setVisible(id !== DEFAULT_WEAPON[figure.look.character]);
+    image.setOrigin(art.originX, 0.5);
+    image.setScale(1);
+    if (id === 'axe' && figure.look.bronzeAxe) image.setTint(0xe6a860);
+    if (id === 'bow' && figure.look.boneBow) image.setTint(0xfff0d0);
   }
 
-  private poseWeapon(figure: Figure, angleDeg: number): void {
-    const radians = Phaser.Math.DegToRad(angleDeg);
-    figure.weapon.setRotation(figure.facing > 0 ? -radians : radians);
-  }
-
-  private knockDown(figure: Figure): void {
-    figure.down = true;
-    figure.body.setFrame(FRAME_DOWN);
-    figure.weapon.setVisible(false);
-  }
-
-  private animateIdle(time: number): void {
-    if (time < this.idleAt) return;
-    this.idleAt = time + 520;
-    this.idleFrame = 1 - this.idleFrame;
+  /** Respiración, balanceo y la pose que dejan los tweens. Sin texturas nuevas: solo transformar. */
+  private animateFigures(time: number): void {
     for (const figure of this.figures.values()) {
-      if (figure.down || figure.pose >= 0) continue;
-      figure.body.setFrame(this.idleFrame);
+      const { pose, root, torso, weapon, shadow } = figure;
+      const breath = figure.down ? 0 : Math.sin(time / 620 + figure.phase);
+      root.setPosition(figure.homeX + pose.dx, figure.homeY + pose.dy);
+      root.setRotation(figure.facing * pose.fall);
+      torso.setRotation(pose.lean + breath * 0.012);
+      torso.setScale(1 + breath * 0.006, 1 - breath * 0.01);
+      weapon.setRotation(Phaser.Math.DegToRad(-pose.aim) + breath * 0.012);
+      weapon.setX(16 - pose.recoil);
+      const height = Math.max(0, -pose.dy);
+      shadow.setPosition(figure.homeX + pose.dx, figure.homeY + 1).setScale(1 - height / 120 + Math.abs(pose.fall) * 0.8, 1).setAlpha(0.8 - height / 200);
     }
   }
 
-  private animateMotes(delta: number): void {
+  private play(target: object, values: Record<string, number>, duration: number, ease: string): Promise<void> {
+    return new Promise((resolve) => {
+      this.tweens.add({ targets: target, ...values, duration, ease, onComplete: () => { resolve(); } });
+    });
+  }
+
+  /** Acción de disparo: se carga hacia atrás, suelta con el cuerpo y el arma retrocede. */
+  private async animateShot(figure: Figure, aim: number, weaponId: WeaponId): Promise<void> {
+    figure.pose.aim = aim;
+    // El fotograma de disparo trae el arco en la mano: solo sirve si dispara con arco.
+    const framed = weaponId === 'bow' && this.showPose(figure, 'shoot');
+    this.time.delayedCall(framed ? 520 : 0, () => { if (!figure.down) this.showPose(figure, null); });
+    await this.play(figure.pose, { lean: -0.16, recoil: 8, dx: -figure.facing * 4 }, 130, 'Sine.easeOut');
+    void this.play(figure.pose, { lean: 0.13, recoil: -6, dx: figure.facing * 7 }, 80, 'Back.easeOut').then(() =>
+      this.play(figure.pose, { lean: 0, recoil: 0, dx: 0 }, 420, 'Sine.easeInOut'),
+    );
+  }
+
+  private flash(figure: Figure): void {
+    for (const part of figure.parts) part.setTintFill(0xffffff);
+    this.time.delayedCall(70, () => {
+      for (const part of figure.parts) part.setTint(0xff5a48);
+    });
+    this.time.delayedCall(330, () => {
+      const tint = bodyTint(figure.look);
+      for (const part of figure.parts) part.setTint(tint);
+    });
+  }
+
+  private dust(x: number, y: number, count: number): void {
+    const colour = { whispering_forest: 0x6a6048, frostlands: 0xeef3fb, ashen_desert: 0xc79a68 }[this.arenaId];
+    for (let i = 0; i < count; i += 1) {
+      const size = 2 + Math.floor(Math.random() * 3) * 2;
+      const puff = this.add.rectangle(x + (Math.random() - 0.5) * 24, y, size, size, colour, 0.7).setDepth(4);
+      this.tweens.add({ targets: puff, x: puff.x + (Math.random() - 0.5) * 60, y: y - 8 - Math.random() * 22, alpha: 0, duration: 420 + Math.random() * 320, onComplete: () => puff.destroy() });
+    }
+  }
+
+  /** Retroceso realista: el golpe lo levanta y arquea, tropieza dos pasos atrás y vuelve a su sitio. La posición lógica no cambia. */
+  private async knockBack(figure: Figure, damage: number): Promise<void> {
+    const back = -figure.facing;
+    const { pose } = figure;
+    const shove = 34 + damage * 1.5;
+    this.flash(figure);
+    this.showPose(figure, 'hit');
+    this.time.delayedCall(560, () => { if (!figure.down) this.showPose(figure, null); });
+    this.dust(figure.homeX, figure.homeY, 7);
+    pose.recoil = 6;
+    void this.play(pose, { dy: -16 }, 90, 'Quad.easeOut').then(() => this.play(pose, { dy: 0 }, 90, 'Quad.easeIn'));
+    await this.play(pose, { dx: back * shove, lean: -0.42, aim: 60 }, 180, 'Cubic.easeOut');
+    this.dust(figure.homeX + back * shove, figure.homeY, 5);
+    await this.play(pose, { dx: back * (shove + 12), dy: -5, lean: -0.2 }, 110, 'Sine.easeOut');
+    await this.play(pose, { dx: back * (shove + 18), dy: 0, lean: 0.14, aim: 10 }, 120, 'Sine.easeIn');
+    this.dust(figure.homeX + back * (shove + 18), figure.homeY, 3);
+    await this.wait(120);
+    // Regresa recuperando el equilibrio, con pasos visibles.
+    const steps = 3;
+    const each = 230;
+    for (let step = 1; step <= steps; step += 1) {
+      void this.play(pose, { dy: -5 }, each / 2, 'Sine.easeOut').then(() => this.play(pose, { dy: 0 }, each / 2, 'Sine.easeIn'));
+      await this.play(pose, { dx: back * (shove + 18) * (1 - step / steps), lean: step === steps ? 0 : 0.08 }, each, 'Sine.easeInOut');
+    }
+    pose.recoil = 0;
+  }
+
+  /** Cae de espaldas con rebote; el arma sale despedida. */
+  private knockDown(figure: Figure, animated: boolean): void {
+    figure.down = true;
+    const hasFrame = this.showPose(figure, 'down');
+    const back = -figure.facing;
+    const { pose } = figure;
+    if (!animated) {
+      Object.assign(pose, { dx: back * 60, dy: 0, lean: 0, fall: hasFrame ? 0 : -Math.PI / 2 });
+      figure.weapon.setVisible(false);
+      return;
+    }
+    this.flash(figure);
+    this.dust(figure.homeX, figure.homeY, 8);
+    void this.play(pose, { dx: back * 90, lean: -0.5 }, 260, 'Cubic.easeOut');
+    if (!hasFrame) void this.play(pose, { fall: -Math.PI / 2 }, 560, 'Bounce.easeOut');
+    this.time.delayedCall(420, () => {
+      this.dust(figure.homeX + back * 130, figure.homeY, 14);
+      this.cameras.main.shake(140, 0.004);
+    });
+    this.tweens.add({ targets: figure.weapon, alpha: 0, duration: 400 });
+  }
+
+  private animateBiome(time: number, delta: number): void {
     const { motes, view } = this;
     if (motes === null || view === null) return;
+    const step = delta / 16.67;
     motes.clear();
-    motes.fillStyle(this.moteColor, 0.7);
-    const drift = view.windAccel * 0.012;
-    const step = delta / 16;
+    const wind = view.windAccel * 0.012;
+    const id = this.arenaId;
     for (const mote of this.moteList) {
-      mote.x = (mote.x + (drift + 0.15) * mote.speed * step + VIEW_W) % VIEW_W;
-      mote.y = (mote.y + 0.55 * mote.speed * step) % VIEW_H;
-      motes.fillRect(Math.round(mote.x), Math.round(mote.y), mote.size, mote.size);
+      if (id === 'whispering_forest') {
+        // Luciérnagas: vagan despacio y laten.
+        mote.x = (mote.x + (Math.sin(time / 900 + mote.phase) * 0.5 + wind * 0.2) * step + VIEW_W) % VIEW_W;
+        mote.y += Math.cos(time / 700 + mote.phase) * 0.35 * step;
+        const pulse = 0.25 + 0.75 * Math.max(0, Math.sin(time / 500 + mote.phase));
+        motes.fillStyle(this.moteColor, pulse * 0.18);
+        motes.fillRect(Math.round(mote.x) - 3, 300 + Math.round(mote.y % 300) - 3, 8, 8);
+        motes.fillStyle(this.moteColor, pulse);
+        motes.fillRect(Math.round(mote.x), 300 + Math.round(mote.y % 300), 2, 2);
+      } else if (id === 'frostlands') {
+        // Nieve con profundidad: los copos cercanos caen más rápido.
+        mote.x = (mote.x + (wind * mote.depth * 1.6 + Math.sin(time / 800 + mote.phase) * 0.4) * step + VIEW_W) % VIEW_W;
+        mote.y = (mote.y + 1.1 * mote.depth * step) % VIEW_H;
+        motes.fillStyle(this.moteColor, 0.35 + mote.depth * 0.5);
+        motes.fillRect(Math.round(mote.x), Math.round(mote.y), mote.depth > 0.8 ? 4 : 2, mote.depth > 0.8 ? 4 : 2);
+      } else {
+        // Ceniza que sube y brasas que se apagan.
+        mote.x = (mote.x + (wind * 1.4 + 0.2) * mote.depth * step + VIEW_W) % VIEW_W;
+        mote.y = (mote.y - 0.45 * mote.depth * step + VIEW_H) % VIEW_H;
+        motes.fillStyle(mote.phase > 4 ? 0xff9a3c : this.moteColor, 0.4 + 0.5 * Math.abs(Math.sin(time / 400 + mote.phase)));
+        motes.fillRect(Math.round(mote.x), Math.round(mote.y), 2, 2);
+      }
+    }
+    motes.lineStyle(1.6, 0x0c0a10, 0.75);
+    for (const bird of this.birds) {
+      bird.x = (bird.x + bird.speed * step) % (VIEW_W + 60);
+      const flap = Math.sin(time / 130 + bird.phase) * 4;
+      motes.beginPath();
+      motes.moveTo(bird.x - 7, bird.y - flap);
+      motes.lineTo(bird.x, bird.y);
+      motes.lineTo(bird.x + 7, bird.y - flap);
+      motes.strokePath();
+    }
+    const { grass } = this;
+    if (grass !== null) {
+      grass.clear();
+      grass.lineStyle(1.6, this.arenaId === 'ashen_desert' ? 0x3a2418 : 0x233a18, 1);
+      const left = this.cameras.main.scrollX - 20;
+      for (const blade of this.blades) {
+        if (blade.x < left || blade.x > left + VIEW_W + 40) continue;
+        const sway = Math.sin(time / 500 + blade.phase) * 3 + view.windAccel * 0.05;
+        grass.lineBetween(blade.x, GROUND_Y + 2, blade.x + sway, GROUND_Y - blade.height);
+      }
     }
   }
 
@@ -340,7 +505,7 @@ export class ArenaScene extends Phaser.Scene {
     const spark = this.trail[this.trailIndex];
     if (spark === undefined) return;
     this.trailIndex = (this.trailIndex + 1) % this.trail.length;
-    spark.setPosition(x, y).setVisible(true).setAlpha(1).setFillStyle(Math.random() < 0.5 ? 0xf2963c : 0xfbe58a);
+    spark.setPosition(x + (Math.random() - 0.5) * 8, y + (Math.random() - 0.5) * 8).setVisible(true).setAlpha(1).setFillStyle(Math.random() < 0.5 ? 0xf2963c : 0xfbe58a);
     this.tweens.add({ targets: spark, alpha: 0, y: y + 14, duration: 420, onComplete: () => spark.setVisible(false) });
   }
 
@@ -414,16 +579,13 @@ export class ArenaScene extends Phaser.Scene {
     this.guide?.clear();
     this.equip(shot.shooterId, shot.weaponId);
     // La trayectoria es pública; de su inicio se deduce a dónde apuntar el arma.
-    if (second !== undefined) {
-      const dx = Math.abs(second.x - start.x);
-      this.poseWeapon(shooter, Phaser.Math.RadToDeg(Math.atan2(start.y - second.y, dx)));
-    }
-    shooter.pose = FRAME_SHOOT;
-    shooter.body.setFrame(FRAME_SHOOT);
+    const aim = second === undefined ? 30 : Phaser.Math.RadToDeg(Math.atan2(start.y - second.y, Math.abs(second.x - start.x)));
+    await this.animateShot(shooter, aim, shot.weaponId);
 
     const spin = shot.weaponId === 'axe' || shot.weaponId === 'dagger';
-    projectile.setTexture(this.projectileKey(shot.weaponId, shooter.look)).setPosition(start.x, start.y).setVisible(true);
-    projectile.setFlipY(false);
+    const arrow = shot.weaponId === 'bow';
+    projectile.setTexture(arrow ? 'fx-arrow' : `weapon-${shot.weaponId}`).setPosition(start.x, start.y).setVisible(true).clearTint();
+    projectile.setScale(arrow ? 1 : 0.5).setOrigin(arrow ? 0.8 : 0.5, 0.5);
     this.trailOn = shooter.look.embers;
     const camera = this.cameras.main;
     camera.stopFollow();
@@ -450,12 +612,11 @@ export class ArenaScene extends Phaser.Scene {
       });
     });
     this.trailOn = false;
-    shooter.pose = -1;
     camera.stopFollow();
     projectile.setVisible(false);
     this.showImpact(shot);
     this.resolveImpact(shot);
-    await this.wait(shot.targetHpAfter <= 0 ? 1400 : 900);
+    await this.wait(shot.impactKind !== 'player' ? 800 : shot.targetHpAfter <= 0 ? 1500 : 1600);
   }
 
   private resolveImpact(shot: ShotView): void {
@@ -465,16 +626,16 @@ export class ArenaScene extends Phaser.Scene {
     const targetId = shot.shooterId === view.you.playerId ? view.opponent.playerId : view.you.playerId;
     const target = this.figures.get(targetId);
     if (target === undefined) return;
-    if (shot.targetHpAfter <= 0) {
-      this.knockDown(target);
+    if (document.hidden) {
+      if (shot.targetHpAfter <= 0) this.knockDown(target, false);
       return;
     }
-    target.pose = FRAME_HIT;
-    target.body.setFrame(FRAME_HIT).setTint(0xff8a7a);
-    this.time.delayedCall(320, () => {
-      target.pose = -1;
-      target.body.clearTint();
-    });
+    if (shot.targetHpAfter <= 0) {
+      this.knockDown(target, true);
+      const winner = this.figures.get(shot.shooterId);
+      if (winner !== undefined) this.showPose(winner, 'win');
+    }
+    else void this.knockBack(target, shot.damage);
   }
 
   private showImpact(shot: ShotView): void {
@@ -483,7 +644,7 @@ export class ArenaScene extends Phaser.Scene {
     const colors = hit ? [0xc0392b, 0xef8a7d, 0xf2d0a0] : [0xd3c4a2, 0x8a7a5e, 0x57596b];
     for (let i = 0; i < 12; i += 1) {
       const color = colors[i % colors.length] ?? 0xffffff;
-      const piece = this.add.rectangle(x, y, 6, 6, color).setDepth(7);
+      const piece = this.add.rectangle(x, y, 4, 4, color).setDepth(7);
       const heading = Math.random() * Math.PI * 2;
       const reach = 24 + Math.random() * 46;
       this.tweens.add({

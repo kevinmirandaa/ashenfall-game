@@ -1,7 +1,7 @@
 import { isWeaponId, WEAPON_IDS, type PlayerEventPayload, type PlayerMatchView, type ShotView, type WeaponId } from '@ashenfall/domain';
 import Phaser from 'phaser';
 import { ArenaScene } from './arena.js';
-import { baseLook, CHARACTERS, DEFAULT_WEAPON, frameUrl, icon, type CharacterId, type Look } from './art.js';
+import { baseLook, bodyFilter, CHARACTERS, DEFAULT_WEAPON, frameUrl, icon, type CharacterId, type Look } from './art.js';
 import { ApiError, GameSocket, Session, type ServerMessage } from './net.js';
 import { biomeCard, closeModal, el, END_REASON, escapeHtml, lookFrom, openArsenal, openBrotherhood, openModal, openShop, portrait, type Profile, type Room, type ShopActions } from './screens.js';
 
@@ -32,8 +32,8 @@ const arena = new ArenaScene(() => {
   syncLoop();
 });
 const game = new Phaser.Game({
-  // Canvas: más ligero y compatible que WebGL para un juego 2D de este tamaño.
-  type: Phaser.CANVAS,
+  // WebGL: tintes del impacto y capas grandes por GPU. Sin él, Phaser cae a Canvas sin tintes.
+  type: Phaser.AUTO,
   parent: 'game',
   backgroundColor: '#0d0b10',
   width: STAGE_W,
@@ -164,8 +164,8 @@ const shopActions: ShopActions = {
 function showLogin(): void {
   screen.className = 'login';
   screen.innerHTML = `
-    <img class="px backdrop" src="/art/castle.png" alt="" />
-    <img class="logo" src="/art/logo.png" alt="Ashenfall, The Last Mercenary Guild" />
+    <img class="backdrop" src="/art/castle.webp" alt="" />
+    <img class="logo" src="/art/logo.webp" alt="Ashenfall, The Last Mercenary Guild" />
     <section class="panel login-box">
       <form id="auth">
         <label>Nombre de mercenario <small>(solo al crear cuenta)</small><input name="displayName" maxlength="32" autocomplete="nickname" /></label>
@@ -213,27 +213,47 @@ async function enterTown(): Promise<void> {
 
 interface Hotspot {
   id: string;
-  name: string;
-  hint: string;
+  label: string;
+  /** x, y, ancho y alto sobre la imagen del pueblo a 1280×720. */
   area: readonly [number, number, number, number];
-  plaque: readonly [number, number];
   open(): void;
 }
 
+const shop = (title: string, subtitle: string, kinds: readonly string[]) => (): void => void guarded(() => openShop(title, subtitle, kinds, shopActions));
+
+// Los rótulos y botones forman parte de la imagen; aquí se les da su función.
 const HOTSPOTS: readonly Hotspot[] = [
-  { id: 'tavern', name: 'Taberna', hint: 'Partidas', area: [60, 180, 460, 400], plaque: [262, 150], open: () => { showTavern(); } },
-  { id: 'brotherhood', name: 'Hermandad', hint: 'Perfil', area: [515, 10, 320, 270], plaque: [670, 120], open: () => void guarded(() => openBrotherhood(shopActions)) },
-  { id: 'arsenal', name: 'Arsenal', hint: 'Personajes', area: [850, 240, 195, 260], plaque: [948, 228], open: () => void guarded(() => openArsenal(shopActions)) },
-  { id: 'forge', name: 'Forja', hint: 'Armas', area: [1020, 370, 260, 340], plaque: [1150, 352], open: () => void guarded(() => openShop('Forja', 'Armas y armaduras', ['weapon_skin', 'helmet'], shopActions)) },
-  { id: 'cauldron', name: 'Caldero', hint: 'Efectos', area: [40, 520, 260, 195], plaque: [165, 500], open: () => void guarded(() => openShop('Caldero', 'Efectos cosméticos', ['projectile_effect'], shopActions)) },
+  { id: 'arsenal', label: 'Arsenal: armas y yelmos', area: [342, 258, 192, 224], open: shop('Arsenal', 'Armas y armaduras', ['weapon_skin', 'helmet']) },
+  { id: 'alchemist', label: 'Alquimista: efectos', area: [770, 276, 172, 214], open: shop('Alquimista', 'Efectos cosméticos', ['projectile_effect']) },
+  { id: 'tavern', label: 'Taberna: partidas', area: [1008, 264, 164, 216], open: () => { showTavern(); } },
+  { id: 'characters', label: 'Personajes', area: [385, 600, 172, 84], open: () => void guarded(() => openArsenal(shopActions)) },
+  { id: 'play', label: 'Jugar', area: [566, 592, 148, 94], open: () => { showTavern(); } },
+  { id: 'guild', label: 'Gremio', area: [722, 600, 170, 84], open: () => void guarded(() => openBrotherhood(shopActions)) },
+  { id: 'profile', label: 'Perfil', area: [28, 498, 76, 84], open: () => void guarded(() => openBrotherhood(shopActions, 'Perfil', false)) },
+  { id: 'history', label: 'Historial', area: [28, 584, 76, 84], open: () => void guarded(() => openBrotherhood(shopActions, 'Historial', false)) },
 ];
 
 function paintPlayerCard(): void {
   const card = document.getElementById('player-card');
   if (card === null) return;
-  card.innerHTML = `${portrait(look.character, look.frame)}
-    <div><b>${escapeHtml(profile.displayName)}</b>
-    <span class="purse">${icon('coin', 20)} <span id="purse-value">${String(profile.balance)}</span></span></div>`;
+  card.innerHTML = `
+    <img class="medal-face${look.frame ? ' ornate' : ''}" src="/art/portrait-${look.character}.webp" alt="" />
+    <b class="town-name">${escapeHtml(profile.displayName)}</b>`;
+  const coins = document.getElementById('purse-value');
+  if (coins !== null) coins.textContent = String(profile.balance);
+  const hero = document.getElementById('town-hero') as HTMLImageElement | null;
+  if (hero !== null) {
+    hero.src = `/art/body-${look.character}.webp`;
+    hero.style.setProperty('filter', bodyFilter(look));
+  }
+}
+
+/** El servidor no tiene niveles: es un distintivo visual a partir de las partidas jugadas. */
+async function paintLevel(): Promise<void> {
+  const { total } = await session.call<{ total: number }>('GET', '/v1/me/matches?limit=1&offset=0');
+  const level = document.getElementById('town-level');
+  if (level === null) return;
+  level.innerHTML = `Lv. ${String(1 + Math.floor(total / 5))} <i class="xp"><u style="width:${String(((total % 5) + 0.15) * 20)}%"></u></i>`;
 }
 
 function showTown(): void {
@@ -243,41 +263,41 @@ function showTown(): void {
   syncLoop();
   closeModal();
   screen.className = 'town';
+  const lanterns = [[126, 262, 60], [250, 306, 70], [430, 440, 110], [830, 432, 80], [1096, 440, 90], [790, 182, 90]] as const;
   screen.innerHTML = `
-    <img class="px backdrop" src="/art/town.png" alt="Pueblo de Ashenfall" />
-    <i class="glow g1"></i><i class="glow g2"></i><i class="glow g3"></i>
-    ${HOTSPOTS.map((spot) => `
-      <button class="hotspot" data-spot="${spot.id}" aria-label="${spot.name}: ${spot.hint}"
-        style="left:${String(spot.area[0])}px;top:${String(spot.area[1])}px;width:${String(spot.area[2])}px;height:${String(spot.area[3])}px"></button>
-      <button class="plaque" data-spot="${spot.id}" tabindex="-1" style="left:${String(spot.plaque[0])}px;top:${String(spot.plaque[1])}px">
-        <b>${spot.name}</b><small>(${spot.hint})</small></button>`).join('')}
-    <div class="panel-mini" id="player-card"></div>
-    <button class="gear" id="settings" aria-label="Ajustes">${icon('gear', 32)}</button>`;
+    <img class="backdrop" src="/art/town.webp" alt="Pueblo de Ashenfall" />
+    <i class="moon-glow"></i>
+    ${lanterns.map(([x, y, size], index) => `<i class="glow" style="left:${String(x - size)}px;top:${String(y - size)}px;width:${String(size * 2)}px;height:${String(size * 2)}px;animation-delay:-${String(index * 0.7)}s"></i>`).join('')}
+    ${Array.from({ length: 14 }, (_, index) => `<i class="ember" style="left:${String(60 + ((index * 97) % 1160))}px;top:${String(360 + ((index * 53) % 240))}px;animation-delay:-${String(index * 1.3)}s"></i>`).join('')}
+    <img class="town-hero" id="town-hero" alt="" />
+    ${HOTSPOTS.map((spot) => `<button class="hotspot" data-spot="${spot.id}" title="${spot.label}" aria-label="${spot.label}"
+        style="left:${String(spot.area[0])}px;top:${String(spot.area[1])}px;width:${String(spot.area[2])}px;height:${String(spot.area[3])}px"></button>`).join('')}
+    <div id="player-card"></div>
+    <div id="town-level"></div>
+    <b class="purse" id="purse-value"></b>
+    <button class="hotspot" id="settings" aria-label="Ajustes" title="Ajustes" style="left:1160px;top:22px;width:46px;height:44px"></button>
+    <button class="hotspot" id="exit" aria-label="Cerrar sesión" title="Cerrar sesión" style="left:1214px;top:22px;width:46px;height:44px"></button>
+    <button class="hotspot" id="earn" aria-label="Cómo ganar Marcas" title="Cómo ganar Marcas" style="left:1108px;top:28px;width:32px;height:32px"></button>`;
   paintPlayerCard();
+  void paintLevel().catch(() => undefined);
   for (const node of screen.querySelectorAll<HTMLElement>('[data-spot]')) {
     const spot = HOTSPOTS.find((candidate) => candidate.id === node.dataset.spot);
-    if (spot === undefined) continue;
-    node.addEventListener('click', spot.open);
-    node.addEventListener('pointerenter', () => {
-      screen.querySelector(`.plaque[data-spot="${spot.id}"]`)?.classList.add('lit');
-      screen.querySelector(`.hotspot[data-spot="${spot.id}"]`)?.classList.add('lit');
-    });
-    node.addEventListener('pointerleave', () => {
-      screen.querySelector(`.plaque[data-spot="${spot.id}"]`)?.classList.remove('lit');
-      screen.querySelector(`.hotspot[data-spot="${spot.id}"]`)?.classList.remove('lit');
-    });
+    if (spot !== undefined) node.addEventListener('click', spot.open);
   }
-  el('settings').addEventListener('click', () => {
-    openModal('Ajustes', escapeHtml(profile.displayName), `<div class="stack"><button id="logout">Cerrar sesión</button></div>`);
-    el('logout').addEventListener('click', () => {
-      void guarded(async () => {
-        socket?.close();
-        socket = null;
-        await session.logout();
-        closeModal();
-        showLogin();
-      });
+  const logout = (): void => {
+    void guarded(async () => {
+      socket?.close();
+      socket = null;
+      await session.logout();
+      closeModal();
+      showLogin();
     });
+  };
+  el('earn').addEventListener('click', () => { notify('Gana duelos para conseguir Marcas de Ceniza: +100 por victoria.'); });
+  el('exit').addEventListener('click', logout);
+  el('settings').addEventListener('click', () => {
+    openModal('Ajustes', profile.displayName, `<div class="stack"><button id="logout">Cerrar sesión</button></div>`);
+    el('logout').addEventListener('click', logout);
   });
 }
 
@@ -520,7 +540,7 @@ function showHud(match: PlayerMatchView): void {
     <div id="intro" hidden>${biomeCard(match.arenaId)}</div>
     <footer class="controls" id="controls">
       <div class="weapons" role="radiogroup" aria-label="Arma">
-        ${WEAPON_IDS.map((id, index) => `<button class="weapon" data-weapon="${id}" role="radio" title="${WEAPON_LABEL[id]} (${String(index + 1)})">${icon(id, 40)}<small>${WEAPON_LABEL[id]}</small></button>`).join('')}
+        ${WEAPON_IDS.map((id, index) => `<button class="weapon" data-weapon="${id}" role="radio" title="${WEAPON_LABEL[id]} (${String(index + 1)})">${`<img class="wpn" src="/art/icon-${id}.webp" alt="" />`}<small>${WEAPON_LABEL[id]}</small></button>`).join('')}
       </div>
       <label class="slider"><span>Ángulo: <b id="angle-text"></b></span><input id="angle" type="range" min="0" max="90" /></label>
       <label class="slider"><span>Potencia: <b id="power-text"></b></span><input id="power" type="range" min="10" max="100" /></label>
@@ -657,6 +677,13 @@ arena.setHooks({
   onAim: refreshHud,
   onImpact: (shot: ShotView) => {
     if (view === null) return;
+    if (shot.impactKind === 'player') {
+      const side = shot.shooterId === view.you.playerId ? '.fighter.right' : '.fighter:not(.right)';
+      const node = document.querySelector(side);
+      node?.classList.remove('struck');
+      void (node as HTMLElement | null)?.offsetWidth;
+      node?.classList.add('struck');
+    }
     if (shot.shooterId === view.you.playerId) shownHp = { ...shownHp, rival: shot.targetHpAfter };
     else shownHp = { ...shownHp, you: shot.targetHpAfter };
     refreshHud();

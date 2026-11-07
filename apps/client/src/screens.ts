@@ -1,6 +1,6 @@
 /** Pueblo y paneles. Todo precio, saldo y propiedad viene del servidor; el cliente solo los presenta. */
 import type { ArenaId } from '@ashenfall/domain';
-import { baseLook, CHARACTERS, icon, iconUrl, previewUrl, type CharacterId, type IconName, type Look } from './art.js';
+import { baseLook, bodyFilter, CHARACTERS, icon, iconUrl, type CharacterId, type IconName, type Look } from './art.js';
 import { BIOME_NAMES } from './biomes.js';
 import type { Session } from './net.js';
 
@@ -59,12 +59,12 @@ export interface ShopActions {
 }
 
 const KIND_ICON: Readonly<Record<string, IconName>> = {
-  portrait_frame: 'frame',
+  portrait_frame: 'star',
   emblem: 'emblem',
   cloak: 'cloak',
-  projectile_effect: 'embers',
+  projectile_effect: 'potion',
   helmet: 'helm',
-  character_skin: 'skin',
+  character_skin: 'hood',
 };
 const KIND_NAME: Readonly<Record<string, string>> = {
   portrait_frame: 'Marcos',
@@ -78,7 +78,7 @@ const KIND_NAME: Readonly<Record<string, string>> = {
 
 const iconFor = (item: { id: string; kind: string }): IconName => {
   if (item.kind === 'weapon_skin') return item.id.includes('axe') ? 'axe' : 'bow';
-  return KIND_ICON[item.kind] ?? 'potion';
+  return KIND_ICON[item.kind] ?? 'pouch';
 };
 
 export function lookFrom(character: CharacterId, items: readonly OwnedItem[]): Look {
@@ -97,7 +97,7 @@ export function lookFrom(character: CharacterId, items: readonly OwnedItem[]): L
 }
 
 export const portrait = (character: CharacterId, ornate: boolean): string =>
-  `<span class="portrait${ornate ? ' ornate' : ''}"><img class="px" src="/art/portrait-${character}.png" alt="" /></span>`;
+  `<span class="portrait${ornate ? ' ornate' : ''}"><img src="/art/portrait-${character}.webp" alt="" /></span>`;
 
 export function openModal(title: string, subtitle: string, body: string, wide = false): void {
   const modal = el('modal');
@@ -137,9 +137,13 @@ export async function openShop(title: string, subtitle: string, kinds: readonly 
     return lookFrom(item?.kind === 'character_skin' ? 'edrik' : actions.character(), withItem);
   };
   const previewOf = (item: CatalogItem | undefined): string => {
-    if (item !== undefined && ['portrait_frame', 'emblem', 'projectile_effect'].includes(item.kind)) return iconUrl(iconFor(item));
-    const weapon = item?.kind === 'weapon_skin' ? (item.id.includes('axe') ? 'axe' : 'bow') : undefined;
-    return previewUrl(previewLook(item), weapon);
+    if (item === undefined) return '';
+    if (item.kind === 'weapon_skin') return `<img class="hero-item" src="${iconUrl(item.id.includes('axe') ? 'axe' : 'bow')}" style="filter:${item.id.includes('axe') ? 'sepia(.6) saturate(1.8)' : 'brightness(1.5) sepia(.3)'}" alt="" />`;
+    if (item.kind === 'character_skin' || item.kind === 'cloak') {
+      const look = previewLook(item);
+      return `<img class="hero" src="/art/body-${look.character}.webp" style="filter:${bodyFilter(look)}" alt="" />`;
+    }
+    return `<img class="hero-item" src="${iconUrl(iconFor(item))}" alt="" />`;
   };
 
   const render = (): void => {
@@ -159,7 +163,7 @@ export async function openShop(title: string, subtitle: string, kinds: readonly 
       ${kinds.length > 1 ? `<nav class="tabs">${kinds.map((kind) => `<button data-tab="${kind}" class="${kind === tab ? 'on' : ''}">${KIND_NAME[kind] ?? kind}</button>`).join('')}</nav>` : ''}
       <div class="shop">
         <aside class="preview">
-          <img class="px hero" src="${previewOf(current)}" alt="" />
+          ${previewOf(current)}
           <b>${current === undefined ? '—' : escapeHtml(current.name)}</b>
           ${current === undefined ? '' : `<span class="price">${icon('coin', 20)} ${String(current.price)}</span>`}
           ${button}
@@ -222,10 +226,10 @@ export function openArsenal(actions: ShopActions): Promise<void> {
   const extra = (): string => `
     <div class="roster">${CHARACTERS.map((hero) => `
       <button class="hero-card${hero.id === actions.character() ? ' on' : ''}" data-hero="${hero.id}">
-        <img class="px" src="/art/body-${hero.id}.png" alt="" />
+        <img src="/art/body-${hero.id}.webp" alt="" />
         <b>${hero.name}</b><small>${hero.race} · ${hero.weapon}</small><em>${hero.lore}</em>
       </button>`).join('')}</div>`;
-  return openShop('Arsenal', 'Elige a tu mercenario', ['character_skin', 'cloak'], actions, extra, (rerender) => {
+  return openShop('Personajes', 'Elige a tu mercenario', ['character_skin', 'cloak'], actions, extra, (rerender) => {
     for (const node of document.querySelectorAll<HTMLElement>('[data-hero]')) {
       node.addEventListener('click', () => {
         actions.setCharacter(node.dataset.hero as CharacterId);
@@ -237,13 +241,14 @@ export function openArsenal(actions: ShopActions): Promise<void> {
 
 const OUTCOME: Readonly<Record<MatchRow['outcome'], { text: string; mark: IconName }>> = {
   win: { text: 'Victoria', mark: 'trophy' },
-  loss: { text: 'Derrota', mark: 'skull' },
+  loss: { text: 'Derrota', mark: 'cross' },
   draw: { text: 'Empate', mark: 'swords' },
 };
 
 const PAGE = 6;
 
-export async function openBrotherhood(actions: ShopActions): Promise<void> {
+/** Gremio con tienda; Perfil e Historial muestran solo la hoja de servicios. */
+export async function openBrotherhood(actions: ShopActions, title = 'Gremio', shop = true): Promise<void> {
   const profile = actions.profile();
   // Hasta 50 partidas recientes: el límite del contrato. Las cifras lo indican.
   const recent = await actions.session.call<{ total: number; items: MatchRow[] }>('GET', '/v1/me/matches?limit=50&offset=0');
@@ -273,7 +278,7 @@ export async function openBrotherhood(actions: ShopActions): Promise<void> {
       ${recent.items.length > PAGE ? `<div class="pager"><button id="prev" ${offset === 0 ? 'disabled' : ''}>‹</button><button id="next" ${offset + PAGE >= recent.items.length ? 'disabled' : ''}>›</button></div>` : ''}
     </div>`;
   };
-  await openShop('Hermandad', 'Perfil e historial', ['portrait_frame', 'emblem'], actions, extra, (rerender) => {
+  const wirePager = (rerender: () => void): void => {
     document.getElementById('prev')?.addEventListener('click', () => {
       offset = Math.max(0, offset - PAGE);
       rerender();
@@ -282,7 +287,19 @@ export async function openBrotherhood(actions: ShopActions): Promise<void> {
       offset += PAGE;
       rerender();
     });
-  });
+  };
+  if (shop) {
+    await openShop(title, 'Hoja de servicios y distintivos', ['portrait_frame', 'emblem'], actions, extra, wirePager);
+    return;
+  }
+  const paint = (): void => {
+    const body = document.getElementById('modal-body');
+    if (body === null) return;
+    body.innerHTML = extra();
+    wirePager(paint);
+  };
+  openModal(title, 'Tu hoja de servicios', '', true);
+  paint();
 }
 
 export const END_REASON: Readonly<Record<string, string>> = {
@@ -295,4 +312,4 @@ export const END_REASON: Readonly<Record<string, string>> = {
 };
 
 export const biomeCard = (id: ArenaId): string =>
-  `<div class="biome-card"><img class="px" src="/art/biome-${id}.png" alt="" /><b>${BIOME_NAMES[id]}</b></div>`;
+  `<div class="biome-card"><img src="/art/biome-${id}.webp" alt="" /><b>${BIOME_NAMES[id]}</b></div>`;
