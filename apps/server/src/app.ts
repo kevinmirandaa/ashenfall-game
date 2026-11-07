@@ -17,6 +17,8 @@ import { registerMatchmakingRoutes } from './matchmaking/routes.js';
 import { registerHistoryRoutes } from './matches/history.js';
 import { MatchEventStore } from './matches/event-store.js';
 import { MatchEngine } from './matches/match-engine.js';
+import { logMatchEvents } from './telemetry/match-logs.js';
+import { defaultTelemetry, type Telemetry } from './telemetry/telemetry.js';
 import { problemBody, ProblemError } from './problem.js';
 import { MatchSweeper } from './matches/sweeper.js';
 import { RedisEventBus } from './realtime/event-bus.js';
@@ -30,9 +32,13 @@ import { registerRoomRoutes } from './rooms/routes.js';
 export interface AppDependencies {
   readonly pool: pg.Pool;
   readonly auth: AuthConfig;
-  readonly logger?: boolean | { readonly stream?: NodeJS.WritableStream; readonly level?: string };
+  readonly logger?: boolean | { readonly stream?: NodeJS.WritableStream; readonly level?: string; readonly mixin?: () => object };
+  /** Sin esto, OpenTelemetry queda en modo no-op. */
+  readonly telemetry?: Telemetry;
   /** Orígenes de navegador permitidos en CORS. */
   readonly allowedOrigins?: readonly string[];
+  /** Activar solo detrás de HTTPS: añade upgrade-insecure-requests y prohíbe ws:// en la CSP. */
+  readonly enforceHttps?: boolean;
   /** Carpeta con el cliente compilado. */
   readonly clientDir?: string | undefined;
   readonly rateLimit: RateLimitConfig;
@@ -122,7 +128,9 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         // Swagger UI inyecta estilos en línea en /docs; la API no sirve HTML propio.
         styleSrc: ["'self'", "'unsafe-inline'"],
         imgSrc: ["'self'", 'data:', 'blob:'],
-        connectSrc: ["'self'", 'ws:', 'wss:'],
+        // Solo tras HTTPS: Safari no exime a localhost y en local convertiría los recursos a https, dejando la página en blanco.
+        connectSrc: dependencies.enforceHttps === true ? ["'self'", 'wss:'] : ["'self'", 'ws:', 'wss:'],
+        upgradeInsecureRequests: dependencies.enforceHttps === true ? [] : null,
       },
     },
   });
@@ -191,12 +199,27 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     const { realtime } = dependencies;
     const namespace = realtime?.namespace ?? 'ashenfall-';
     const bus = realtime === undefined ? null : new RedisEventBus(realtime.redis, namespace, app.log);
-    const engine = new MatchEngine(store, (matchId, events) => bus?.publish(matchId, events));
+    const telemetry = dependencies.telemetry ?? defaultTelemetry();
+    telemetry.observeActiveMatches(async () => {
+      const { rows } = await dependencies.pool.query<{ total: number }>(`SELECT count(*)::int AS total FROM matches WHERE status = 'in_progress'`);
+      return rows[0]?.total ?? 0;
+    });
+    const engine = new MatchEngine(
+      store,
+      (matchId, events) => {
+        logMatchEvents(api.log, matchId, events);
+        bus?.publish(matchId, events);
+      },
+      telemetry,
+    );
     /** Tras confirmar la transacción, avisa a los jugadores sin que tengan que consultar. */
     const announceMatch = (matchId: string): void => {
       void (async () => {
         const [first] = await store.load(matchId);
-        if (first !== undefined) bus?.publish(matchId, [{ event: first, stateAfter: initialState(first) }]);
+        if (first === undefined) return;
+        const started = [{ event: first, stateAfter: initialState(first) }];
+        logMatchEvents(api.log, matchId, started);
+        bus?.publish(matchId, started);
       })().catch((error: unknown) => {
         api.log.error({ err: error, matchId }, 'No se pudo anunciar la partida');
       });
@@ -217,7 +240,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       const tickets = new WsTicketStore(realtime.redis, namespace);
       const heartbeatMs = realtime.gateway.heartbeatMs ?? 15_000;
       const presence = new Presence(realtime.redis, namespace, heartbeatMs * 3);
-      const activeGateway = new RealtimeGateway(app.server, dependencies.pool, () => engine, tickets, presence, app.log, realtime.gateway);
+      const activeGateway = new RealtimeGateway(app.server, dependencies.pool, () => engine, tickets, presence, app.log, realtime.gateway, telemetry);
       const sweeper = new MatchSweeper(dependencies.pool, engine, app.log);
       api.post('/v1/ws-ticket', async (request, reply) => {
         const { userId } = await auth.authenticate(request.headers.authorization);

@@ -7,6 +7,7 @@ export interface ServerConfig {
   readonly jwtSecret: string;
   readonly allowedOrigins: readonly string[];
   readonly trustProxy: boolean;
+  readonly enforceHttps: boolean;
   readonly logLevel: string;
   /** Client ID de la identidad administrada; si existe, PostgreSQL se autentica con Entra. */
   readonly managedIdentityClientId: string | undefined;
@@ -36,6 +37,7 @@ export function loadConfig(env: NodeJS.ProcessEnv): ServerConfig {
     jwtSecret,
     allowedOrigins: (env['ALLOWED_ORIGINS'] ?? '').split(',').map((origin) => origin.trim()).filter((origin) => origin !== ''),
     trustProxy: env['TRUST_PROXY'] === '1',
+    enforceHttps: env['ENFORCE_HTTPS'] === '1',
     logLevel: env['LOG_LEVEL'] ?? 'info',
     managedIdentityClientId: env['AZURE_CLIENT_ID'],
     rateLimit: {

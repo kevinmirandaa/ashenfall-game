@@ -3,8 +3,12 @@ import { buildApp } from './app.js';
 import { loadConfig } from './config.js';
 import { migrate } from './db/migrate.js';
 import { createPool } from './db/pool.js';
+import { startAzureTelemetry } from './telemetry/azure.js';
+import { traceLogFields } from './telemetry/telemetry.js';
 
 const config = loadConfig(process.env);
+// Antes de crear la app, para que las métricas usen este proveedor.
+const stopTelemetry = startAzureTelemetry(process.env['APPLICATIONINSIGHTS_CONNECTION_STRING']);
 const pool = createPool({
   connectionString: config.databaseUrl, managedIdentityClientId: config.managedIdentityClientId,
   onToken: (claims) => {
@@ -15,10 +19,11 @@ const redis = new Redis(config.redisUrl);
 
 const app = buildApp({
   pool,
-  logger: { level: config.logLevel },
+  logger: { level: config.logLevel, mixin: traceLogFields },
   allowedOrigins: config.allowedOrigins,
   clientDir: process.env['CLIENT_DIR'],
   trustProxy: config.trustProxy,
+  enforceHttps: config.enforceHttps,
   auth: { jwtSecret: config.jwtSecret, accessTokenTtlSeconds: 900, refreshTokenTtlSeconds: 30 * 24 * 3600 },
   rateLimit: { ...config.rateLimit, redis },
   realtime: { redis, gateway: { allowedOrigins: config.allowedOrigins } },
@@ -52,6 +57,7 @@ async function shutdown(signal: string): Promise<void> {
   app.log.info({ signal }, 'Apagando con cierre ordenado');
   await app.close();
   await pool.end();
+  await stopTelemetry?.();
   redis.disconnect();
 }
 process.on('SIGTERM', () => void shutdown('SIGTERM'));
