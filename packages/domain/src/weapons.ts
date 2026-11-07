@@ -66,7 +66,7 @@ export interface WeaponProfile {
   readonly name: string;
   /** 1 ligera, 2 media, 3 pesada: más peso pide más potencia y más ángulo para llegar lejos; menos peso, lo contrario. */
   readonly weight: 1 | 2 | 3;
-  readonly tier: 0 | 1 | 2;
+  readonly tier: 0 | 1 | 2 | 3;
   /** Velocidad inicial al 100 % de potencia, en unidades de mundo por segundo. */
   readonly maxSpeed: number;
   readonly gravityScale: number;
@@ -79,60 +79,84 @@ export interface WeaponProfile {
   readonly effect?: WeaponEffect;
 }
 
+type Tier = 0 | 1 | 2 | 3;
+interface WeaponSpec {
+  readonly name: string;
+  readonly damage: number;
+  readonly price: number;
+  readonly effect?: WeaponEffect;
+}
+const poison = (perSecond: number): WeaponEffect => ({ kind: 'poison', perSecond, seconds: 3 });
+const burn = (perSecond: number): WeaponEffect => ({ kind: 'burn', perSecond, seconds: 3 });
+
 interface FamilyBase {
   readonly weight: 1 | 2 | 3;
   readonly maxSpeed: number;
   readonly gravityScale: number;
   readonly windScale: number;
   readonly radius: number;
-  readonly names: readonly [string, string, string];
-  readonly effect: WeaponEffect;
+  readonly tiers: readonly [WeaponSpec, WeaponSpec, WeaponSpec, WeaponSpec];
 }
 
-/** Ligeras: rápidas y tensas. Pesadas: lentas y de arco pronunciado. */
+/**
+ * Ligeras: rápidas y tensas. Pesadas: lentas y de arco pronunciado. Los niveles 2 y 3 dejan veneno o fuego
+ * y cuestan mucho: el dinero se gasta poco a poco y la habilidad crece con él.
+ */
 const FAMILY_BASE: Readonly<Record<WeaponFamily, FamilyBase>> = {
-  dagger: { weight: 1, maxSpeed: 1550, gravityScale: 0.75, windScale: 0.6, radius: 5, names: ['Daga de hierro', 'Daga templada', 'Daga ponzoñosa'], effect: { kind: 'poison', perSecond: 2, seconds: 3 } },
-  bow: { weight: 2, maxSpeed: 1350, gravityScale: 1, windScale: 1, radius: 8, names: ['Arco de caza', 'Arco largo', 'Arco de brasas'], effect: { kind: 'burn', perSecond: 3, seconds: 3 } },
-  crossbow: { weight: 2, maxSpeed: 1600, gravityScale: 0.8, windScale: 0.5, radius: 6, names: ['Ballesta de campo', 'Ballesta de guerra', 'Ballesta de espinas'], effect: { kind: 'poison', perSecond: 3, seconds: 3 } },
-  axe: { weight: 3, maxSpeed: 1330, gravityScale: 1.25, windScale: 0.8, radius: 12, names: ['Hacha de leñador', 'Hacha de guerra', 'Hacha ardiente'], effect: { kind: 'burn', perSecond: 5, seconds: 3 } },
-  sword: { weight: 2, maxSpeed: 1450, gravityScale: 0.95, windScale: 0.7, radius: 8, names: ['Espada de guardia', 'Espada de acero', 'Espada de fuego'], effect: { kind: 'burn', perSecond: 4, seconds: 3 } },
-  staff: { weight: 1, maxSpeed: 1300, gravityScale: 0.6, windScale: 1.2, radius: 10, names: ['Orbe de ceniza', 'Orbe de sombra', 'Orbe venenoso'], effect: { kind: 'poison', perSecond: 4, seconds: 3 } },
-  flask: { weight: 1, maxSpeed: 1320, gravityScale: 1.1, windScale: 1, radius: 10, names: ['Frasco de lámpara', 'Frasco corrosivo', 'Frasco de fuego líquido'], effect: { kind: 'burn', perSecond: 4, seconds: 3 } },
-  mace: { weight: 3, maxSpeed: 1370, gravityScale: 1.3, windScale: 0.8, radius: 12, names: ['Maza de piedra', 'Maza de hierro', 'Maza bendita'], effect: { kind: 'burn', perSecond: 3, seconds: 3 } },
+  dagger: { weight: 1, maxSpeed: 1550, gravityScale: 0.75, windScale: 0.6, radius: 5, tiers: [
+    { name: 'Daga de hierro', damage: 12, price: 0 }, { name: 'Daga dentada', damage: 15, price: 600 },
+    { name: 'Daga curva ponzoñosa', damage: 18, price: 1600, effect: poison(2) }, { name: 'Daga del nigromante', damage: 21, price: 2800, effect: poison(4) } ] },
+  bow: { weight: 2, maxSpeed: 1350, gravityScale: 1, windScale: 1, radius: 8, tiers: [
+    { name: 'Arco de caza', damage: 12, price: 0 }, { name: 'Arco recurvo', damage: 15, price: 600 },
+    { name: 'Arco de hueso ardiente', damage: 18, price: 1700, effect: burn(3) }, { name: 'Arco carmesí', damage: 21, price: 2900, effect: burn(5) } ] },
+  crossbow: { weight: 2, maxSpeed: 1600, gravityScale: 0.8, windScale: 0.5, radius: 6, tiers: [
+    { name: 'Ballesta de campo', damage: 12, price: 0 }, { name: 'Ballesta de guerra', damage: 15, price: 650 },
+    { name: 'Ballesta de espinas', damage: 18, price: 1800, effect: poison(3) }, { name: 'Ballesta del cazador', damage: 21, price: 3000, effect: poison(5) } ] },
+  axe: { weight: 3, maxSpeed: 1330, gravityScale: 1.25, windScale: 0.8, radius: 12, tiers: [
+    { name: 'Hacha de leñador', damage: 12, price: 0 }, { name: 'Hacha de guerra', damage: 15, price: 700 },
+    { name: 'Hacha de verdugo', damage: 18, price: 2000, effect: burn(4) }, { name: 'Hacha del destino', damage: 21, price: 3200, effect: burn(5) } ] },
+  sword: { weight: 2, maxSpeed: 1450, gravityScale: 0.95, windScale: 0.7, radius: 8, tiers: [
+    { name: 'Espada de guardia', damage: 12, price: 0 }, { name: 'Espada de acero', damage: 15, price: 650 },
+    { name: 'Espada rúnica', damage: 18, price: 1900, effect: burn(3) }, { name: 'Espada real', damage: 21, price: 3000, effect: burn(5) } ] },
+  staff: { weight: 1, maxSpeed: 1300, gravityScale: 0.6, windScale: 1.2, radius: 10, tiers: [
+    { name: 'Orbe de ceniza', damage: 12, price: 0 }, { name: 'Cometa de escarcha', damage: 15, price: 700 },
+    { name: 'Llama venenosa', damage: 18, price: 1700, effect: poison(3) }, { name: 'Bola infernal', damage: 21, price: 2800, effect: burn(5) } ] },
+  flask: { weight: 1, maxSpeed: 1320, gravityScale: 1.1, windScale: 1, radius: 10, tiers: [
+    { name: 'Frasco de lámpara', damage: 12, price: 0 }, { name: 'Frasco de hielo', damage: 15, price: 600 },
+    { name: 'Frasco de peste', damage: 18, price: 1600, effect: poison(4) }, { name: 'Fuego líquido', damage: 21, price: 2700, effect: burn(5) } ] },
+  mace: { weight: 3, maxSpeed: 1370, gravityScale: 1.3, windScale: 0.8, radius: 12, tiers: [
+    { name: 'Maza de piedra', damage: 12, price: 0 }, { name: 'Maza de hierro', damage: 15, price: 650 },
+    { name: 'Maza de gema', damage: 18, price: 1900, effect: burn(3) }, { name: 'Maza maldita', damage: 21, price: 3000, effect: poison(5) } ] },
 };
 
-const TIER_DAMAGE = [12, 15, 17] as const;
-const TIER_PRICE = [0, 600, 1500] as const;
-/** Las armas especiales con efecto fuerte cuestan más. */
-const SPECIAL_EXTRA: Readonly<Partial<Record<WeaponFamily, number>>> = { axe: 500, sword: 250, flask: 250, staff: 250 };
+export type WeaponId = `${WeaponFamily}` | `${WeaponFamily}_2` | `${WeaponFamily}_3` | `${WeaponFamily}_4`;
 
-export type WeaponId = `${WeaponFamily}` | `${WeaponFamily}_2` | `${WeaponFamily}_3`;
+const suffix = (tier: Tier): '' | '_2' | '_3' | '_4' => (['', '_2', '_3', '_4'] as const)[tier];
+const TIERS: readonly Tier[] = [0, 1, 2, 3];
 
-const suffix = (tier: 0 | 1 | 2): '' | '_2' | '_3' => (tier === 0 ? '' : tier === 1 ? '_2' : '_3');
-
-function buildWeapon(family: WeaponFamily, tier: 0 | 1 | 2): WeaponProfile {
+function buildWeapon(family: WeaponFamily, tier: Tier): WeaponProfile {
   const base = FAMILY_BASE[family];
-  const id = `${family}${suffix(tier)}` as WeaponId;
+  const spec = base.tiers[tier];
   const profile: WeaponProfile = {
-    id,
+    id: `${family}${suffix(tier)}` as WeaponId,
     family,
-    name: base.names[tier],
+    name: spec.name,
     weight: base.weight,
     tier,
     maxSpeed: base.maxSpeed,
     gravityScale: base.gravityScale,
     windScale: base.windScale,
     radius: base.radius,
-    baseDamage: TIER_DAMAGE[tier],
-    price: TIER_PRICE[tier] + (tier === 2 ? (SPECIAL_EXTRA[family] ?? 0) : 0),
+    baseDamage: spec.damage,
+    price: spec.price,
   };
-  return tier === 2 ? { ...profile, effect: base.effect } : profile;
+  return spec.effect === undefined ? profile : { ...profile, effect: spec.effect };
 }
 
-export const WEAPON_IDS: readonly WeaponId[] = WEAPON_FAMILIES.flatMap((family) => ([0, 1, 2] as const).map((tier) => `${family}${suffix(tier)}` as WeaponId));
+export const WEAPON_IDS: readonly WeaponId[] = WEAPON_FAMILIES.flatMap((family) => TIERS.map((tier) => `${family}${suffix(tier)}` as WeaponId));
 
 export const WEAPONS: Readonly<Record<WeaponId, WeaponProfile>> = Object.fromEntries(
-  WEAPON_FAMILIES.flatMap((family) => ([0, 1, 2] as const).map((tier) => [`${family}${suffix(tier)}`, buildWeapon(family, tier)] as const)),
+  WEAPON_FAMILIES.flatMap((family) => TIERS.map((tier) => [`${family}${suffix(tier)}`, buildWeapon(family, tier)] as const)),
 ) as Record<WeaponId, WeaponProfile>;
 
 /** Arma común de cada personaje: la que usa mientras no equipe otra de su familia. */
@@ -140,7 +164,7 @@ export function starterWeapon(characterId: CharacterId): WeaponId {
   return CHARACTER_FAMILY[characterId];
 }
 
-export const MAX_DAMAGE_PER_SHOT = 30;
+export const MAX_DAMAGE_PER_SHOT = 36;
 
 export function isWeaponId(value: string): value is WeaponId {
   return (WEAPON_IDS as readonly string[]).includes(value);

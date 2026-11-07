@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { EventPayload, MatchEvent, MatchSetup } from '@ashenfall/domain';
+import { MONSTER_IDS, type EventPayload, type MatchEvent, type MatchSetup, type MonsterId } from '@ashenfall/domain';
 import type pg from 'pg';
 
 /** Otra réplica confirmó antes esa secuencia: hay que recargar el log y volver a decidir. */
@@ -43,13 +43,16 @@ export class MatchEventStore {
    * Confirma eventos antes de avisar a los clientes. La clave (match_id, seq) serializa a las réplicas:
    * si dos escriben la misma secuencia, solo una gana y la otra recibe SequenceConflictError.
    */
-  async append(matchId: string, events: readonly MatchEvent[], nextDeadlineMs?: number | null): Promise<void> {
+  async append(matchId: string, events: readonly MatchEvent[], nextDeadlineMs?: number | null, botDueMs?: number | null): Promise<void> {
     if (events.length === 0) return;
     try {
       await this.transaction(async (client) => {
         await this.insertEvents(client, matchId, events);
         if (nextDeadlineMs !== undefined) {
           await client.query('UPDATE matches SET next_deadline_ms = $1 WHERE id = $2', [nextDeadlineMs, matchId]);
+        }
+        if (botDueMs !== undefined) {
+          await client.query('UPDATE matches SET bot_due_ms = $1 WHERE id = $2', [botDueMs, matchId]);
         }
         for (const { payload } of events) {
           if (payload.type !== 'match_finished') continue;
@@ -82,15 +85,34 @@ export class MatchEventStore {
     return rows.map((row) => row.id);
   }
 
-  /** En la misma transacción que el resultado; la clave única impide pagar dos veces. */
+  /**
+   * En la misma transacción que el resultado; la clave única impide pagar dos veces. Cada partida trae su premio
+   * (100 contra humanos, menos contra un bot) y un monstruo nunca cobra. Vencer un nivel de historia lo desbloquea.
+   */
   private async grantReward(client: pg.ClientBase, matchId: string, winnerId: string): Promise<void> {
+    const info = await client.query<{ reward: number; mode: string; monster_id: string | null; is_bot: boolean }>(
+      `SELECT m.reward, m.mode, m.monster_id, u.is_bot FROM matches m, users u WHERE m.id = $1 AND u.id = $2`,
+      [matchId, winnerId],
+    );
+    const row = info.rows[0];
+    if (row === undefined || row.is_bot) return;
     const inserted = await client.query(
       `INSERT INTO wallet_transactions (id, user_id, amount, kind, idempotency_key)
        VALUES ($1, $2, $3, 'match_reward', $4) ON CONFLICT (idempotency_key) DO NOTHING`,
-      [randomUUID(), winnerId, WIN_REWARD, `match-reward:${matchId}`],
+      [randomUUID(), winnerId, row.reward, `match-reward:${matchId}`],
     );
     if ((inserted.rowCount ?? 0) > 0) {
-      await client.query('UPDATE wallets SET balance = balance + $1 WHERE user_id = $2', [WIN_REWARD, winnerId]);
+      await client.query('UPDATE wallets SET balance = balance + $1 WHERE user_id = $2', [row.reward, winnerId]);
+      if (row.mode === 'story' && row.monster_id !== null) {
+        const level = MONSTER_IDS.indexOf(row.monster_id as MonsterId) + 1;
+        if (level > 0) {
+          await client.query(
+            `INSERT INTO story_progress (user_id, cleared) VALUES ($1, $2)
+             ON CONFLICT (user_id) DO UPDATE SET cleared = GREATEST(story_progress.cleared, EXCLUDED.cleared)`,
+            [winnerId, level],
+          );
+        }
+      }
     }
   }
 

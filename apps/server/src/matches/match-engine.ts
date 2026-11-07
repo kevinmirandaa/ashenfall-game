@@ -1,6 +1,8 @@
-import { decide, evolve, nextDeadline, replay, type Decision, type MatchCommand, type MatchEvent, type MatchState } from '@ashenfall/domain';
+import { chooseBotShot, decide, defaultWeapon, evolve, nextDeadline, replay, type Decision, type MatchCommand, type MatchEvent, type MatchState } from '@ashenfall/domain';
 import { defaultTelemetry, type Telemetry } from '../telemetry/telemetry.js';
+import { ANIMATION_GRACE_MS, botActionId, botOnTurn, botThinkMs } from './bots.js';
 import { MatchEventStore, SequenceConflictError } from './event-store.js';
+import { cryptoRandom } from './start.js';
 
 export class MatchNotFoundError extends Error {
   override readonly name = 'MatchNotFoundError';
@@ -63,6 +65,25 @@ export class MatchEngine {
     return run;
   }
 
+  /** Le toca al bot: calcula su disparo con la física del servidor y lo envía como cualquier otra jugada. */
+  async botTurn(matchId: string, nowMs: number): Promise<void> {
+    const state = await this.state(matchId);
+    const bot = botOnTurn(state);
+    if (bot === null) return;
+    const setup = state.setup.players.find((player) => player.playerId === bot.playerId);
+    const aim = chooseBotShot(state, bot.playerId, { aimErrorDeg: bot.monster.aimErrorDeg, powerError: bot.monster.powerError }, cryptoRandom);
+    await this.execute(matchId, {
+      type: 'shoot',
+      playerId: bot.playerId,
+      actionId: botActionId(matchId, state.version),
+      expectedVersion: state.version,
+      weaponId: setup?.weaponId ?? defaultWeapon(bot.monster.id),
+      angleDeg: aim.angleDeg,
+      power: aim.power,
+      nowMs,
+    });
+  }
+
   private async decideAndPersist(matchId: string, command: MatchCommand): Promise<Decision> {
     for (let attempt = 0; attempt < MAX_CONFLICT_RETRIES; attempt += 1) {
       const state = await this.state(matchId);
@@ -71,7 +92,7 @@ export class MatchEngine {
       const published = withStates(state, decision.events);
       const finalState = published.at(-1)?.stateAfter ?? state;
       try {
-        await this.store.append(matchId, decision.events, nextDeadline(finalState));
+        await this.store.append(matchId, decision.events, nextDeadline(finalState), botDueFor(matchId, decision.events, finalState));
       } catch (error) {
         if (error instanceof SequenceConflictError) continue;
         throw error;
@@ -82,4 +103,15 @@ export class MatchEngine {
     }
     throw new Error(`Demasiados conflictos de secuencia en la partida ${matchId}`);
   }
+}
+
+/**
+ * Cuándo le toca mover al bot tras estos eventos: undefined si nada cambió respecto al turno, null si ya no le toca,
+ * o el instante en que debe responder. Se guarda en la base: cualquier réplica lo retoma, también tras un reinicio.
+ */
+function botDueFor(matchId: string, events: readonly MatchEvent[], state: MatchState): number | null | undefined {
+  if (events.some((event) => event.payload.type === 'match_finished')) return null;
+  const last = events.find((event) => event.payload.type === 'turn_started');
+  if (last === undefined) return undefined;
+  return botOnTurn(state) === null ? null : last.atMs + ANIMATION_GRACE_MS + botThinkMs(matchId, state.version);
 }

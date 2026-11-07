@@ -16,7 +16,7 @@ export interface TestUser {
   readonly email: string;
   readonly password: string;
   readonly authorization: string;
-  request(method: 'GET' | 'POST' | 'DELETE', url: string, payload?: object): Promise<LightMyRequestResponse>;
+  request(method: 'GET' | 'POST' | 'PUT' | 'DELETE', url: string, payload?: object): Promise<LightMyRequestResponse>;
 }
 
 export async function registerUser(app: FastifyInstance): Promise<TestUser> {

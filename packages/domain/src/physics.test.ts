@@ -226,20 +226,24 @@ describe('daño por zona y potencia', () => {
     }
   });
 
-  it('las armas mejores pegan más y solo las especiales dejan veneno o fuego', () => {
+  it('las armas mejores pegan más y solo las de nivel 3 y 4 dejan veneno o fuego, a precios que se van ganando', () => {
     for (const family of WEAPON_FAMILIES) {
-      const [common, better, special] = [WEAPONS[family], WEAPONS[`${family}_2`], WEAPONS[`${family}_3`]];
-      expect(better.baseDamage).toBeGreaterThan(common.baseDamage);
-      expect(special.baseDamage).toBeGreaterThan(better.baseDamage);
-      expect(common.effect).toBeUndefined();
-      expect(better.effect).toBeUndefined();
-      expect(special.effect).toBeDefined();
-      expect(special.effect?.perSecond).toBeGreaterThanOrEqual(2);
-      expect(special.effect?.perSecond).toBeLessThanOrEqual(5);
-      expect(special.effect?.seconds).toBe(3);
-      expect(special.price).toBeGreaterThanOrEqual(1500);
-      expect(special.price).toBeLessThanOrEqual(2000);
-      expect(common.price).toBe(0);
+      const tiers = [WEAPONS[family], WEAPONS[`${family}_2`], WEAPONS[`${family}_3`], WEAPONS[`${family}_4`]];
+      tiers.forEach((weapon, index) => {
+        if (index > 0) expect(weapon.baseDamage).toBeGreaterThan(tiers[index - 1]?.baseDamage ?? 0);
+        if (index > 0) expect(weapon.price).toBeGreaterThan(tiers[index - 1]?.price ?? 0);
+      });
+      expect(tiers[0]?.effect).toBeUndefined();
+      expect(tiers[1]?.effect).toBeUndefined();
+      for (const special of [tiers[2], tiers[3]]) {
+        expect(special?.effect).toBeDefined();
+        expect(special?.effect?.perSecond).toBeGreaterThanOrEqual(2);
+        expect(special?.effect?.perSecond).toBeLessThanOrEqual(5);
+        expect(special?.effect?.seconds).toBe(3);
+      }
+      expect(tiers[2]?.price).toBeGreaterThanOrEqual(1500);
+      expect(tiers[3]?.price).toBeGreaterThanOrEqual(2500);
+      expect(tiers[0]?.price).toBe(0);
     }
   });
 

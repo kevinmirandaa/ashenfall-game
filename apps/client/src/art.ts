@@ -1,7 +1,7 @@
 /** Datos de personajes y acceso al arte recortado de las hojas de referencia (public/art). */
-import { CHARACTER_FAMILY, type CharacterId, type WeaponFamily } from '@ashenfall/domain';
+import { CHARACTER_FAMILY, type CharacterId, type FighterId, type WeaponFamily } from '@ashenfall/domain';
 
-export type { CharacterId } from '@ashenfall/domain';
+export type { CharacterId, FighterId } from '@ashenfall/domain';
 export const FAMILY_LABEL: Readonly<Record<WeaponFamily, string>> = {
   dagger: 'Dagas',
   bow: 'Arco',
@@ -29,14 +29,15 @@ export const DEFAULT_WEAPON: Readonly<Record<CharacterId, WeaponFamily>> = CHARA
 
 /** Apariencia equipada. Es solo visual: nada de esto llega a la física ni al daño. */
 export interface Look {
-  character: CharacterId;
+  /** Mercenario o monstruo: los dos se dibujan con el mismo muñeco. */
+  character: FighterId;
   cloak: boolean;
   helm: boolean;
   embers: boolean;
   frame: boolean;
   emblem: boolean;
 }
-export const baseLook = (character: CharacterId): Look => ({ character, cloak: false, helm: false, embers: false, frame: false, emblem: false });
+export const baseLook = (character: FighterId): Look => ({ character, cloak: false, helm: false, embers: false, frame: false, emblem: false });
 
 /** Tinte del personaje según lo equipado; 0xffffff es sin tinte. */
 export const bodyTint = (look: Look): number => (look.cloak ? 0xc4dcff : 0xffffff);

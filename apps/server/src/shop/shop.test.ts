@@ -137,7 +137,7 @@ describe('personajes y armas', () => {
       else expect(items.find((item) => item.id === `char-${id}`)).toMatchObject({ kind: 'character', price: CHARACTER_PRICE[id] });
     }
     for (const family of WEAPON_FAMILIES) {
-      for (const tier of ['_2', '_3'] as const) {
+      for (const tier of ['_2', '_3', '_4'] as const) {
         const weapon = WEAPONS[`${family}${tier}`];
         expect(items.find((item) => item.id === `wpn-${family}-${tier.slice(1)}`)).toMatchObject({ kind: `weapon_${family}`, price: weapon.price });
       }

@@ -16,6 +16,7 @@ const CLOSE_CODES = [
 
 const clientExamples: Record<keyof typeof CLIENT_MESSAGES, unknown> = {
   shoot: { v: 1, type: 'shoot', matchId: MATCH, actionId: ACTION, expectedVersion: 3, weaponId: 'dagger', angleDeg: 42.5, power: 70 },
+  use_potion: { v: 1, type: 'use_potion', matchId: MATCH, actionId: ACTION, expectedVersion: 3, potionId: 'vital' },
   sync: { v: 1, type: 'sync', matchId: MATCH },
 };
 
@@ -35,8 +36,8 @@ const serverExamples: Record<keyof typeof serverMessages, unknown> = {
       round: 1,
       physicsVersion: 4,
       turn: { playerId: USER, round: 1, deadlineMs: 1793906164944 },
-      you: { playerId: USER, hp: 100, position: { x: 450, y: 0 }, facing: 1, connected: true, characterId: 'edrik', displayName: 'Edrik', weaponId: 'dagger' },
-      opponent: { playerId: ACTION, hp: 78, position: { x: 1550, y: 0 }, facing: -1, connected: true, characterId: 'sylwen', displayName: 'Sylwen', weaponId: 'bow_3' },
+      you: { playerId: USER, hp: 100, position: { x: 450, y: 0 }, facing: 1, connected: true, characterId: 'edrik', displayName: 'Edrik', weaponId: 'dagger', buffs: { ward: false, fury: true, focus: false }, potions: ['vital', 'ward'] },
+      opponent: { playerId: ACTION, hp: 78, position: { x: 1550, y: 0 }, facing: -1, connected: true, characterId: 'skeleton', displayName: 'Esqueleto guerrero', weaponId: 'bow', buffs: { ward: false, fury: false, focus: false } },
       result: null,
     },
   },
@@ -52,6 +53,7 @@ const serverExamples: Record<keyof typeof serverMessages, unknown> = {
 
 const messageDescriptions: Record<string, string> = {
   shoot: 'Intención de disparo. Nunca incluye daño ni resultados. Reenviar el mismo actionId no lo aplica dos veces. Errores posibles: ver el mensaje error.',
+  use_potion: 'Usa una poción de las que llevas a la partida. Ocupa el turno y solo vale con tu turno y tu versión; el servidor comprueba que la llevas. Errores posibles: ver el mensaje error.',
   sync: 'Pide el estado actual, por ejemplo al detectar un hueco en seq.',
   welcome: 'Primer mensaje tras autenticar la conexión.',
   snapshot: 'Estado autorizado de la partida para este jugador, también al reconectar.',
