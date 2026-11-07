@@ -50,3 +50,8 @@ Phaser con renderizador Canvas y arte por código, servido por el propio servido
 
 ## Pendientes
 - Valores de armas: son iniciales y no se han probado jugando.
+
+## Arma única, daño por zona y apuntado con ratón (SCRUM-55)
+Decisión del usuario (6 nov 2026), que reemplaza la selección libre de armas. Edrik usa arco, Sylwen lanza y Borgrim hacha; se retira la daga. El servidor guarda el personaje, lo fija al empezar la partida y rechaza cualquier otra arma. Todas las armas tienen 26 de daño base, para mantener la regla de personajes sin diferencias de stats; solo cambia su vuelo. El daño se multiplica por zona (cabeza x1.5, torso x1, piernas x0.7) y por potencia (Débil x0.7, Media x1, Fuerte x1.3), con un máximo de 50 por tiro.
+
+Un ratón normal no informa de la fuerza de la pulsación al navegador: la posición da el ángulo, mantener pulsado carga la potencia y soltar dispara. Los obstáculos nuevos son rectángulos de colisión; cambia su dibujo, no su forma lógica.

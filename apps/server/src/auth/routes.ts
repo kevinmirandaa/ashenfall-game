@@ -1,8 +1,14 @@
+import { CHARACTER_IDS, type CharacterId } from '@ashenfall/domain';
 import { Type, type Static } from '@sinclair/typebox';
 import type { FastifyInstance } from 'fastify';
 import type { RateLimitConfig } from '../app.js';
 import type { AuthService } from './auth-service.js';
 import { LoginThrottle } from './login-throttle.js';
+
+const ChooseCharacter = Type.Object(
+  { characterId: Type.Union(CHARACTER_IDS.map((id) => Type.Literal(id))) },
+  { additionalProperties: false },
+);
 
 const Credentials = Type.Object(
   {
@@ -62,5 +68,11 @@ export function registerAuthRoutes(app: FastifyInstance, auth: AuthService, limi
   app.get('/v1/me', async (request) => {
     const principal = await auth.authenticate(request.headers.authorization);
     return auth.profile(principal.userId);
+  });
+
+  app.post<{ Body: Static<typeof ChooseCharacter> }>('/v1/me/character', { schema: { body: ChooseCharacter } }, async (request, reply) => {
+    const principal = await auth.authenticate(request.headers.authorization);
+    await auth.chooseCharacter(principal.userId, request.body.characterId as CharacterId);
+    return reply.code(204).send();
   });
 }

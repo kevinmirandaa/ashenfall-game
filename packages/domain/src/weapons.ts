@@ -1,5 +1,26 @@
-export const WEAPON_IDS = ['bow', 'spear', 'axe', 'dagger'] as const;
+export const WEAPON_IDS = ['bow', 'spear', 'axe'] as const;
 export type WeaponId = (typeof WEAPON_IDS)[number];
+
+export const CHARACTER_IDS = ['edrik', 'sylwen', 'borgrim'] as const;
+export type CharacterId = (typeof CHARACTER_IDS)[number];
+
+/** Cada personaje solo puede usar su arma. El servidor rechaza cualquier otra. */
+export const CHARACTER_WEAPON: Readonly<Record<CharacterId, WeaponId>> = { edrik: 'bow', sylwen: 'spear', borgrim: 'axe' };
+
+export function isCharacterId(value: string): value is CharacterId {
+  return (CHARACTER_IDS as readonly string[]).includes(value);
+}
+
+export type HitZone = 'head' | 'body' | 'legs';
+export type PowerTier = 'weak' | 'medium' | 'strong';
+
+const ZONE_FACTOR: Readonly<Record<HitZone, number>> = { head: 1.5, body: 1, legs: 0.7 };
+const TIER_FACTOR: Readonly<Record<PowerTier, number>> = { weak: 0.7, medium: 1, strong: 1.3 };
+
+export function powerTier(power: number): PowerTier {
+  if (power < 40) return 'weak';
+  return power < 75 ? 'medium' : 'strong';
+}
 
 export interface WeaponProfile {
   readonly id: WeaponId;
@@ -12,22 +33,22 @@ export interface WeaponProfile {
   readonly baseDamage: number;
 }
 
-/** Valores iniciales de balance. Todas las armas están disponibles para todos: la tienda solo vende apariencia. */
+/** Mismo daño base en todas: las armas solo se distinguen por cómo vuelan. */
+const BASE_DAMAGE = 26;
+
 export const WEAPONS: Readonly<Record<WeaponId, WeaponProfile>> = {
-  bow: { id: 'bow', maxSpeed: 1350, gravityScale: 1, windScale: 1, radius: 8, baseDamage: 22 },
-  spear: { id: 'spear', maxSpeed: 1550, gravityScale: 0.85, windScale: 0.5, radius: 5, baseDamage: 26 },
-  axe: { id: 'axe', maxSpeed: 1400, gravityScale: 1.25, windScale: 0.8, radius: 12, baseDamage: 34 },
-  dagger: { id: 'dagger', maxSpeed: 1700, gravityScale: 0.8, windScale: 0.6, radius: 4, baseDamage: 16 },
+  bow: { id: 'bow', maxSpeed: 1350, gravityScale: 1, windScale: 1, radius: 8, baseDamage: BASE_DAMAGE },
+  spear: { id: 'spear', maxSpeed: 1550, gravityScale: 0.85, windScale: 0.5, radius: 5, baseDamage: BASE_DAMAGE },
+  axe: { id: 'axe', maxSpeed: 1400, gravityScale: 1.25, windScale: 0.8, radius: 12, baseDamage: BASE_DAMAGE },
 };
 
-export const MAX_DAMAGE_PER_SHOT = 40;
+export const MAX_DAMAGE_PER_SHOT = 50;
 
 export function isWeaponId(value: string): value is WeaponId {
   return (WEAPON_IDS as readonly string[]).includes(value);
 }
 
-/** Daño entero y acotado: un tiro a mínima potencia hace el 75 % del daño a máxima potencia, aprox. */
-export function computeDamage(weapon: WeaponProfile, power: number): number {
-  const powerFactor = 0.75 + 0.25 * (power / 100);
-  return Math.min(MAX_DAMAGE_PER_SHOT, Math.round(weapon.baseDamage * powerFactor));
+/** Daño entero y acotado según el nivel de potencia y la zona alcanzada. */
+export function computeDamage(weapon: WeaponProfile, power: number, zone: HitZone = 'body'): number {
+  return Math.min(MAX_DAMAGE_PER_SHOT, Math.round(weapon.baseDamage * TIER_FACTOR[powerTier(power)] * ZONE_FACTOR[zone]));
 }

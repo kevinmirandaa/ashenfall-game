@@ -20,7 +20,7 @@ export const ProblemSchema = Type.Object(
 const Ok = Type.Object({ status: Type.String() }, strict);
 const Tokens = Type.Object({ accessToken: Type.String(), refreshToken: Type.String(), expiresIn: Type.Integer() }, strict);
 const Profile = Type.Object(
-  { id: Id, email: Type.String(), displayName: Type.String(), role: Type.String(), balance: Type.Integer() },
+  { id: Id, email: Type.String(), displayName: Type.String(), role: Type.String(), balance: Type.Integer(), characterId: Type.String() },
   strict,
 );
 const Room = Type.Object(
@@ -108,6 +108,7 @@ export const REST_CONTRACT: Readonly<Record<string, RouteContract>> = {
   'POST /v1/auth/refresh': route('Usuarios', 'Rotar el refresh token', 200, Tokens, [401, 403], false),
   'POST /v1/auth/logout': route('Usuarios', 'Cerrar sesión', 204, Empty, [], false),
   'GET /v1/me': route('Usuarios', 'Perfil propio', 200, Profile, [403]),
+  'POST /v1/me/character': route('Usuarios', 'Elegir personaje; se aplica desde la siguiente partida', 204, Empty, [403]),
   'GET /v1/me/match': route('Partidas', 'Partida activa propia', 200, Type.Object({ matchId: Type.Union([Id, Type.Null()]) }, strict), [403]),
   'GET /v1/me/matches': route('Partidas', 'Historial paginado propio', 200, History, [403]),
   'GET /v1/matches/:matchId/replay': route('Partidas', 'Reproducir una partida terminada propia', 200, Replay, [403, 404, 409]),

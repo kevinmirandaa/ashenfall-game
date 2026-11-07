@@ -23,6 +23,7 @@ export interface Principal {
 }
 
 export interface Profile {
+  readonly characterId: string;
   readonly id: string;
   readonly email: string;
   readonly displayName: string;
@@ -172,14 +173,19 @@ export class AuthService {
       display_name: string;
       role: Principal['role'];
       balance: number;
+      character_id: string;
     }>(
-      `SELECT u.id, u.email, u.display_name, u.role, w.balance
+      `SELECT u.id, u.email, u.display_name, u.role, w.balance, u.character_id
        FROM users u JOIN wallets w ON w.user_id = u.id WHERE u.id = $1`,
       [userId],
     );
     const row = rows[0];
     if (row === undefined) throw invalidToken();
-    return { id: row.id, email: row.email, displayName: row.display_name, role: row.role, balance: row.balance };
+    return { id: row.id, email: row.email, displayName: row.display_name, role: row.role, balance: row.balance, characterId: row.character_id };
+  }
+
+  async chooseCharacter(userId: string, characterId: string): Promise<void> {
+    await this.pool.query('UPDATE users SET character_id = $1 WHERE id = $2', [characterId, userId]);
   }
 
   private async principalOf(userId: string): Promise<Principal> {

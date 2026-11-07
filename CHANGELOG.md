@@ -1,6 +1,7 @@
 # Changelog
 
 ## Sin publicar
+- SCRUM-55: arma única por personaje validada en el servidor, daño por zona y nivel de potencia, apuntado solo con ratón y obstáculos variados.
 - SCRUM-40, SCRUM-41: cliente web mínimo con login, sala, emparejamiento y arena con cámara de seguimiento, servido por el propio servidor.
 - SCRUM-44: corrige la autenticación con token en PostgreSQL, que pg sobrescribía al procesar la URL.
 - SCRUM-44, SCRUM-45: corrige el ID del rol de Key Vault y añade AUTO_DEPLOY para no desplegar en cada merge.

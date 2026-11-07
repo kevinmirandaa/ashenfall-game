@@ -1,15 +1,13 @@
-import { isWeaponId, WEAPON_IDS, type PlayerEventPayload, type PlayerMatchView, type ShotView, type WeaponId } from '@ashenfall/domain';
+import { powerTier, type PlayerEventPayload, type PlayerMatchView, type ShotView, type WeaponId } from '@ashenfall/domain';
 import Phaser from 'phaser';
 import { ArenaScene } from './arena.js';
-import { baseLook, bodyFilter, CHARACTERS, DEFAULT_WEAPON, frameUrl, icon, type CharacterId, type Look } from './art.js';
+import { baseLook, bodyFilter, DEFAULT_WEAPON, frameUrl, icon, type Look } from './art.js';
 import { ApiError, GameSocket, Session, type ServerMessage } from './net.js';
 import { biomeCard, closeModal, el, END_REASON, escapeHtml, lookFrom, openArsenal, openBrotherhood, openModal, openShop, portrait, type Profile, type Room, type ShopActions } from './screens.js';
 
 const STAGE_W = 1280;
 const STAGE_H = 720;
 const ROOM_POLL_MS = 2000;
-const ANGLE_STEP = 1;
-const POWER_STEP = 2;
 
 const screen = el('screen');
 const toast = el('toast');
@@ -45,7 +43,7 @@ const game = new Phaser.Game({
 });
 
 let socket: GameSocket | null = null;
-let profile: Profile = { id: '', displayName: '', balance: 0 };
+let profile: Profile = { id: '', displayName: '', balance: 0, characterId: 'edrik' };
 let view: PlayerMatchView | null = null;
 let inMatch = false;
 let pendingResult: PlayerMatchView['result'] = null;
@@ -55,8 +53,6 @@ let toastTimer = 0;
 let introActive = false;
 let roomPoll = 0;
 let searchTimeout = 0;
-let rivalName = 'Rival';
-let lastRoomId: string | null = null;
 let shownHp = { you: 100, rival: 100 };
 let look: Look = baseLook('edrik');
 let ownedCache: Parameters<typeof lookFrom>[1] = [];
@@ -76,30 +72,6 @@ document.addEventListener('visibilitychange', () => {
   // Phaser reanuda su bucle al volver a la pestaña; aquí se mantiene dormido si no hay partida.
   window.setTimeout(syncLoop, 0);
 });
-
-// ---------- Preferencia local ----------
-// El contrato del servidor no tiene personaje: la elección se recuerda en este navegador.
-function loadCharacter(userId: string): CharacterId {
-  try {
-    const stored = localStorage.getItem(`ashenfall.character.${userId}`);
-    return CHARACTERS.find((hero) => hero.id === stored)?.id ?? 'edrik';
-  } catch {
-    return 'edrik';
-  }
-}
-function saveCharacter(userId: string, id: CharacterId): void {
-  try {
-    localStorage.setItem(`ashenfall.character.${userId}`, id);
-  } catch {
-    // Sin almacenamiento la elección dura hasta recargar.
-  }
-}
-/** El servidor no publica el personaje del rival: se deriva de su id para que sea estable durante la partida. */
-function rivalCharacter(playerId: string): CharacterId {
-  let hash = 0;
-  for (const char of playerId) hash = (Math.imul(hash, 31) + char.charCodeAt(0)) | 0;
-  return CHARACTERS[Math.abs(hash) % CHARACTERS.length]?.id ?? 'edrik';
-}
 
 // ---------- Avisos y errores ----------
 function notify(message: string): void {
@@ -149,9 +121,9 @@ const shopActions: ShopActions = {
   },
   character: () => look.character,
   setCharacter: (id) => {
-    saveCharacter(profile.id, id);
     look = lookFrom(id, ownedCache);
     paintPlayerCard();
+    void guarded(() => session.call('POST', '/v1/me/character', { characterId: id }));
   },
   refreshLook: (items) => {
     ownedCache = [...items];
@@ -205,7 +177,7 @@ async function enterTown(): Promise<void> {
   ]);
   profile = me;
   ownedCache = inventory.items;
-  look = lookFrom(loadCharacter(me.id), ownedCache);
+  look = lookFrom(me.characterId, ownedCache);
   await socket.ensureConnected();
   // Al reconectar con una partida activa, el servidor ya pudo enviar su estado.
   if (!inMatch) showTown();
@@ -333,7 +305,6 @@ function stopRoomPoll(): void {
 }
 
 function showRoom(room: Room): void {
-  lastRoomId = room.id;
   const inviteCode = room.inviteCode;
   openModal('Sala privada', 'Comparte el código con tu rival', `
     ${inviteCode === undefined ? '' : `<p class="code">${escapeHtml(inviteCode)}</p>`}
@@ -342,7 +313,6 @@ function showRoom(room: Room): void {
   const paint = (current: Room): void => {
     const members = document.getElementById('members');
     if (members === null) return;
-    rivalName = current.members.find((member) => member.userId !== profile.id)?.displayName ?? 'Rival';
     const seats = current.members.map((member) => `<li>${icon(member.ready ? 'check' : 'swords', 20)} <b>${escapeHtml(member.displayName)}</b> <span>${member.ready ? 'Listo' : 'Preparándose'}</span></li>`);
     if (current.members.length < 2) seats.push('<li class="muted">Esperando a un rival…</li>');
     members.innerHTML = seats.join('');
@@ -367,7 +337,6 @@ function showRoom(room: Room): void {
     void guarded(async () => {
       stopRoomPoll();
       await session.call('POST', `/v1/rooms/${room.id}/leave`);
-      rivalName = 'Rival';
       showTavern();
     });
   });
@@ -377,21 +346,7 @@ function showRoom(room: Room): void {
   });
 }
 
-/** Si ambos se marcan listos entre dos consultas, el nombre del rival aún no se conocía. */
-function resolveRivalName(): void {
-  if (rivalName !== 'Rival' || lastRoomId === null) return;
-  void session.call<Room>('GET', `/v1/rooms/${lastRoomId}`).then((room) => {
-    const name = room.members.find((member) => member.userId !== profile.id)?.displayName;
-    if (name === undefined) return;
-    rivalName = name;
-    arena.setRivalName(name);
-    setText('rival-name', name);
-  }).catch(() => undefined);
-}
-
 async function searchMatch(): Promise<void> {
-  lastRoomId = null;
-  rivalName = 'Rival';
   const result = await session.call<{ status: string }>('POST', '/v1/matchmaking');
   if (result.status === 'matched') return;
   openModal('Buscando rival…', 'La espera máxima es de un minuto', `<div class="stack"><p class="dots">Preguntando por la taberna</p><button id="cancel">Cancelar</button></div>`);
@@ -452,15 +407,14 @@ function beginMatch(next: PlayerMatchView, intro: boolean): void {
     window.clearTimeout(searchTimeout);
     closeModal();
     syncLoop();
-    arena.weaponId = DEFAULT_WEAPON[look.character];
+    arena.weaponId = DEFAULT_WEAPON[next.you.characterId];
     showHud(next);
     arena.loadMatch(next, intro, {
-      you: look,
-      rival: baseLook(rivalCharacter(next.opponent.playerId)),
-      youName: profile.displayName,
-      rivalName,
+      you: { ...look, character: next.you.characterId },
+      rival: baseLook(next.opponent.characterId),
+      youName: next.you.displayName,
+      rivalName: next.opponent.displayName,
     });
-    resolveRivalName();
   } else {
     arena.updateView(next);
   }
@@ -519,12 +473,12 @@ function applyToView(current: PlayerMatchView, seq: number, payload: PlayerEvent
 
 function showHud(match: PlayerMatchView): void {
   screen.className = 'hud';
-  const rival = rivalCharacter(match.opponent.playerId);
+  const rival = match.opponent.characterId;
   screen.innerHTML = `
     <header class="hud-top">
       <div class="fighter">
-        ${portrait(look.character, look.frame)}
-        <div><b>${escapeHtml(profile.displayName)}</b>
+        ${portrait(match.you.characterId, look.frame)}
+        <div><b>${escapeHtml(match.you.displayName)}</b>
         <div class="hp"><i id="you-hp"></i><span id="you-hp-text"></span></div></div>
       </div>
       <div class="turn-box">
@@ -532,48 +486,22 @@ function showHud(match: PlayerMatchView): void {
         <span id="wind"></span><small id="round"></small>
       </div>
       <div class="fighter right">
-        <div><b><span id="rival-name">${escapeHtml(rivalName)}</span><em id="rival-status"></em></b>
+        <div><b><span id="rival-name">${escapeHtml(match.opponent.displayName)}</span><em id="rival-status"></em></b>
         <div class="hp"><i id="rival-hp"></i><span id="rival-hp-text"></span></div></div>
         ${portrait(rival, false)}
       </div>
     </header>
     <div id="intro" hidden>${biomeCard(match.arenaId)}</div>
     <footer class="controls" id="controls">
-      <div class="weapons" role="radiogroup" aria-label="Arma">
-        ${WEAPON_IDS.map((id, index) => `<button class="weapon" data-weapon="${id}" role="radio" title="${WEAPON_LABEL[id]} (${String(index + 1)})">${`<img class="wpn" src="/art/icon-${id}.webp" alt="" />`}<small>${WEAPON_LABEL[id]}</small></button>`).join('')}
-      </div>
-      <label class="slider"><span>Ángulo: <b id="angle-text"></b></span><input id="angle" type="range" min="0" max="90" /></label>
-      <label class="slider"><span>Potencia: <b id="power-text"></b></span><input id="power" type="range" min="10" max="100" /></label>
-      <button class="primary fire" id="fire">Disparar</button>
+      <div class="own-weapon"><img class="wpn" src="/art/icon-${DEFAULT_WEAPON[match.you.characterId]}.webp" alt="" /><small>${WEAPON_LABEL[DEFAULT_WEAPON[match.you.characterId]]}</small></div>
+      <div class="readout"><span>Ángulo</span><b id="angle-text"></b></div>
+      <div class="charge"><span>Potencia: <b id="power-text"></b> <em id="tier"></em></span><i class="meter"><u id="power-bar"></u></i></div>
+      <p class="hint" id="hint"></p>
     </footer>`;
-  const angle = el<HTMLInputElement>('angle');
-  const power = el<HTMLInputElement>('power');
-  angle.addEventListener('input', () => {
-    arena.angleDeg = Number(angle.value);
-    refreshHud();
-  });
-  power.addEventListener('input', () => {
-    arena.power = Number(power.value);
-    refreshHud();
-  });
-  // Tras soltar, las flechas y Espacio deben volver al juego y no al control enfocado.
-  for (const input of [angle, power]) input.addEventListener('pointerup', () => { input.blur(); });
-  for (const node of screen.querySelectorAll<HTMLElement>('[data-weapon]')) {
-    node.addEventListener('click', () => {
-      const { weapon } = node.dataset;
-      if (weapon !== undefined && isWeaponId(weapon)) selectWeapon(weapon);
-      node.blur();
-    });
-  }
-  el('fire').addEventListener('click', shoot);
 }
 
-const WEAPON_LABEL: Readonly<Record<WeaponId, string>> = { bow: 'Arco', spear: 'Lanza', axe: 'Hacha', dagger: 'Daga' };
-
-function selectWeapon(id: WeaponId): void {
-  arena.setWeapon(id);
-  refreshHud();
-}
+const WEAPON_LABEL: Readonly<Record<WeaponId, string>> = { bow: 'Arco', spear: 'Lanza', axe: 'Hacha' };
+const TIER_LABEL = { weak: 'Débil', medium: 'Media', strong: 'Fuerte' } as const;
 
 function setText(id: string, text: string): void {
   const node = document.getElementById(id);
@@ -591,10 +519,9 @@ function refreshHud(): void {
   const canShoot = mine && !arena.busy && !awaitingAck && view.status === 'in_progress';
   arena.canAim = canShoot;
   arena.drawGuide();
-  const fire = document.getElementById('fire') as HTMLButtonElement | null;
-  if (fire === null) return;
-  fire.disabled = !canShoot;
+  if (document.getElementById('controls') === null) return;
   el('controls').classList.toggle('idle', !canShoot);
+  setText('hint', canShoot ? 'Mueve el ratón para apuntar · mantén pulsado para cargar · suelta para disparar' : 'Esperando…');
   setText('turn', view.status === 'finished' ? 'Fin del duelo' : mine ? 'Tu turno' : 'Turno del rival');
   if (view.status === 'finished') setText('timer', '—');
   const wind = Math.round(view.windAccel);
@@ -607,23 +534,13 @@ function refreshHud(): void {
   setText('rival-status', view.opponent.connected ? '' : ' (desconectado)');
   setText('angle-text', `${String(arena.angleDeg)}°`);
   setText('power-text', `${String(arena.power)}%`);
-  const angle = el<HTMLInputElement>('angle');
-  const power = el<HTMLInputElement>('power');
-  angle.value = String(arena.angleDeg);
-  power.value = String(arena.power);
-  angle.disabled = !canShoot;
-  power.disabled = !canShoot;
-  angle.style.setProperty('--fill', `${String((arena.angleDeg / 90) * 100)}%`);
-  power.style.setProperty('--fill', `${String(((arena.power - 10) / 90) * 100)}%`);
-  for (const node of screen.querySelectorAll<HTMLButtonElement>('[data-weapon]')) {
-    node.classList.toggle('on', node.dataset.weapon === arena.weaponId);
-    node.setAttribute('aria-checked', String(node.dataset.weapon === arena.weaponId));
-  }
+  setText('tier', TIER_LABEL[powerTier(arena.power)]);
+  const bar = document.getElementById('power-bar');
+  if (bar !== null) bar.style.width = `${String(((arena.power - 10) / 90) * 100)}%`;
 }
 
 function shoot(): void {
-  const fire = document.getElementById('fire') as HTMLButtonElement | null;
-  if (view === null || fire === null || fire.disabled) return;
+  if (view === null || !arena.canAim) return;
   awaitingAck = true;
   socket?.send({
     type: 'shoot',
@@ -658,7 +575,6 @@ function showResult(): void {
     void guarded(async () => {
       inMatch = false;
       view = null;
-      rivalName = 'Rival';
       await enterTown();
     });
   });
@@ -675,6 +591,7 @@ arena.setHooks({
     if (pendingResult !== null) showResult();
   },
   onAim: refreshHud,
+  onRelease: shoot,
   onImpact: (shot: ShotView) => {
     if (view === null) return;
     if (shot.impactKind === 'player') {
@@ -693,24 +610,6 @@ arena.setHooks({
     const node = document.getElementById('intro');
     if (node !== null) node.hidden = !introActive;
   },
-});
-
-window.addEventListener('keydown', (event) => {
-  if (!inMatch || view === null) return;
-  const tag = document.activeElement?.tagName;
-  if (tag === 'INPUT' || tag === 'TEXTAREA') return;
-  const canAim = arena.canAim;
-  const weaponIndex = Number(event.key) - 1;
-  const chosen = WEAPON_IDS[weaponIndex];
-  if (event.code === 'Space') shoot();
-  else if (event.code === 'ArrowUp' && canAim) arena.angleDeg = Math.min(90, arena.angleDeg + ANGLE_STEP);
-  else if (event.code === 'ArrowDown' && canAim) arena.angleDeg = Math.max(0, arena.angleDeg - ANGLE_STEP);
-  else if (event.code === 'ArrowRight' && canAim) arena.power = Math.min(100, arena.power + POWER_STEP);
-  else if (event.code === 'ArrowLeft' && canAim) arena.power = Math.max(10, arena.power - POWER_STEP);
-  else if (chosen !== undefined) selectWeapon(chosen);
-  else return;
-  event.preventDefault();
-  refreshHud();
 });
 
 window.setInterval(() => {

@@ -128,6 +128,7 @@ describe('las respuestas reales cumplen el contrato', () => {
     const admin = await registerUser(app);
     await db.pool.query(`UPDATE users SET role = 'admin' WHERE id = $1`, [admin.id]);
     assertRoute('GET /v1/me', await a.request('GET', '/v1/me'));
+    assertRoute('POST /v1/me/character', await a.request('POST', '/v1/me/character', { characterId: 'edrik' }));
 
     const socketFor = async (user: TestUser): Promise<WsTestClient> => {
       const ticket = await user.request('POST', '/v1/ws-ticket');

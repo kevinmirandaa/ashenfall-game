@@ -128,6 +128,7 @@ function validBodies(path: string): object {
   if (path.endsWith('join-by-code')) return { inviteCode: 'ABCDEFGH' };
   if (path.endsWith('/ready')) return { ready: true };
   if (path.endsWith('/purchases')) return { cosmeticId: 'frame-ash', purchaseId: randomUUID() };
+  if (path.endsWith('/character')) return { characterId: 'sylwen' };
   if (path.endsWith('/equip')) return { equipped: true };
   if (path.includes('/admin/')) return { reason: 'motivo' };
   return {};

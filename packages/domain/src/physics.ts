@@ -1,9 +1,9 @@
 import type { ArenaDefinition } from './arenas.js';
 import type { Rect, Vec2 } from './types.js';
-import type { WeaponProfile } from './weapons.js';
+import type { HitZone, WeaponProfile } from './weapons.js';
 
 /** Sube si cambia cualquier constante: el cliente la compara para saber si su guía sigue siendo válida. */
-export const PHYSICS_VERSION = 1;
+export const PHYSICS_VERSION = 2;
 
 export const GRAVITY = 900;
 export const STEP_SECONDS = 1 / 60;
@@ -44,6 +44,13 @@ export function playerHitbox(position: Vec2): Rect {
     width: PLAYER_HITBOX.width,
     height: PLAYER_HITBOX.height,
   };
+}
+
+/** Zona según la altura del impacto: cabeza el cuarto superior, piernas el tercio inferior. */
+export function hitZone(impact: Vec2, target: Rect): HitZone {
+  const height = (impact.y - target.y) / target.height;
+  if (height >= 0.75) return 'head';
+  return height < 1 / 3 ? 'legs' : 'body';
 }
 
 export function muzzlePosition(position: Vec2, facing: Facing): Vec2 {

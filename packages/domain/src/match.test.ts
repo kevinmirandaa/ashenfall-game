@@ -468,3 +468,14 @@ describe('log de eventos', () => {
     expect(state).toEqual(snapshot);
   });
 });
+
+describe('arma única por personaje', () => {
+  it('rechaza un arma que no es la del personaje', () => {
+    const setup = createMatchSetup({ matchId: 'm', playerIds: ['a', 'b'], profiles: { a: { characterId: 'borgrim', displayName: 'A' }, b: { characterId: 'edrik', displayName: 'B' } } }, { intBelow: () => 0 });
+    const state = initialState(startMatch(setup, 0));
+    const playerId = state.turn?.playerId ?? 'a';
+    const wrong = playerId === 'a' ? 'bow' : 'axe';
+    const decision = decide(state, { type: 'shoot', playerId, actionId: 'x', expectedVersion: state.version, weaponId: wrong, angleDeg: 45, power: 50, nowMs: 1 });
+    expect(decision).toEqual({ kind: 'rejected', code: 'INVALID_WEAPON' });
+  });
+});
