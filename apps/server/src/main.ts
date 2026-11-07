@@ -23,6 +23,7 @@ const app = buildApp({
   allowedOrigins: config.allowedOrigins,
   clientDir: process.env['CLIENT_DIR'],
   trustProxy: config.trustProxy,
+  enforceHttps: config.enforceHttps,
   auth: { jwtSecret: config.jwtSecret, accessTokenTtlSeconds: 900, refreshTokenTtlSeconds: 30 * 24 * 3600 },
   rateLimit: { ...config.rateLimit, redis },
   realtime: { redis, gateway: { allowedOrigins: config.allowedOrigins } },
