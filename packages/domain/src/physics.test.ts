@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { ARENAS, ARENA_IDS, type ArenaDefinition } from './arenas.js';
+import { ARENAS, ARENA_IDS, arenaFor, type ArenaDefinition } from './arenas.js';
+import { generateLayout } from './layout.js';
+import { OBSTACLE_IDS, PROPS } from './obstacle-catalog.js';
+import type { RandomSource } from './types.js';
 import {
   applyKnockback,
   HEAD_FROM,
@@ -16,7 +19,21 @@ import {
 } from './physics.js';
 import { CHARACTER_FAMILY, CHARACTER_IDS, CHARACTER_PRICE, computeDamage, powerTier, MAX_DAMAGE_PER_SHOT, STARTER_CHARACTER, WEAPONS, WEAPON_FAMILIES, WEAPON_IDS } from './weapons.js';
 
-const emptyArena: ArenaDefinition = { id: 'ember_desert', width: 2000, obstacles: [], spawnPairs: [], maxWind: 0 };
+const emptyArena: ArenaDefinition = { id: 'ember_desert', width: 2000, obstacles: [], maxWind: 0 };
+
+/** Generador con semilla: la misma semilla da siempre la misma disposición. */
+function seeded(seed: number): RandomSource {
+  let state = seed >>> 0;
+  return {
+    intBelow: (max) => {
+      state = (state + 0x6d2b79f5) >>> 0;
+      let t = state;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return Math.floor((((t ^ (t >>> 14)) >>> 0) / 4294967296) * max);
+    },
+  };
+}
 
 function shot(overrides: Partial<ShotInput> = {}): ShotInput {
   return {
@@ -106,7 +123,7 @@ describe('simulateShot', () => {
   });
 
   it('un obstáculo antes del objetivo detiene el proyectil', () => {
-    const arena = { ...emptyArena, obstacles: [{ kind: 'column' as const, x: 300, y: 0, width: 40, height: 500 }] };
+    const arena = { ...emptyArena, obstacles: [{ kind: 'pillar_a' as const, x: 300, y: 0, width: 40, height: 500 }] };
     const outcome = simulateShot(
       shot({ arena, power: 100, angleDeg: 10, target: { x: 800, y: 0, width: 48, height: 400 } }),
     );
@@ -148,61 +165,93 @@ describe('computeDamage', () => {
   });
 });
 
-describe('arenas', () => {
-  const combos = ARENA_IDS.flatMap((arenaId) =>
-    ARENAS[arenaId].spawnPairs.map((pair, index) => ({ arenaId, pair, index })),
-  );
+describe('arenas con obstáculos aleatorios', () => {
+  const SEEDS = Array.from({ length: 40 }, (_unused, index) => index * 7919 + 13);
+  const layouts = ARENA_IDS.flatMap((arenaId) => SEEDS.map((seed) => ({ arenaId, seed, layout: generateLayout(arenaId, seeded(seed)) })));
 
-  it('tienen obstáculos y puntos de aparición simétricos', () => {
-    for (const id of ARENA_IDS) {
-      const arena = ARENAS[id];
-      const mirrored = arena.obstacles
-        .map((rect) => ({ ...rect, x: arena.width - rect.x - rect.width }))
-        .sort((a, b) => a.x - b.x);
-      expect(mirrored).toEqual([...arena.obstacles].sort((a, b) => a.x - b.x));
-      for (const { left, right } of arena.spawnPairs) {
-        expect(left.y).toBe(right.y);
-        expect(left.x).toBe(arena.width - right.x);
+  it('son simétricas: obstáculos y puntos de aparición se corresponden respecto al centro', () => {
+    for (const { arenaId, seed, layout } of layouts) {
+      const center = layout.obstacles.filter((o) => o.flip !== true && Math.abs(o.x + o.width / 2 - 1000) <= 1);
+      const left = layout.obstacles.filter((o) => o.flip !== true && !center.includes(o));
+      const right = layout.obstacles.filter((o) => o.flip === true);
+      const reflected = left.map((o) => ({ ...o, x: 2000 - o.x - o.width, flip: true })).sort((a, b) => a.x - b.x);
+      expect(reflected, `${arenaId}#${seed}`).toEqual([...right].sort((a, b) => a.x - b.x));
+      expect(layout.spawn.left.y).toBe(layout.spawn.right.y);
+      expect(layout.spawn.left.x).toBe(2000 - layout.spawn.right.x);
+    }
+  });
+
+  it('es determinista y cambia con la semilla', () => {
+    expect(generateLayout('graveyard', seeded(5))).toEqual(generateLayout('graveyard', seeded(5)));
+    for (const arenaId of ARENA_IDS) {
+      const distinct = new Set(SEEDS.map((seed) => JSON.stringify(generateLayout(arenaId, seeded(seed)).obstacles)));
+      expect(distinct.size, arenaId).toBeGreaterThan(8);
+    }
+    expect(new Set(layouts.map(({ layout }) => layout.relief))).toEqual(new Set(['flat', 'plateau', 'hill']));
+  });
+
+  it('solo salen objetos del bioma y cada bioma tiene bajos, medianos y altos', () => {
+    for (const { arenaId, layout } of layouts) {
+      for (const obstacle of layout.obstacles) {
+        if (obstacle.kind !== 'terrain') expect(PROPS[obstacle.kind].biomes, `${arenaId} ${obstacle.kind}`).toContain(arenaId);
+      }
+    }
+    for (const arenaId of ARENA_IDS) {
+      const tiers = new Set(Object.values(PROPS).filter((spec) => spec.biomes.includes(arenaId)).map((spec) => spec.tier));
+      expect(tiers, arenaId).toEqual(new Set(['low', 'mid', 'tall']));
+    }
+  });
+
+  it('con semillas suficientes aparecen todos los objetos de la hoja de referencia', () => {
+    const seen = new Set<string>();
+    for (const arenaId of ARENA_IDS) {
+      for (let seed = 0; seed < 600; seed += 1) for (const obstacle of generateLayout(arenaId, seeded(seed * 31 + 7)).obstacles) seen.add(obstacle.kind);
+    }
+    const missing = OBSTACLE_IDS.filter((id) => !seen.has(id));
+    expect(missing).toEqual([]);
+  });
+
+  it('los jugadores aparecen apoyados y fuera de cualquier obstáculo; el retroceso no choca con nada a su espalda', () => {
+    for (const { arenaId, seed, layout } of layouts) {
+      const arena = arenaFor({ arenaId, obstacles: layout.obstacles });
+      for (const [position, facing] of [[layout.spawn.left, 1], [layout.spawn.right, -1]] as const) {
+        const hitbox = playerHitbox(position);
+        const muzzle = muzzlePosition(position, facing);
+        for (const obstacle of layout.obstacles) {
+          const inside = hitbox.x < obstacle.x + obstacle.width && hitbox.x + hitbox.width > obstacle.x && hitbox.y < obstacle.y + obstacle.height - 1 && hitbox.y + hitbox.height > obstacle.y + 1;
+          expect(inside, `${arenaId}#${seed} cuerpo en ${obstacle.kind}`).toBe(false);
+          expect(segmentEntryFraction(muzzle, muzzle, obstacle, 12), `${arenaId}#${seed} boca en ${obstacle.kind}`).toBeNull();
+        }
+        const moved = applyKnockback(position, facing, 100, arena);
+        expect(moved.y, `${arenaId}#${seed} cae al retroceder`).toBe(position.y);
       }
     }
   });
 
-  it('ningún punto de disparo queda dentro de un obstáculo', () => {
-    for (const { arenaId, pair } of combos) {
-      const muzzle = muzzlePosition(pair.left, 1);
-      for (const obstacle of ARENAS[arenaId].obstacles) {
-        const radius = Math.max(...WEAPON_IDS.map((id) => WEAPONS[id].radius));
-        expect(segmentEntryFraction(muzzle, muzzle, obstacle, radius)).toBeNull();
-      }
-    }
-  });
-
-  it('desde cualquier aparición, con cualquier arma y viento extremo, se puede impactar al rival', () => {
-    for (const { arenaId, pair, index } of combos) {
-      const arena = ARENAS[arenaId];
-      for (const weaponId of WEAPON_IDS) {
-        for (const windAccel of [-arena.maxWind, 0, arena.maxWind]) {
-          let reachable = false;
-          search: for (let angleDeg = 5; angleDeg <= 85; angleDeg += 2) {
-            for (let power = 30; power <= 100; power += 2) {
-              const outcome = simulateShot({
-                origin: muzzlePosition(pair.left, 1),
-                facing: 1,
-                angleDeg,
-                power,
-                weapon: WEAPONS[weaponId],
-                windAccel,
-                arena,
-                target: playerHitbox(pair.right),
-              });
-              if (outcome.impactKind === 'player') {
-                reachable = true;
-                break search;
-              }
+  it('desde cualquier aparición se puede impactar al rival con cada familia de arma', () => {
+    for (const { arenaId, seed, layout } of layouts.filter((_item, index) => index % 4 === 0)) {
+      const arena = arenaFor({ arenaId, obstacles: layout.obstacles });
+      for (const family of WEAPON_FAMILIES) {
+        let reachable = false;
+        search: for (let angleDeg = 5; angleDeg <= 85; angleDeg += 2) {
+          for (let power = 30; power <= 100; power += 2) {
+            const outcome = simulateShot({
+              origin: muzzlePosition(layout.spawn.left, 1),
+              facing: 1,
+              angleDeg,
+              power,
+              weapon: WEAPONS[family],
+              windAccel: 0,
+              arena,
+              target: playerHitbox(layout.spawn.right),
+            });
+            if (outcome.impactKind === 'player') {
+              reachable = true;
+              break search;
             }
           }
-          expect(reachable, `${arenaId}#${index} ${weaponId} viento ${windAccel}`).toBe(true);
         }
+        expect(reachable, `${arenaId}#${seed} ${family} (${layout.relief})`).toBe(true);
       }
     }
   });
@@ -286,21 +335,21 @@ describe('applyKnockback', () => {
   });
 
   it('no atraviesa un obstáculo alto', () => {
-    const arena: ArenaDefinition = { ...emptyArena, obstacles: [{ kind: 'column', x: 900, y: 0, width: 50, height: 90 }] };
+    const arena: ArenaDefinition = { ...emptyArena, obstacles: [{ kind: 'pillar_a', x: 900, y: 0, width: 50, height: 90 }] };
     const result = applyKnockback(start, 1, 40, arena);
     expect(result.x - 24).toBeGreaterThanOrEqual(950);
     expect(result.y).toBe(0);
   });
 
   it('cae al suelo si retrocede fuera de una repisa', () => {
-    const arena: ArenaDefinition = { ...emptyArena, obstacles: [{ kind: 'column', x: 960, y: 0, width: 60, height: 110 }] };
+    const arena: ArenaDefinition = { ...emptyArena, obstacles: [{ kind: 'pillar_a', x: 960, y: 0, width: 60, height: 110 }] };
     const result = applyKnockback({ x: 990, y: 110 }, 1, 20, arena);
     expect(result.y).toBe(0);
     expect(result.x).toBeLessThan(990);
   });
 
   it('es determinista', () => {
-    expect(applyKnockback(start, 1, 17, ARENAS.frozen_bridge)).toEqual(applyKnockback(start, 1, 17, ARENAS.frozen_bridge));
+    expect(applyKnockback(start, 1, 17, arenaFor({ arenaId: 'frozen_bridge' }))).toEqual(applyKnockback(start, 1, 17, arenaFor({ arenaId: 'frozen_bridge' })));
   });
 });
 

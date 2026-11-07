@@ -15,7 +15,7 @@ import {
   type MatchState,
 } from './match.js';
 import { muzzlePosition, playerHitbox, simulateShot } from './physics.js';
-import { ARENAS, ARENA_IDS } from './arenas.js';
+import { ARENAS, ARENA_IDS, arenaFor } from './arenas.js';
 import type { RandomSource } from './types.js';
 import { WEAPONS } from './weapons.js';
 
@@ -72,7 +72,7 @@ function aimingAtOpponent(state: MatchState, shooterId: string): { angleDeg: num
         power,
         weapon: WEAPONS.bow,
         windAccel: state.setup.windAccel,
-        arena: ARENAS[state.setup.arenaId],
+        arena: arenaFor(state.setup),
         target: playerHitbox(targetPosition),
       });
       if (outcome.impactKind === 'player') return { angleDeg, power };

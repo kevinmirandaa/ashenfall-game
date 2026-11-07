@@ -1,4 +1,5 @@
-import { ARENAS, ARENA_IDS, type ArenaId } from './arenas.js';
+import { ARENAS, ARENA_IDS, arenaFor, type ArenaId, type Obstacle } from './arenas.js';
+import { generateLayout } from './layout.js';
 import {
   applyKnockback,
   hitZone,
@@ -46,6 +47,8 @@ export interface PlayerSetup {
 export interface MatchSetup {
   readonly matchId: MatchId;
   readonly arenaId: ArenaId;
+  /** Terreno y objetos sorteados al empezar. Ausente en partidas anteriores: arena llana. */
+  readonly obstacles?: readonly Obstacle[];
   readonly windAccel: number;
   readonly players: readonly [PlayerSetup, PlayerSetup];
   readonly firstPlayerId: PlayerId;
@@ -186,7 +189,7 @@ export function createMatchSetup(input: CreateSetupInput, random: RandomSource):
 
   const arenaId = pick(ARENA_IDS, random);
   const arena = ARENAS[arenaId];
-  const spawn = pick(arena.spawnPairs, random);
+  const { obstacles, spawn } = generateLayout(arenaId, random);
   const leftIsFirst = random.intBelow(2) === 0;
   const [leftId, rightId] = leftIsFirst ? [firstId, secondId] : [secondId, firstId];
   const windAccel = random.intBelow(arena.maxWind * 2 + 1) - arena.maxWind;
@@ -194,6 +197,7 @@ export function createMatchSetup(input: CreateSetupInput, random: RandomSource):
   return {
     matchId: input.matchId,
     arenaId,
+    obstacles,
     windAccel,
     players: [
       { playerId: leftId, position: spawn.left, facing: 1, ...(input.profiles?.[leftId] ?? {}) },
@@ -440,7 +444,7 @@ function decideShoot(state: MatchState, command: Extract<MatchCommand, { type: '
     power: command.power,
     weapon,
     windAccel: state.setup.windAccel,
-    arena: ARENAS[state.setup.arenaId],
+    arena: arenaFor(state.setup),
     target: targetBox,
   });
   const zone = outcome.impactKind === 'player' ? hitZone(outcome.impact, targetBox) : null;
@@ -448,7 +452,7 @@ function decideShoot(state: MatchState, command: Extract<MatchCommand, { type: '
   const effect: WeaponEffect | undefined = damage > 0 ? weapon.effect : undefined;
   const targetPosition =
     damage > 0
-      ? applyKnockback(opponent.position, setupOf(state, opponent.playerId).facing, damage, ARENAS[state.setup.arenaId])
+      ? applyKnockback(opponent.position, setupOf(state, opponent.playerId).facing, damage, arenaFor(state.setup))
       : opponent.position;
 
   return emit(

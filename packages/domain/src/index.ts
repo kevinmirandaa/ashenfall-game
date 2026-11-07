@@ -1,5 +1,7 @@
 export * from './arenas.js';
 export * from './bot.js';
+export * from './layout.js';
+export * from './obstacle-catalog.js';
 export * from './match.js';
 export * from './monsters.js';
 export * from './physics.js';
