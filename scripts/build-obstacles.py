@@ -2,7 +2,7 @@
 """
 Recorta los obstáculos de references/ashenfall_obstacles_board.webp y genera:
 
-- apps/client/public/art/obs/<id>.webp   un sprite por obstáculo, sin fondo
+- apps/client/public/art/obs-atlas.webp y obs-atlas.json   todos los obstáculos, sin fondo, en un solo atlas de Phaser
 - apps/client/public/art/terrain-<id>.webp   los bloques de tierra con los que se arman plataformas y gradas
 - packages/domain/src/obstacle-catalog.ts   dimensiones de colisión y dibujo, y en qué biomas puede aparecer cada uno
 
@@ -11,6 +11,7 @@ La hoja es la fuente de verdad: cada entrada de ITEMS es un recuadro de la hoja.
 
 Uso: python3 scripts/build-obstacles.py   (requiere Pillow)
 """
+import json
 from collections import deque
 from pathlib import Path
 
@@ -158,7 +159,7 @@ TERRAIN = {
 TERRAIN_OF = {H: 'grass', G: 'grass', D: 'desert', M: 'grass', F: 'snow', B: 'dark', R: 'dark'}
 
 
-def clean(image: Image.Image) -> Image.Image:
+def clean(image: Image.Image, holes: bool = True) -> Image.Image:
     """Quita el fondo casi negro, también el que queda encerrado dentro de arcos y ventanas."""
     rgb = image.convert('RGB')
     width, height = rgb.size
@@ -168,7 +169,7 @@ def clean(image: Image.Image) -> Image.Image:
     for y in range(height):
         for x in range(width):
             r, g, b = px[x, y]
-            if abs(r - bg[0]) + abs(g - bg[1]) + abs(b - bg[2]) <= 22:
+            if abs(r - bg[0]) + abs(g - bg[1]) + abs(b - bg[2]) <= 18:
                 near[y * width + x] = 1
     seen = bytearray(width * height)
     alpha = Image.new('L', (width, height), 255)
@@ -193,7 +194,7 @@ def clean(image: Image.Image) -> Image.Image:
                         queue.append(j)
                         component.append(j)
         # Fondo exterior, o huecos encerrados lo bastante grandes como para ser el interior de un arco.
-        if touches_edge or len(component) >= 90:
+        if touches_edge or (holes and len(component) >= 350):
             for i in component:
                 ap[i % width, i // width] = 0
     out = rgb.convert('RGBA')
@@ -249,19 +250,41 @@ def crop(board: Image.Image, row: int, x0: int, x1: int, y0: int | None, y1: int
     return trim(drop_specks(clean(board.crop((x0, y0 if y0 is not None else band[0], x1, y1 if y1 is not None else band[1])))))
 
 
+def pack_atlas(sprites: list[tuple[str, Image.Image]]) -> None:
+    """Empaqueta todos los sprites por filas en un atlas con formato JSON Hash de Phaser."""
+    pad, atlas_w = 2, 1536
+    x = y = row_h = 0
+    placed: list[tuple[str, Image.Image, int, int]] = []
+    for ident, sprite in sorted(sprites, key=lambda item: -item[1].height):
+        if x + sprite.width + pad > atlas_w:
+            x, y, row_h = 0, y + row_h + pad, 0
+        placed.append((ident, sprite, x, y))
+        x += sprite.width + pad
+        row_h = max(row_h, sprite.height)
+    atlas_h = y + row_h + pad
+    atlas = Image.new('RGBA', (atlas_w, atlas_h), (0, 0, 0, 0))
+    frames = {}
+    for ident, sprite, px, py in placed:
+        atlas.paste(sprite, (px, py))
+        w, h = sprite.size
+        frames[ident] = {'frame': {'x': px, 'y': py, 'w': w, 'h': h}, 'rotated': False, 'trimmed': False,
+                         'spriteSourceSize': {'x': 0, 'y': 0, 'w': w, 'h': h}, 'sourceSize': {'w': w, 'h': h}}
+    atlas.save(OUT / 'obs-atlas.webp', lossless=True)
+    (OUT / 'obs-atlas.json').write_text(json.dumps({'frames': frames, 'meta': {'image': 'obs-atlas.webp', 'format': 'RGBA8888', 'size': {'w': atlas_w, 'h': atlas_h}, 'scale': 1}}, separators=(',', ':')))
+    print('atlas', atlas.size, len(frames), 'sprites')
+
+
 def tier_of(height: float) -> str:
     return 'low' if height < 70 else 'mid' if height < 130 else 'tall'
 
 
 def main() -> None:
     board = Image.open(BOARD).convert('RGB')
-    (OUT / 'obs').mkdir(parents=True, exist_ok=True)
-    for stale in (OUT / 'obs').glob('*.webp'):
-        stale.unlink()
     rows: list[str] = []
+    sprites: list[tuple[str, Image.Image]] = []
     for ident, row, x0, x1, y0, y1, (cw, ch), biomes, scale, cx in ITEMS:
         sprite = crop(board, row, x0, x1, y0, y1)
-        sprite.save(OUT / 'obs' / f'{ident}.webp', lossless=True)
+        sprites.append((ident, sprite))
         width, height = sprite.size
         k = scale if scale is not None else DEFAULT_SCALE
         k = min(k, MAX_DRAW_HEIGHT / height)
@@ -272,10 +295,11 @@ def main() -> None:
             f"  {ident}: {{ id: '{ident}', width: {col_w}, height: {col_h}, drawWidth: {draw_w}, drawHeight: {draw_h}, cx: {cx}, tier: '{tier_of(col_h)}', biomes: [{', '.join(repr(b) for b in biomes)}] }},"
         )
     for name, (x0, x1, y0, y1) in TERRAIN.items():
-        piece = trim(clean(board.crop((x0, y0, x1, y1))))
+        piece = trim(clean(board.crop((x0, y0, x1, y1)), holes=False))
         piece.save(OUT / f'terrain-{name}.webp', lossless=True)
         print('terreno', name, piece.size)
 
+    pack_atlas(sprites)
     ids = [row.split(':')[0].strip() for row in rows]
     biome_ids = [H, G, D, M, F, B, R]
     CATALOG.write_text(

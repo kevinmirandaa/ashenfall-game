@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ARENAS, ARENA_IDS, arenaFor, type ArenaDefinition } from './arenas.js';
+import { ARENA_IDS, arenaFor, type ArenaDefinition } from './arenas.js';
 import { generateLayout } from './layout.js';
 import { OBSTACLE_IDS, PROPS } from './obstacle-catalog.js';
 import type { RandomSource } from './types.js';

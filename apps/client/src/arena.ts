@@ -1,11 +1,14 @@
 import {
-  ARENAS,
+  arenaFor,
   ARENA_IDS,
+  PROPS,
+  TERRAIN_OF,
   muzzlePosition,
   playerHitbox,
   simulateShot,
   WEAPONS,
   type PlayerEventPayload,
+  type PropId,
   type PlayerMatchView,
   type ShotView,
   type Vec2,
@@ -18,7 +21,7 @@ import {
 import Phaser from 'phaser';
 import { audio } from './audio.js';
 import { CHARACTERS, type FighterId, type Look } from './art.js';
-import { BIOME_ART, drawGround, GROUND_DEPTH, GROUND_HEADROOM, WORLD_LEFT, WORLD_WIDTH } from './biomes.js';
+import { BIOME_ART, drawGround, drawTerrainBlock, GROUND_DEPTH, GROUND_HEADROOM, TERRAIN_SCALE, WORLD_LEFT, WORLD_WIDTH } from './biomes.js';
 
 const VIEW_W = 1280;
 const VIEW_H = 720;
@@ -27,8 +30,9 @@ const WORLD_BOTTOM = GROUND_Y + GROUND_DEPTH;
 /** Margen superior para seguir los tiros altos sin que la cámara se detenga. */
 const WORLD_TOP = -1500;
 const REST_SCROLL_Y = WORLD_BOTTOM - VIEW_H;
-/** La guía muestra solo el inicio del arco: con la posición del rival a la vista, una guía completa haría trivial apuntar. */
-const GUIDE_FRACTION = 0.72;
+/** La guía es una hilera corta de puntos: con la posición del rival a la vista, una guía completa haría trivial apuntar. */
+const GUIDE_LENGTH = 250;
+const GUIDE_SPACING = 20;
 const PAN_MS = 900;
 const SHOT_MIN_MS = 500;
 const PARTICLES = 28;
@@ -126,7 +130,11 @@ export class ArenaScene extends Phaser.Scene {
   /** Punto de pantalla donde se pulsó: el tirachinas se tensa desde ahí. */
   private anchor: { x: number; y: number } | null = null;
   private pullReady = false;
-  private band: Phaser.GameObjects.Graphics | null = null;
+  private guideLabel: Phaser.GameObjects.Text | null = null;
+  /** Las texturas se cargan en preload: una partida que llega antes (al reanudar) espera a que termine. */
+  private ready = false;
+  private pendingLoad: (() => void) | null = null;
+  private pendingEvents: PlayerEventPayload[] = [];
   private moteList: Mote[] = [];
   private moteColor = 0xffffff;
   private arenaId: PlayerMatchView['arenaId'] = 'hamlet_ruins';
@@ -148,6 +156,9 @@ export class ArenaScene extends Phaser.Scene {
     for (const weaponId of WEAPON_IDS) this.load.image(`proj-${weaponId}`, `/art/proj-${weaponId}.webp`);
     for (const [hero, poses] of Object.entries(POSES)) for (const pose of poses) this.load.image(`pose-${hero}-${pose}`, `/art/pose-${hero}-${pose}.webp`);
     for (const id of ARENA_IDS) this.load.image(`biome-${id}`, `/art/biome-${id}.webp`);
+    // Todos los obstáculos de la hoja de referencia en un solo atlas, y los cuatro bloques de tierra.
+    this.load.atlas('obs', '/art/obs-atlas.webp', '/art/obs-atlas.json');
+    for (const name of new Set(Object.values(TERRAIN_OF))) this.load.image(`terrain-${name}`, `/art/terrain-${name}.webp`);
   }
 
   create(): void {
@@ -180,7 +191,7 @@ export class ArenaScene extends Phaser.Scene {
       this.pullReady = false;
       audio.sfx('stretch');
       this.power = POWER_MIN;
-      this.drawBand(pointer);
+      this.drawGuide();
       this.hooks.onAim();
     });
     this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
@@ -202,6 +213,10 @@ export class ArenaScene extends Phaser.Scene {
     this.input.keyboard?.on('keydown-ESC', () => {
       this.cancelPull();
     });
+    this.ready = true;
+    this.pendingLoad?.();
+    this.pendingLoad = null;
+    for (const payload of this.pendingEvents.splice(0)) this.applyEvent(payload);
     this.onReady();
   }
 
@@ -218,6 +233,10 @@ export class ArenaScene extends Phaser.Scene {
   /** Construye la arena; con `intro` hace el paneo inicial: tu personaje, el rival y quien dispara. */
   loadMatch(view: PlayerMatchView, intro: boolean, looks: MatchLooks): void {
     this.view = view;
+    if (!this.ready) {
+      this.pendingLoad = () => { this.loadMatch(view, intro, looks); };
+      return;
+    }
     this.tweens.killAll();
     this.time.removeAllEvents();
     this.children.removeAll(true);
@@ -249,6 +268,10 @@ export class ArenaScene extends Phaser.Scene {
 
   /** Los eventos se animan en orden, uno tras otro, en ambos jugadores. */
   applyEvent(payload: PlayerEventPayload): void {
+    if (!this.ready) {
+      this.pendingEvents.push(payload);
+      return;
+    }
     if (payload.type === 'shot_resolved') this.enqueue(() => this.playShot(payload));
     if (payload.type === 'turn_started') {
       const mine = payload.playerId === this.view?.you.playerId;
@@ -269,9 +292,10 @@ export class ArenaScene extends Phaser.Scene {
   }
 
   drawGuide(): void {
-    const { guide, view } = this;
+    const { guide, view, guideLabel } = this;
     if (guide === null) return;
     guide.clear();
+    guideLabel?.setVisible(false);
     const you = view === null ? undefined : this.figures.get(view.you.playerId);
     if (you !== undefined) you.pose.aim = this.canAim ? this.angleDeg : 25;
     if (view === null || !this.canAim) return;
@@ -283,46 +307,71 @@ export class ArenaScene extends Phaser.Scene {
       power: this.power,
       weapon: WEAPONS[this.weaponId],
       windAccel: view.windAccel,
-      arena: ARENAS[view.arenaId],
+      arena: arenaFor(view),
       target: playerHitbox(view.opponent.position),
     }).path;
-    // Línea continua y suave que se afina y se desvanece: muestra hacia dónde irá el tiro sin cifras ni ángulos.
+    // Hilera corta de puntos cuadrados, como píxeles: cada uno más pequeño y tenue que el anterior.
     const points = path.map(toScreen);
-    if (points.length < 2) return;
-    const curve = new Phaser.Curves.Spline(points.flatMap((point) => [point.x, point.y]));
-    const total = curve.getLength();
-    const shown = Math.min(1, GUIDE_FRACTION);
-    const steps = Math.max(8, Math.min(64, Math.round((total * shown) / 14)));
-    const samples = Array.from({ length: steps + 1 }, (_unused, index) => curve.getPoint((index / steps) * shown));
-    for (let index = 1; index < samples.length; index += 1) {
-      const from = samples[index - 1];
-      const to = samples[index];
+    const dots: Vec2[] = [];
+    let travelled = 0;
+    let nextAt = 0;
+    for (let index = 1; index < points.length && travelled <= GUIDE_LENGTH; index += 1) {
+      const from = points[index - 1];
+      const to = points[index];
       if (from === undefined || to === undefined) continue;
-      const fade = 1 - index / samples.length;
-      const width = 2 + fade * 4;
-      guide.lineStyle(width + 4, 0x15101a, 0.25 + fade * 0.5);
-      guide.lineBetween(from.x, from.y, to.x, to.y);
-      guide.lineStyle(width, fade > 0.5 ? 0xfff4d6 : 0xf0d9a0, 0.35 + fade * 0.65);
-      guide.lineBetween(from.x, from.y, to.x, to.y);
+      const segment = Math.hypot(to.x - from.x, to.y - from.y);
+      while (nextAt <= travelled + segment && nextAt <= GUIDE_LENGTH) {
+        const t = segment === 0 ? 0 : (nextAt - travelled) / segment;
+        dots.push({ x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t });
+        nextAt += GUIDE_SPACING;
+      }
+      travelled += segment;
     }
-    // Punta de flecha al final de lo que se muestra.
-    const tip = samples.at(-1);
-    const before = samples.at(-3) ?? samples.at(-2);
-    if (tip !== undefined && before !== undefined) {
-      const heading = Math.atan2(tip.y - before.y, tip.x - before.x);
-      const wing = (side: number, scale: number): [number, number] => [tip.x - Math.cos(heading + side) * scale, tip.y - Math.sin(heading + side) * scale];
-      const [ax, ay] = wing(0.5, 14);
-      const [bx, by] = wing(-0.5, 14);
-      guide.fillStyle(0x15101a, 0.55);
-      guide.fillTriangle(tip.x + Math.cos(heading) * 3, tip.y + Math.sin(heading) * 3, ax + Math.cos(heading + 1.2) * 2, ay + Math.sin(heading + 1.2) * 2, bx + Math.cos(heading - 1.2) * 2, by + Math.sin(heading - 1.2) * 2);
-      guide.fillStyle(0xf0d9a0, 0.55);
-      guide.fillTriangle(tip.x, tip.y, ax, ay, bx, by);
+    dots.forEach((dot, index) => {
+      const fade = 1 - index / Math.max(1, dots.length);
+      const size = 4 + Math.round(fade * 4 / 2) * 2;
+      const x = Math.round(dot.x / 2) * 2 - size / 2;
+      const y = Math.round(dot.y / 2) * 2 - size / 2;
+      guide.fillStyle(0x15101a, 0.35 + fade * 0.45);
+      guide.fillRect(x - 2, y - 2, size + 4, size + 4);
+      guide.fillStyle(fade > 0.5 ? 0xfff4d6 : 0xf0d9a0, 0.5 + fade * 0.5);
+      guide.fillRect(x, y, size, size);
+    });
+    // Porcentajes sobre la hilera: potencia y ángulo (0–90°), sin cifras de grados.
+    const middle = dots[Math.min(dots.length - 1, Math.floor(dots.length * 0.55))];
+    if (middle !== undefined && guideLabel !== null) {
+      guideLabel.setText(`Potencia ${this.power}%  ·  Ángulo ${Math.round((this.angleDeg / 90) * 100)}%`).setPosition(middle.x, middle.y - 26).setVisible(true);
     }
   }
 
   /** El nombre puede conocerse después de empezar: en sala se consulta aparte. */
   setRivalName(name: string): void {
     this.rivalLabel?.setText(name);
+  }
+
+  /** Terreno y objetos de esta partida: bloques de tierra (plataformas, gradas) y los sprites de la hoja. */
+  private buildObstacles(view: PlayerMatchView): void {
+    const terrain = TERRAIN_OF[view.arenaId];
+    const SINK = 8;
+    for (const obstacle of view.obstacles) {
+      if (obstacle.kind === 'terrain') {
+        const sink = obstacle.y === 0 ? SINK : 0;
+        const cols = Math.max(8, Math.round(obstacle.width / TERRAIN_SCALE));
+        const rows = Math.max(8, Math.round((obstacle.height + sink) / TERRAIN_SCALE));
+        const key = `block-${terrain}-${cols}x${rows}`;
+        if (!this.textures.exists(key)) this.textures.addCanvas(key, drawTerrainBlock(this.textures.get(`terrain-${terrain}`).getSourceImage() as HTMLImageElement, terrain, cols, rows));
+        this.add.image(obstacle.x, GROUND_Y - obstacle.y - obstacle.height, key).setOrigin(0, 0).setScale(obstacle.width / cols, (obstacle.height + sink) / rows).setDepth(1).setFlipX(obstacle.flip === true);
+        continue;
+      }
+      const spec = PROPS[obstacle.kind as PropId];
+      const frame = this.textures.getFrame('obs', spec.id);
+      const scale = spec.drawHeight / frame.height;
+      const drawWidth = frame.width * scale;
+      const flip = obstacle.flip === true;
+      const centre = obstacle.x + obstacle.width / 2;
+      const left = centre - (flip ? 1 - spec.cx : spec.cx) * drawWidth;
+      this.add.image(left, GROUND_Y - obstacle.y + (obstacle.y === 0 ? 4 : 0), 'obs', spec.id).setOrigin(0, 1).setScale(scale).setFlipX(flip).setDepth(1.5);
+    }
   }
 
   private build(view: PlayerMatchView, looks: MatchLooks): void {
@@ -335,6 +384,7 @@ export class ArenaScene extends Phaser.Scene {
     this.add.image(WORLD_LEFT * 0.15, VIEW_H - 136 + REST_SCROLL_Y * 0.15, `biome-${id}`).setOrigin(0, 1).setScale(art.scale).setScrollFactor(0.15);
     this.addSkyFade(id, art.scale);
     this.add.image(WORLD_LEFT, GROUND_Y - GROUND_HEADROOM, `ground-${id}`).setOrigin(0, 0).setScale(2);
+    this.buildObstacles(view);
     camera.setBackgroundColor(art.sky);
     this.moteColor = art.particle;
     camera.setZoom(1);
@@ -348,7 +398,11 @@ export class ArenaScene extends Phaser.Scene {
     this.birds = id === 'frozen_bridge' ? [] : Array.from({ length: 5 }, (_, index) => ({ x: Math.random() * VIEW_W, y: 90 + index * 26 + Math.random() * 40, speed: 0.25 + Math.random() * 0.2, phase: Math.random() * 6 }));
 
     this.guide = this.add.graphics().setDepth(5);
-    this.band = this.add.graphics().setScrollFactor(0).setDepth(10);
+    this.guideLabel = this.add
+      .text(0, 0, '', { fontFamily: 'Palatino, Georgia, serif', fontStyle: 'bold', fontSize: '18px', color: '#f4efdf', stroke: '#0d0a0e', strokeThickness: 5 })
+      .setOrigin(0.5, 1)
+      .setDepth(6)
+      .setVisible(false);
     this.anchor = null;
     this.projectile = this.add.image(0, 0, 'proj-dagger').setDepth(6).setVisible(false);
     for (let i = 0; i < TRAIL_POOL; i += 1) this.trail.push(this.add.rectangle(0, 0, 7, 7, 0xf2963c).setDepth(5).setVisible(false).setBlendMode(Phaser.BlendModes.ADD));
@@ -620,7 +674,6 @@ export class ArenaScene extends Phaser.Scene {
     const angle = back <= 0 ? (dragY > 0 ? 90 : 0) : Phaser.Math.RadToDeg(Math.atan2(dragY, back));
     this.angleDeg = Math.round(Phaser.Math.Clamp(angle, 0, 90));
     this.power = Math.round(Phaser.Math.Clamp(POWER_MIN + (Math.min(length, MAX_PULL) / MAX_PULL) * (100 - POWER_MIN), POWER_MIN, 100));
-    this.drawBand(pointer);
     this.drawGuide();
     this.hooks.onAim();
   }
@@ -628,28 +681,8 @@ export class ArenaScene extends Phaser.Scene {
   private cancelPull(): void {
     this.anchor = null;
     this.pullReady = false;
-    this.band?.clear();
     this.drawGuide();
     this.hooks.onAim();
-  }
-
-  /** Banda elástica en pantalla: del ancla al cursor, más gruesa y más roja cuanto más tensa. */
-  private drawBand(pointer: Phaser.Input.Pointer): void {
-    const { band, anchor } = this;
-    if (band === null || anchor === null) return;
-    band.clear();
-    const length = Math.min(Math.hypot(pointer.x - anchor.x, pointer.y - anchor.y), MAX_PULL);
-    const tension = length / MAX_PULL;
-    const colour = Phaser.Display.Color.Interpolate.ColorWithColor(new Phaser.Display.Color(244, 239, 223), new Phaser.Display.Color(214, 78, 56), 100, Math.round(tension * 100));
-    const rgb = Phaser.Display.Color.GetColor(colour.r, colour.g, colour.b);
-    const reach = Math.hypot(pointer.x - anchor.x, pointer.y - anchor.y);
-    const scale = reach === 0 ? 0 : length / reach;
-    const end = { x: anchor.x + (pointer.x - anchor.x) * scale, y: anchor.y + (pointer.y - anchor.y) * scale };
-    band.lineStyle(3 + tension * 5, rgb, this.pullReady ? 0.95 : 0.5);
-    band.lineBetween(anchor.x, anchor.y, end.x, end.y);
-    band.fillStyle(rgb, 0.9);
-    band.fillCircle(anchor.x, anchor.y, 7);
-    band.fillCircle(end.x, end.y, 5);
   }
 
   private enqueue(step: () => Promise<void>): void {
