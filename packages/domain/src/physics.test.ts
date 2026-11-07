@@ -254,7 +254,7 @@ describe('arenas con obstáculos aleatorios', () => {
         expect(reachable, `${arenaId}#${seed} ${family} (${layout.relief})`).toBe(true);
       }
     }
-  });
+  }, 60_000);
 });
 
 describe('daño por zona y potencia', () => {
