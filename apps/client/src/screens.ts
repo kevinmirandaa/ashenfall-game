@@ -1,7 +1,7 @@
-/** Pueblo y paneles. Todo precio, saldo y propiedad viene del servidor; el cliente solo los presenta. */
+/** Pantallas del pueblo. Todo precio, saldo, nivel y propiedad viene del servidor; el cliente solo lo presenta. */
+import { CHARACTER_FAMILY, CHARACTER_LEVEL, CHARACTER_PRICE, STARTER_CHARACTER, starterWeapon, WEAPONS, type ArenaId, type WeaponId } from '@ashenfall/domain';
 import { audio } from './audio.js';
-import { CHARACTER_FAMILY, CHARACTER_PRICE, POTION_LOADOUT_MAX, STARTER_CHARACTER, WEAPONS, type ArenaId, type PotionId, type WeaponId } from '@ashenfall/domain';
-import { baseLook, bodyFilter, CHARACTERS, FAMILY_LABEL, icon, iconUrl, type CharacterId, type FighterId, type IconName, type Look } from './art.js';
+import { CHARACTERS, FAMILY_LABEL, icon, type CharacterId, type FighterId, type IconName } from './art.js';
 import { BIOME_NAMES } from './biomes.js';
 import type { Session } from './net.js';
 
@@ -28,6 +28,16 @@ export interface Room {
   inviteCode?: string;
   members: { userId: string; displayName: string; ready: boolean }[];
 }
+export interface Stats {
+  played: number;
+  wins: number;
+  losses: number;
+  draws: number;
+  level: number;
+  xp: number;
+  xpInLevel: number;
+  xpForNext: number;
+}
 interface CatalogItem {
   id: string;
   name: string;
@@ -36,13 +46,11 @@ interface CatalogItem {
 }
 interface OwnedItem {
   id: string;
-  name: string;
-  kind: string;
-  equipped: boolean;
 }
 interface MatchRow {
   matchId: string;
   outcome: 'win' | 'loss' | 'draw';
+  opponent: string;
   reason: string;
   rounds: number;
   endedAt: string;
@@ -54,39 +62,8 @@ export interface ShopActions {
   notify(message: string): void;
   profile(): Profile;
   setBalance(balance: number): void;
-  character(): CharacterId;
+  /** Cambia el personaje en uso, ya comprado: el servidor lo vuelve a comprobar. */
   setCharacter(id: CharacterId): void;
-  /** Vuelve a leer lo equipado y actualiza pueblo y partida. */
-  refreshLook(items: readonly OwnedItem[]): void;
-}
-
-const KIND_ICON: Readonly<Record<string, IconName>> = {
-  portrait_frame: 'star',
-  emblem: 'emblem',
-  cloak: 'cloak',
-  projectile_effect: 'potion',
-  helmet: 'helm',
-};
-const KIND_NAME: Readonly<Record<string, string>> = {
-  portrait_frame: 'Marcos',
-  emblem: 'Emblemas',
-  cloak: 'Capas',
-  helmet: 'Yelmos',
-  projectile_effect: 'Efectos',
-};
-
-const iconFor = (item: { id: string; kind: string }): IconName => KIND_ICON[item.kind] ?? 'pouch';
-
-export function lookFrom(character: CharacterId, items: readonly OwnedItem[]): Look {
-  const on = new Set(items.filter((item) => item.equipped).map((item) => item.id));
-  return {
-    ...baseLook(character),
-    cloak: on.has('cloak-frost'),
-    helm: on.has('helm-watch'),
-    embers: on.has('trail-embers'),
-    frame: on.has('frame-ash'),
-    emblem: on.has('emblem-brotherhood'),
-  };
 }
 
 export const portrait = (character: FighterId, ornate: boolean): string =>
@@ -110,249 +87,144 @@ export function closeModal(): void {
   modal.innerHTML = '';
 }
 
-/** Tienda genérica: una pestaña por tipo de artículo, vista previa y compra idempotente. */
-export async function openShop(title: string, subtitle: string, kinds: readonly string[], actions: ShopActions, extra?: () => string, wire?: (rerender: () => void) => void): Promise<void> {
-  const [catalog, inventory] = await Promise.all([
-    actions.session.call<{ items: CatalogItem[] }>('GET', '/v1/shop/catalog'),
-    actions.session.call<{ items: OwnedItem[] }>('GET', '/v1/me/inventory'),
-  ]);
-  let owned = inventory.items;
-  const items = catalog.items.filter((item) => kinds.includes(item.kind));
-  let tab = kinds[0] ?? '';
-  let selected = items.find((item) => item.kind === tab)?.id ?? '';
-  // Se conserva por artículo: reintentar tras un fallo de red no cobra dos veces.
-  const purchaseIds = new Map<string, string>();
+const heroOf = (id: CharacterId) => CHARACTERS.find((hero) => hero.id === id) ?? CHARACTERS[0];
 
-  const previewLook = (item: CatalogItem | undefined): Look => {
-    const trial = owned.map((entry) => (item !== undefined && entry.kind === item.kind ? { ...entry, equipped: entry.id === item.id } : entry));
-    const withItem = item !== undefined && !owned.some((entry) => entry.id === item.id) ? [...trial, { id: item.id, name: item.name, kind: item.kind, equipped: true }] : trial;
-    // Una apariencia de Edrik solo tiene sentido verla sobre Edrik.
-    return lookFrom(actions.character(), withItem);
-  };
-  const previewOf = (item: CatalogItem | undefined): string => {
-    if (item === undefined) return '';
-    if (item.kind === 'cloak') {
-      const look = previewLook(item);
-      return `<img class="hero" src="/art/body-${look.character}.webp" style="filter:${bodyFilter(look)}" alt="" />`;
-    }
-    return `<img class="hero-item" src="${iconUrl(iconFor(item))}" alt="" />`;
-  };
+/** Arma fija de cada personaje: no se cambia ni se compra. */
+const weaponLine = (id: CharacterId): string => `${icon(CHARACTER_FAMILY[id], 18)} ${FAMILY_LABEL[CHARACTER_FAMILY[id]]} · ${WEAPONS[starterWeapon(id)].name}`;
 
+async function ownedHeroes(actions: ShopActions): Promise<Set<CharacterId>> {
+  const { items } = await actions.session.call<{ items: OwnedItem[] }>('GET', '/v1/me/inventory');
+  const owned = new Set<CharacterId>([STARTER_CHARACTER]);
+  for (const item of items) {
+    const hero = CHARACTERS.find((candidate) => `char-${candidate.id}` === item.id);
+    if (hero !== undefined) owned.add(hero.id);
+  }
+  return owned;
+}
+
+/** Personajes desbloqueados: aquí se elige con cuál jugar. */
+export async function openCharacters(actions: ShopActions): Promise<void> {
+  const owned = await ownedHeroes(actions);
   const render = (): void => {
     const body = document.getElementById('modal-body');
     if (body === null) return;
-    const shown = items.filter((item) => item.kind === tab);
-    const current = shown.find((item) => item.id === selected) ?? shown[0];
-    const entry = owned.find((item) => item.id === current?.id);
-    const balance = actions.profile().balance;
-    const button = current === undefined
-      ? ''
-      : entry === undefined
-        ? `<button class="primary" id="buy" ${balance < current.price ? 'disabled' : ''}>${balance < current.price ? 'Marcas insuficientes' : 'Comprar'}</button>`
-        : `<button class="primary" id="equip">${entry.equipped ? 'Quitar' : 'Equipar'}</button>`;
+    const mine = CHARACTERS.filter((hero) => owned.has(hero.id));
+    const current = actions.profile().characterId;
     body.innerHTML = `
-      ${extra?.() ?? ''}
-      ${kinds.length > 1 ? `<nav class="tabs">${kinds.map((kind) => `<button data-tab="${kind}" class="${kind === tab ? 'on' : ''}">${KIND_NAME[kind] ?? kind}</button>`).join('')}</nav>` : ''}
-      <div class="shop">
-        <aside class="preview">
-          ${previewOf(current)}
-          <b>${current === undefined ? '—' : escapeHtml(current.name)}</b>
-          ${current === undefined ? '' : `<span class="price">${icon('coin', 20)} ${String(current.price)}</span>`}
-          ${button}
-          <small class="fair">Solo apariencia: no cambia daño, vida ni física.</small>
-        </aside>
-        <div class="grid">
-          ${shown.map((item) => {
-            const mine = owned.find((candidate) => candidate.id === item.id);
-            return `<button class="slot${item.id === current?.id ? ' on' : ''}" data-item="${item.id}" title="${escapeHtml(item.name)}">
-              ${icon(iconFor(item), 40)}
-              <span class="slot-name">${escapeHtml(item.name)}</span>
-              <span class="slot-state">${mine === undefined ? `${icon('coin', 14)} ${String(item.price)}` : mine.equipped ? `${icon('check', 14)} Equipado` : 'Adquirido'}</span>
-            </button>`;
-          }).join('') || '<p class="muted">No hay artículos.</p>'}
-        </div>
-      </div>
-      <p class="wallet">${icon('coin', 20)} <b>${String(balance)}</b> Marcas de Ceniza</p>`;
-    for (const node of body.querySelectorAll<HTMLElement>('[data-tab]')) {
-      node.addEventListener('click', () => {
-        tab = node.dataset.tab ?? tab;
-        selected = items.find((item) => item.kind === tab)?.id ?? '';
-        render();
-      });
-    }
-    for (const node of body.querySelectorAll<HTMLElement>('[data-item]')) {
-      node.addEventListener('click', () => {
-        selected = node.dataset.item ?? selected;
-        render();
-      });
-    }
-    wire?.(render);
-    document.getElementById('buy')?.addEventListener('click', () => {
-      if (current === undefined) return;
-      void actions.guarded(async () => {
-        const purchaseId = purchaseIds.get(current.id) ?? crypto.randomUUID();
-        purchaseIds.set(current.id, purchaseId);
-        const result = await actions.session.call<{ balance: number }>('POST', '/v1/shop/purchases', { cosmeticId: current.id, purchaseId });
-        actions.setBalance(result.balance);
-        owned = (await actions.session.call<{ items: OwnedItem[] }>('GET', '/v1/me/inventory')).items;
-        actions.refreshLook(owned);
-        audio.sfx('buy');
-        actions.notify(`Has comprado ${current.name}.`);
-        render();
-      });
-    });
-    document.getElementById('equip')?.addEventListener('click', () => {
-      if (current === undefined || entry === undefined) return;
-      void actions.guarded(async () => {
-        await actions.session.call('POST', `/v1/me/inventory/${current.id}/equip`, { equipped: !entry.equipped });
-        owned = (await actions.session.call<{ items: OwnedItem[] }>('GET', '/v1/me/inventory')).items;
-        actions.refreshLook(owned);
-        render();
-      });
-    });
-  };
-  openModal(title, subtitle, '', true);
-  render();
-}
-
-const WEIGHT_LABEL = { 1: 'Ligera', 2: 'Media', 3: 'Pesada' } as const;
-
-/** Texto del efecto de un arma: veneno o fuego, por segundo y durante unos segundos. */
-export function effectText(weaponId: WeaponId): string {
-  const { effect } = WEAPONS[weaponId];
-  if (effect === undefined) return 'Sin efecto';
-  return `${effect.kind === 'poison' ? 'Veneno' : 'Fuego'}: -${String(effect.perSecond)} por segundo durante ${String(effect.seconds)} s`;
-}
-
-/** Personajes y armas: se empieza con uno; los demás y las armas mejores se compran, y cada personaje solo mejora armas de su familia. */
-export async function openRoster(actions: ShopActions): Promise<void> {
-  const [catalog, inventory] = await Promise.all([
-    actions.session.call<{ items: CatalogItem[] }>('GET', '/v1/shop/catalog'),
-    actions.session.call<{ items: OwnedItem[] }>('GET', '/v1/me/inventory'),
-  ]);
-  let owned = inventory.items;
-  const prices = new Map(catalog.items.map((item) => [item.id, item.price]));
-  const purchaseIds = new Map<string, string>();
-  let selected: CharacterId = actions.character();
-
-  const hasHero = (id: CharacterId): boolean => id === STARTER_CHARACTER || owned.some((item) => item.id === `char-${id}`);
-  const equippedOf = (family: string): string | undefined => owned.find((item) => item.kind === `weapon_${family}` && item.equipped)?.id;
-
-  const buy = (itemId: string, then: () => Promise<void>): void => {
-    void actions.guarded(async () => {
-      const purchaseId = purchaseIds.get(itemId) ?? crypto.randomUUID();
-      purchaseIds.set(itemId, purchaseId);
-      const result = await actions.session.call<{ balance: number }>('POST', '/v1/shop/purchases', { cosmeticId: itemId, purchaseId });
-      actions.setBalance(result.balance);
-      owned = (await actions.session.call<{ items: OwnedItem[] }>('GET', '/v1/me/inventory')).items;
-      actions.refreshLook(owned);
-      audio.sfx('buy');
-      await then();
-      render();
-    });
-  };
-
-  const render = (): void => {
-    const body = document.getElementById('modal-body');
-    if (body === null) return;
-    const hero = CHARACTERS.find((candidate) => candidate.id === selected) ?? CHARACTERS[0];
-    if (hero === undefined) return;
-    const family = CHARACTER_FAMILY[hero.id];
-    const balance = actions.profile().balance;
-    const active = actions.character() === hero.id;
-    const price = CHARACTER_PRICE[hero.id];
-    const heroButton = hasHero(hero.id)
-      ? `<button class="primary" id="pick" ${active ? 'disabled' : ''}>${active ? 'En uso' : 'Elegir'}</button>`
-      : `<button class="primary" id="buy-hero" ${balance < price ? 'disabled' : ''}>${balance < price ? 'Marcas insuficientes' : 'Comprar'}</button>`;
-    const equipped = equippedOf(family);
-    const tiers: { id: WeaponId; item?: string }[] = [
-      { id: family },
-      { id: `${family}_2` as WeaponId, item: `wpn-${family}-2` },
-      { id: `${family}_3` as WeaponId, item: `wpn-${family}-3` },
-    ];
-    body.innerHTML = `
-      <div class="roster-strip">${CHARACTERS.map((candidate) => `
-        <button class="face${candidate.id === hero.id ? ' on' : ''}${hasHero(candidate.id) ? '' : ' locked'}" data-hero="${candidate.id}" title="${escapeHtml(candidate.name)}">
-          <img src="/art/portrait-${candidate.id}.webp" alt="" />
-          <span>${hasHero(candidate.id) ? (actions.character() === candidate.id ? 'En uso' : candidate.name) : `${icon('coin', 12)} ${String(CHARACTER_PRICE[candidate.id])}`}</span>
-        </button>`).join('')}</div>
-      <div class="roster-main">
-        <aside class="hero-panel">
-          <img class="hero-big" src="/art/body-${hero.id}.webp" alt="" />
+      <div class="cards">${mine.map((hero) => `
+        <button class="card${hero.id === current ? ' on' : ''}" data-hero="${hero.id}">
+          <img class="card-art" src="/art/body-${hero.id}.webp" alt="" />
           <b>${hero.name}</b><small>${hero.race}</small>
-          <em>${hero.lore}</em>
-          <span class="family">${icon(family, 20)} ${FAMILY_LABEL[family]}</span>
-          ${hasHero(hero.id) ? '' : `<span class="price">${icon('coin', 18)} ${String(price)}</span>`}
-          ${heroButton}
-        </aside>
-        <section class="weapon-list">
-          <h3>Armas de ${hero.name}</h3>
-          <p class="muted">Solo puede usar ${FAMILY_LABEL[family].toLowerCase()}: mejora el arma, no cambia el tipo.</p>
-          ${tiers.map(({ id, item }) => {
-            const weapon = WEAPONS[id];
-            const mine = item === undefined || owned.some((entry) => entry.id === item);
-            const on = item === undefined ? equipped === undefined : equipped === item;
-            const cost = item === undefined ? 0 : (prices.get(item) ?? weapon.price);
-            const action = !mine
-              ? `<button data-buy="${item ?? ''}" ${balance < cost ? 'disabled' : ''}>${icon('coin', 14)} ${String(cost)}</button>`
-              : `<button data-equip="${item ?? ''}" ${on ? 'disabled' : ''}>${on ? 'Equipada' : 'Equipar'}</button>`;
-            return `<div class="weapon-row${on ? ' on' : ''}">
-              <img src="/art/icon-${family}.webp" style="${weapon.tier === 0 ? '' : weapon.tier === 1 ? 'filter:brightness(1.25)' : 'filter:drop-shadow(0 0 4px ' + (weapon.effect?.kind === 'poison' ? '#7ed957' : '#f2963c') + ')'}" alt="" />
-              <div><b>${escapeHtml(weapon.name)}</b>
-                <small>Daño ${String(weapon.baseDamage)} · Peso ${WEIGHT_LABEL[weapon.weight]}</small>
-                <small class="${weapon.effect === undefined ? 'muted' : weapon.effect.kind}">${effectText(id)}</small></div>
-              ${action}
-            </div>`;
-          }).join('')}
-          <small class="fair">Más peso pide más potencia y más ángulo; menos peso, al revés.</small>
-        </section>
-      </div>
-      <p class="wallet">${icon('coin', 20)} <b>${String(balance)}</b> Marcas de Ceniza</p>`;
+          <span class="family">${weaponLine(hero.id)}</span>
+          <em>${hero.id === current ? 'En uso' : 'Usar'}</em>
+        </button>`).join('')}</div>
+      <p class="muted center">${String(mine.length)} de ${String(CHARACTERS.length)} personajes. El resto se compra en el Arsenal.</p>`;
     for (const node of body.querySelectorAll<HTMLElement>('[data-hero]')) {
       node.addEventListener('click', () => {
-        selected = node.dataset.hero as CharacterId;
-        render();
-      });
-    }
-    document.getElementById('pick')?.addEventListener('click', () => {
-      actions.setCharacter(hero.id);
-      render();
-    });
-    document.getElementById('buy-hero')?.addEventListener('click', () => {
-      buy(`char-${hero.id}`, async () => {
-        await actions.session.call('POST', '/v1/me/character', { characterId: hero.id });
-        actions.setCharacter(hero.id);
-      });
-    });
-    for (const node of body.querySelectorAll<HTMLElement>('[data-buy]')) {
-      node.addEventListener('click', () => {
-        const itemId = node.dataset.buy ?? '';
-        buy(itemId, async () => {
-          await actions.session.call('POST', `/v1/me/inventory/${itemId}/equip`, { equipped: true });
-          owned = (await actions.session.call<{ items: OwnedItem[] }>('GET', '/v1/me/inventory')).items;
-        });
-      });
-    }
-    for (const node of body.querySelectorAll<HTMLElement>('[data-equip]')) {
-      node.addEventListener('click', () => {
-        const itemId = node.dataset.equip ?? '';
+        const id = node.dataset.hero as CharacterId;
         void actions.guarded(async () => {
-          // El arma común es la que se usa cuando no hay otra equipada de la familia.
-          const current = equippedOf(family);
-          if (itemId === '') {
-            if (current !== undefined) await actions.session.call('POST', `/v1/me/inventory/${current}/equip`, { equipped: false });
-          } else {
-            await actions.session.call('POST', `/v1/me/inventory/${itemId}/equip`, { equipped: true });
-          }
-          owned = (await actions.session.call<{ items: OwnedItem[] }>('GET', '/v1/me/inventory')).items;
-          actions.refreshLook(owned);
+          await actions.session.call('POST', '/v1/me/character', { characterId: id });
+          actions.setCharacter(id);
+          audio.sfx('open');
           render();
         });
       });
     }
   };
-  openModal('Personajes', 'Tu mercenario y su arma', '', true);
+  openModal('Personajes', 'Elige con cuál jugar', '', true);
   render();
+}
+
+/** Arsenal: aquí se compran personajes nuevos. Hacen falta el nivel y el dinero a la vez. */
+export async function openStore(actions: ShopActions): Promise<void> {
+  const [catalog, stats] = await Promise.all([
+    actions.session.call<{ items: CatalogItem[] }>('GET', '/v1/shop/catalog'),
+    actions.session.call<Stats>('GET', '/v1/me/stats'),
+  ]);
+  let owned = await ownedHeroes(actions);
+  const purchaseIds = new Map<string, string>();
+  const price = new Map(catalog.items.map((item) => [item.id, item.price]));
+  const render = (): void => {
+    const body = document.getElementById('modal-body');
+    if (body === null) return;
+    const balance = actions.profile().balance;
+    const forSale = CHARACTERS.filter((hero) => hero.id !== STARTER_CHARACTER).sort((a, b) => CHARACTER_LEVEL[a.id] - CHARACTER_LEVEL[b.id]);
+    body.innerHTML = `
+      <div class="cards store">${forSale.map((hero) => {
+        const have = owned.has(hero.id);
+        const cost = price.get(`char-${hero.id}`) ?? CHARACTER_PRICE[hero.id];
+        const needed = CHARACTER_LEVEL[hero.id];
+        const levelOk = stats.level >= needed;
+        const moneyOk = balance >= cost;
+        const state = have ? 'Desbloqueado' : !levelOk ? `Nivel ${String(needed)}` : !moneyOk ? 'Marcas insuficientes' : 'Comprar';
+        return `<button class="card${have ? ' owned' : ''}${!have && !levelOk ? ' locked' : ''}" data-buy="${hero.id}" ${have || !levelOk || !moneyOk ? 'disabled' : ''}>
+          <img class="card-art" src="/art/body-${hero.id}.webp" alt="" />
+          <b>${hero.name}</b><small>${hero.race}</small>
+          <span class="family">${weaponLine(hero.id)}</span>
+          <span class="req ${levelOk ? 'ok' : 'no'}">Nivel ${String(needed)}</span>
+          <span class="cost ${moneyOk || have ? 'ok' : 'no'}">${icon('coin', 14)} ${String(cost)}</span>
+          <em>${state}</em>
+        </button>`;
+      }).join('')}</div>
+      <p class="wallet">Tu nivel: <b>${String(stats.level)}</b> · ${icon('coin', 20)} <b>${String(balance)}</b> Marcas de Ceniza</p>`;
+    for (const node of body.querySelectorAll<HTMLElement>('[data-buy]')) {
+      node.addEventListener('click', () => {
+        const id = node.dataset.buy as CharacterId;
+        void actions.guarded(async () => {
+          // El mismo id hasta confirmar la compra: reintentar tras un fallo de red no cobra dos veces.
+          const purchaseId = purchaseIds.get(id) ?? crypto.randomUUID();
+          purchaseIds.set(id, purchaseId);
+          const result = await actions.session.call<{ balance: number }>('POST', '/v1/shop/purchases', { cosmeticId: `char-${id}`, purchaseId });
+          purchaseIds.delete(id);
+          actions.setBalance(result.balance);
+          owned = await ownedHeroes(actions);
+          audio.sfx('buy');
+          actions.notify(`${heroOf(id)?.name ?? 'El personaje'} ya es tuyo. Elígelo en Personajes.`);
+          render();
+        });
+      });
+    }
+  };
+  openModal('Arsenal', 'Nuevos personajes', '', true);
+  render();
+}
+
+/** Perfil: tu personaje, tu nivel y cuántas veces has ganado, perdido y empatado. Nada más. */
+export async function openProfile(actions: ShopActions): Promise<void> {
+  const stats = await actions.session.call<Stats>('GET', '/v1/me/stats');
+  const hero = heroOf(actions.profile().characterId);
+  openModal('Perfil', actions.profile().displayName, `
+    <div class="profile">
+      <div class="profile-hero"><img src="/art/body-${hero?.id ?? STARTER_CHARACTER}.webp" alt="" /><b>${hero?.name ?? ''}</b><small>${hero?.race ?? ''}</small></div>
+      <div class="profile-data">
+        <p class="level">Nivel <b>${String(stats.level)}</b></p>
+        <div class="xp"><i style="width:${String(Math.round((stats.xpInLevel / stats.xpForNext) * 100))}%"></i></div>
+        <small class="muted">${String(stats.xpInLevel)} / ${String(stats.xpForNext)} para el siguiente nivel</small>
+        <dl>
+          <div><dt>Victorias</dt><dd>${String(stats.wins)}</dd></div>
+          <div><dt>Derrotas</dt><dd>${String(stats.losses)}</dd></div>
+          <div><dt>Empates</dt><dd>${String(stats.draws)}</dd></div>
+        </dl>
+      </div>
+    </div>`);
+}
+
+const OUTCOME: Readonly<Record<MatchRow['outcome'], { text: string; mark: IconName }>> = {
+  win: { text: 'Victoria', mark: 'trophy' },
+  loss: { text: 'Derrota', mark: 'cross' },
+  draw: { text: 'Empate', mark: 'swords' },
+};
+
+/** Historial: las últimas diez partidas. */
+export async function openHistory(actions: ShopActions): Promise<void> {
+  const { items } = await actions.session.call<{ items: MatchRow[] }>('GET', '/v1/me/matches?limit=10&offset=0');
+  openModal('Historial', 'Tus últimas 10 partidas', `
+    ${items.length === 0 ? '<p class="muted center">Todavía no has jugado ninguna partida.</p>' : `
+    <ol class="history">${items.map((row) => `
+      <li class="${row.outcome}">${icon(OUTCOME[row.outcome].mark, 22)} <b>${OUTCOME[row.outcome].text}</b>
+        <span class="vs">contra ${escapeHtml(row.opponent)}</span>
+        <span>${String(row.rounds)} ${row.rounds === 1 ? 'ronda' : 'rondas'}</span>
+        <time>${new Date(row.endedAt).toLocaleDateString('es')}</time></li>`).join('')}</ol>`}`);
 }
 
 interface StoryLevel {
@@ -384,139 +256,6 @@ export async function openStory(actions: ShopActions, start: (level: number) => 
       start(Number(node.dataset.level));
     });
   }
-}
-
-interface PotionStock {
-  items: { id: PotionId; name: string; description: string; price: number; quantity: number }[];
-  loadout: PotionId[];
-  loadoutMax: number;
-}
-
-/** Alquimista: pociones de un solo uso. Se compran y se eligen hasta tres para la próxima partida. */
-export async function openAlchemist(actions: ShopActions): Promise<void> {
-  let stock = await actions.session.call<PotionStock>('GET', '/v1/me/potions');
-  const pending = new Map<string, string>();
-  const render = (): void => {
-    const body = document.getElementById('modal-body');
-    if (body === null) return;
-    const balance = actions.profile().balance;
-    const carried = (id: PotionId): number => stock.loadout.filter((entry) => entry === id).length;
-    body.innerHTML = `
-      <p class="muted">Las pociones que lleves a la partida se gastan al usarlas, o se pierden al terminar. Usar una ocupa tu turno.</p>
-      <div class="potions">${stock.items.map((potion) => `
-        <div class="potion-card">
-          <img src="/art/potion-${potion.id}.webp" alt="" />
-          <div><b>${escapeHtml(potion.name)}</b><small>${escapeHtml(potion.description)}</small>
-            <span class="potion-stock">Tienes ${String(potion.quantity)} · llevas ${String(carried(potion.id))}</span></div>
-          <div class="potion-actions">
-            <button data-buy="${potion.id}" ${balance < potion.price ? 'disabled' : ''}>${icon('coin', 14)} ${String(potion.price)}</button>
-            <span class="stepper"><button data-less="${potion.id}" ${carried(potion.id) === 0 ? 'disabled' : ''} aria-label="Llevar una menos">−</button>
-              <b>${String(carried(potion.id))}</b>
-              <button data-more="${potion.id}" ${carried(potion.id) >= potion.quantity || stock.loadout.length >= stock.loadoutMax ? 'disabled' : ''} aria-label="Llevar una más">+</button></span>
-          </div>
-        </div>`).join('')}</div>
-      <p class="wallet">${icon('coin', 20)} <b>${String(balance)}</b> Marcas de Ceniza · llevas ${String(stock.loadout.length)} de ${String(POTION_LOADOUT_MAX)}</p>`;
-    const save = (loadout: PotionId[]): void => {
-      void actions.guarded(async () => {
-        await actions.session.call('PUT', '/v1/me/loadout', { potions: loadout });
-        stock = { ...stock, loadout };
-        render();
-      });
-    };
-    for (const node of body.querySelectorAll<HTMLElement>('[data-buy]')) {
-      node.addEventListener('click', () => {
-        const id = node.dataset.buy as PotionId;
-        void actions.guarded(async () => {
-          // El mismo id hasta que la compra se confirme: reintentar tras un fallo de red no cobra dos veces.
-          const purchaseId = pending.get(id) ?? crypto.randomUUID();
-          pending.set(id, purchaseId);
-          const result = await actions.session.call<{ balance: number }>('POST', '/v1/shop/potions', { potionId: id, purchaseId });
-          pending.delete(id);
-          actions.setBalance(result.balance);
-          stock = await actions.session.call<PotionStock>('GET', '/v1/me/potions');
-          audio.sfx('buy');
-          render();
-        });
-      });
-    }
-    for (const node of body.querySelectorAll<HTMLElement>('[data-more]')) {
-      node.addEventListener('click', () => {
-        save([...stock.loadout, node.dataset.more as PotionId]);
-      });
-    }
-    for (const node of body.querySelectorAll<HTMLElement>('[data-less]')) {
-      node.addEventListener('click', () => {
-        const id = node.dataset.less as PotionId;
-        const index = stock.loadout.lastIndexOf(id);
-        save(stock.loadout.filter((_entry, position) => position !== index));
-      });
-    }
-  };
-  openModal('Alquimista', 'Pociones de un solo uso', '', true);
-  render();
-}
-
-const OUTCOME: Readonly<Record<MatchRow['outcome'], { text: string; mark: IconName }>> = {
-  win: { text: 'Victoria', mark: 'trophy' },
-  loss: { text: 'Derrota', mark: 'cross' },
-  draw: { text: 'Empate', mark: 'swords' },
-};
-
-const PAGE = 6;
-
-/** Gremio con tienda; Perfil e Historial muestran solo la hoja de servicios. */
-export async function openBrotherhood(actions: ShopActions, title = 'Gremio', shop = true): Promise<void> {
-  const profile = actions.profile();
-  // Hasta 50 partidas recientes: el límite del contrato. Las cifras lo indican.
-  const recent = await actions.session.call<{ total: number; items: MatchRow[] }>('GET', '/v1/me/matches?limit=50&offset=0');
-  const wins = recent.items.filter((row) => row.outcome === 'win').length;
-  const losses = recent.items.filter((row) => row.outcome === 'loss').length;
-  const rate = recent.items.length === 0 ? 0 : Math.round((wins / recent.items.length) * 100);
-  let offset = 0;
-  const extra = (): string => {
-    const rows = recent.items.slice(offset, offset + PAGE);
-    return `
-    <div class="ledger">
-      <div class="stats">
-        ${portrait(actions.character(), false)}
-        <div><b class="who">${escapeHtml(profile.displayName)}</b>
-          <dl>
-            <div><dt>Jugadas</dt><dd>${String(recent.total)}</dd></div>
-            <div><dt>Victorias</dt><dd>${String(wins)}</dd></div>
-            <div><dt>Derrotas</dt><dd>${String(losses)}</dd></div>
-            <div><dt>% Victorias</dt><dd>${String(rate)}%</dd></div>
-          </dl>
-          ${recent.total > recent.items.length ? '<small class="muted">Victorias y derrotas de tus últimas 50 partidas.</small>' : ''}
-        </div>
-      </div>
-      <ol class="history">
-        ${rows.map((row) => `<li>${icon(OUTCOME[row.outcome].mark, 20)} <b>${OUTCOME[row.outcome].text}</b> <span>${String(row.rounds)} rondas</span> <time>${new Date(row.endedAt).toLocaleDateString('es')}</time></li>`).join('') || '<li class="muted">Aún no has disputado duelos.</li>'}
-      </ol>
-      ${recent.items.length > PAGE ? `<div class="pager"><button id="prev" ${offset === 0 ? 'disabled' : ''}>‹</button><button id="next" ${offset + PAGE >= recent.items.length ? 'disabled' : ''}>›</button></div>` : ''}
-    </div>`;
-  };
-  const wirePager = (rerender: () => void): void => {
-    document.getElementById('prev')?.addEventListener('click', () => {
-      offset = Math.max(0, offset - PAGE);
-      rerender();
-    });
-    document.getElementById('next')?.addEventListener('click', () => {
-      offset += PAGE;
-      rerender();
-    });
-  };
-  if (shop) {
-    await openShop(title, 'Hoja de servicios y distintivos', ['portrait_frame', 'emblem'], actions, extra, wirePager);
-    return;
-  }
-  const paint = (): void => {
-    const body = document.getElementById('modal-body');
-    if (body === null) return;
-    body.innerHTML = extra();
-    wirePager(paint);
-  };
-  openModal(title, 'Tu hoja de servicios', '', true);
-  paint();
 }
 
 export const END_REASON: Readonly<Record<string, string>> = {

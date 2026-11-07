@@ -27,23 +27,13 @@ export const CHARACTERS: readonly { id: CharacterId; name: string; race: string;
 /** Familia del arma de cada personaje: también es el nombre de su icono. */
 export const DEFAULT_WEAPON: Readonly<Record<CharacterId, WeaponFamily>> = CHARACTER_FAMILY;
 
-/** Apariencia equipada. Es solo visual: nada de esto llega a la física ni al daño. */
+/** Cómo se dibuja un luchador: solo su personaje o monstruo, sin apariencias sueltas. */
 export interface Look {
-  /** Mercenario o monstruo: los dos se dibujan con el mismo muñeco. */
   character: FighterId;
-  cloak: boolean;
-  helm: boolean;
-  embers: boolean;
-  frame: boolean;
-  emblem: boolean;
 }
-export const baseLook = (character: FighterId): Look => ({ character, cloak: false, helm: false, embers: false, frame: false, emblem: false });
+export const baseLook = (character: FighterId): Look => ({ character });
 
-/** Tinte del personaje según lo equipado; 0xffffff es sin tinte. */
-export const bodyTint = (look: Look): number => (look.cloak ? 0xc4dcff : 0xffffff);
-export const bodyFilter = (look: Look): string => (look.cloak ? 'saturate(.7) hue-rotate(190deg) brightness(1.1)' : 'none');
-
-export type IconName = WeaponFamily | 'coin' | 'gear' | 'heart' | 'cloak' | 'helm' | 'hood' | 'emblem' | 'star' | 'potion' | 'trophy' | 'swords' | 'check' | 'cross' | 'shield' | 'crown' | 'pouch' | 'scroll';
+export type IconName = WeaponFamily | 'coin' | 'gear' | 'trophy' | 'swords' | 'check' | 'cross' | 'scroll';
 
 export const iconUrl = (name: IconName): string => `/art/icon-${name}.webp`;
 export const icon = (name: IconName, size = 24): string => `<img class="ico" src="${iconUrl(name)}" style="height:${String(size)}px" alt="" />`;

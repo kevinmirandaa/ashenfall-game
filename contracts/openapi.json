@@ -5541,6 +5541,7 @@
                         "required": [
                           "matchId",
                           "outcome",
+                          "opponent",
                           "reason",
                           "rounds",
                           "endedAt"
@@ -5551,6 +5552,9 @@
                             "type": "string"
                           },
                           "outcome": {
+                            "type": "string"
+                          },
+                          "opponent": {
                             "type": "string"
                           },
                           "reason": {

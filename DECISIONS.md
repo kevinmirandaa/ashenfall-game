@@ -88,3 +88,22 @@ Decisión del usuario (7 nov 2026): el brief original dejaba fuera el PvE y los 
 **Armas.** Pasan a cuatro niveles por familia (se añaden `_4`, de 2600 a 3200 Marcas): los niveles 3 y 4 dejan veneno o fuego de 2 a 5 por segundo durante 3 s. Cada nivel usa su propio dibujo recortado de las referencias.
 
 **Pociones.** Cuatro, de un solo uso: elixir vital (+30 de vida), piel de piedra (el siguiente daño recibido, −40 %), furia salvaje (siguiente disparo +40 %) y ojo de halcón (siguiente disparo sin viento). Se compran (precio del dominio, idempotentes), se eligen hasta tres para la próxima partida y se descuentan del inventario en la misma transacción que crea la partida; las que no se usan se pierden. Usar una ocupa el turno. Las pociones que lleva el rival son información oculta: el servidor solo envía las propias, y los efectos activos sí son públicos. El comando `use_potion` es idempotente por `actionId` como `shoot` y aparece en AsyncAPI.
+
+## Versión estable: solo personajes, sin pociones ni viento (SCRUM-66)
+Decisión del usuario (7 nov 2026) para simplificar y dejar una versión estable. **Reemplaza** lo decidido antes sobre armas comprables, cosméticos y pociones (SCRUM-62, SCRUM-64 y los cosméticos de SCRUM-27).
+
+**Qué queda en la tienda:** solo personajes. Se empieza con Edrik; los otros nueve se compran en el Arsenal. Cada compra exige **nivel y dinero a la vez** (el servidor comprueba las dos cosas: `LEVEL_TOO_LOW` o `INSUFFICIENT_FUNDS`). El nivel mínimo va de 2 (Sylwen) a 10 (Morveth) y vive en el dominio (`CHARACTER_LEVEL`).
+
+**Nivel.** Lo calcula siempre el servidor a partir de las partidas jugadas y ganadas: 10 de XP por partida y 30 más por victoria, 80 de XP por nivel, con tope en 20. Se publica junto a las estadísticas (`GET /v1/me/stats`: partidas, victorias, derrotas, empates, nivel y progreso). Las partidas contra monstruos cuentan.
+
+**Armas.** Cada personaje usa siempre el arma común de su familia; no hay cambio ni compra de armas. Los monstruos conservan armas de nivel 3 y 4, con veneno o fuego, que son lo que los hace temibles. Se retiran del catálogo todas las armas, las pociones (`use_potion`, inventario y equipaje), los cosméticos y las apariencias.
+
+**Sin viento.** Todas las arenas fijan el viento máximo en 0, así que la partida ya no tiene viento ni lo muestra. El parámetro sigue en la física y en los eventos (siempre 0) para no romper el registro de partidas.
+
+**Modos.** «Jugar» ofrece buscar partida (PvP), modo historia (diez monstruos, único modo contra bots) y partida privada (crear sala con código o unirse con un código). Se elimina la partida rápida contra un monstruo.
+
+**Menú del pueblo.** Sale de la imagen de referencia (`references/ashenfall_town_menu.webp`) con `scripts/build-town.py`: se borran el mensaje de bienvenida, el «+» de las monedas, el botón de salir y los rótulos de la Taberna y del Alquimista. Quedan el Arsenal, el Historial a la izquierda y la barra inferior con Personajes, Jugar y Perfil, que sigue siendo arrastrable y se ilumina al pasar el ratón como el botón central. El perfil muestra el personaje, el nivel y las victorias, derrotas y empates; el historial, las últimas diez partidas con su rival.
+
+**Guía de puntería.** Línea continua y suave que se afina y se desvanece y llega al 72 % de la trayectoria; sin transportador ni ángulo en pantalla. Sin viento, la línea es la trayectoria real.
+
+**Datos.** Las migraciones 007 y 008 se rehicieron en su forma final porque aún no se habían fusionado ni desplegado; la base de datos local se reinició.

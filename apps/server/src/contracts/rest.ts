@@ -75,7 +75,7 @@ const History = Type.Object(
     total: Type.Integer(),
     items: Type.Array(
       Type.Object(
-        { matchId: Id, outcome: Type.String(), reason: Type.String(), rounds: Type.Integer(), endedAt: Timestamp },
+        { matchId: Id, outcome: Type.String(), opponent: Type.String(), reason: Type.String(), rounds: Type.Integer(), endedAt: Timestamp },
         strict,
       ),
     ),
