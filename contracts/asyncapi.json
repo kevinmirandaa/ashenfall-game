@@ -392,6 +392,7 @@
                 "seq",
                 "version",
                 "arenaId",
+                "obstacles",
                 "windAccel",
                 "maxRounds",
                 "round",
@@ -455,6 +456,436 @@
                       "type": "string"
                     }
                   ]
+                },
+                "obstacles": {
+                  "description": "Terreno y objetos sorteados para esta partida; públicos para ambos jugadores",
+                  "type": "array",
+                  "items": {
+                    "additionalProperties": false,
+                    "description": "Rectángulo de colisión de un objeto o bloque de terreno; (x, y) es su esquina inferior izquierda",
+                    "type": "object",
+                    "required": [
+                      "kind",
+                      "x",
+                      "y",
+                      "width",
+                      "height"
+                    ],
+                    "properties": {
+                      "kind": {
+                        "anyOf": [
+                          {
+                            "const": "arch_steps",
+                            "type": "string"
+                          },
+                          {
+                            "const": "pillar_a",
+                            "type": "string"
+                          },
+                          {
+                            "const": "rubble_a",
+                            "type": "string"
+                          },
+                          {
+                            "const": "rubble_stub",
+                            "type": "string"
+                          },
+                          {
+                            "const": "pillar_b",
+                            "type": "string"
+                          },
+                          {
+                            "const": "rubble_b",
+                            "type": "string"
+                          },
+                          {
+                            "const": "angel",
+                            "type": "string"
+                          },
+                          {
+                            "const": "arch_gate",
+                            "type": "string"
+                          },
+                          {
+                            "const": "tower_pillar",
+                            "type": "string"
+                          },
+                          {
+                            "const": "tomb_a",
+                            "type": "string"
+                          },
+                          {
+                            "const": "tomb_b",
+                            "type": "string"
+                          },
+                          {
+                            "const": "deadtree_purple",
+                            "type": "string"
+                          },
+                          {
+                            "const": "tomb_c",
+                            "type": "string"
+                          },
+                          {
+                            "const": "cross_stone",
+                            "type": "string"
+                          },
+                          {
+                            "const": "castle_ruin",
+                            "type": "string"
+                          },
+                          {
+                            "const": "wall_slab",
+                            "type": "string"
+                          },
+                          {
+                            "const": "banner_cross",
+                            "type": "string"
+                          },
+                          {
+                            "const": "shrine_small",
+                            "type": "string"
+                          },
+                          {
+                            "const": "gallows_pole",
+                            "type": "string"
+                          },
+                          {
+                            "const": "torch_sign",
+                            "type": "string"
+                          },
+                          {
+                            "const": "crates_barrels",
+                            "type": "string"
+                          },
+                          {
+                            "const": "oak_a",
+                            "type": "string"
+                          },
+                          {
+                            "const": "oak_b",
+                            "type": "string"
+                          },
+                          {
+                            "const": "bush_a",
+                            "type": "string"
+                          },
+                          {
+                            "const": "bush_b",
+                            "type": "string"
+                          },
+                          {
+                            "const": "deadtree_twisted",
+                            "type": "string"
+                          },
+                          {
+                            "const": "spruce_dark",
+                            "type": "string"
+                          },
+                          {
+                            "const": "spruce_light",
+                            "type": "string"
+                          },
+                          {
+                            "const": "oak_c",
+                            "type": "string"
+                          },
+                          {
+                            "const": "bush_c",
+                            "type": "string"
+                          },
+                          {
+                            "const": "fence_spiked",
+                            "type": "string"
+                          },
+                          {
+                            "const": "boulder_pile",
+                            "type": "string"
+                          },
+                          {
+                            "const": "stump",
+                            "type": "string"
+                          },
+                          {
+                            "const": "bush_d",
+                            "type": "string"
+                          },
+                          {
+                            "const": "fence_dead",
+                            "type": "string"
+                          },
+                          {
+                            "const": "watchtower",
+                            "type": "string"
+                          },
+                          {
+                            "const": "mound_grass",
+                            "type": "string"
+                          },
+                          {
+                            "const": "rocks_mossy",
+                            "type": "string"
+                          },
+                          {
+                            "const": "well",
+                            "type": "string"
+                          },
+                          {
+                            "const": "cart_ruin",
+                            "type": "string"
+                          },
+                          {
+                            "const": "arch_big",
+                            "type": "string"
+                          },
+                          {
+                            "const": "barrel",
+                            "type": "string"
+                          },
+                          {
+                            "const": "log_fallen",
+                            "type": "string"
+                          },
+                          {
+                            "const": "roots_stump",
+                            "type": "string"
+                          },
+                          {
+                            "const": "wood_frame",
+                            "type": "string"
+                          },
+                          {
+                            "const": "cactus_a",
+                            "type": "string"
+                          },
+                          {
+                            "const": "cactus_b",
+                            "type": "string"
+                          },
+                          {
+                            "const": "cactus_c",
+                            "type": "string"
+                          },
+                          {
+                            "const": "rocks_desert",
+                            "type": "string"
+                          },
+                          {
+                            "const": "ribs_skull",
+                            "type": "string"
+                          },
+                          {
+                            "const": "mesa",
+                            "type": "string"
+                          },
+                          {
+                            "const": "arch_desert",
+                            "type": "string"
+                          },
+                          {
+                            "const": "banner_desert",
+                            "type": "string"
+                          },
+                          {
+                            "const": "deadtree_desert",
+                            "type": "string"
+                          },
+                          {
+                            "const": "tower_desert_a",
+                            "type": "string"
+                          },
+                          {
+                            "const": "tower_desert_b",
+                            "type": "string"
+                          },
+                          {
+                            "const": "rock_slab",
+                            "type": "string"
+                          },
+                          {
+                            "const": "rock_big",
+                            "type": "string"
+                          },
+                          {
+                            "const": "gallows_desert",
+                            "type": "string"
+                          },
+                          {
+                            "const": "steps_desert",
+                            "type": "string"
+                          },
+                          {
+                            "const": "spruce_snow_a",
+                            "type": "string"
+                          },
+                          {
+                            "const": "deadtree_snow_a",
+                            "type": "string"
+                          },
+                          {
+                            "const": "wall_stairs_snow",
+                            "type": "string"
+                          },
+                          {
+                            "const": "pines_snow_pair",
+                            "type": "string"
+                          },
+                          {
+                            "const": "spruce_snow_b",
+                            "type": "string"
+                          },
+                          {
+                            "const": "mound_snow",
+                            "type": "string"
+                          },
+                          {
+                            "const": "arch_snow",
+                            "type": "string"
+                          },
+                          {
+                            "const": "tomb_snow",
+                            "type": "string"
+                          },
+                          {
+                            "const": "crate_snow",
+                            "type": "string"
+                          },
+                          {
+                            "const": "deadtree_snow_b",
+                            "type": "string"
+                          },
+                          {
+                            "const": "spruce_snow_c",
+                            "type": "string"
+                          },
+                          {
+                            "const": "pine_cluster_snow",
+                            "type": "string"
+                          },
+                          {
+                            "const": "sapling_snow",
+                            "type": "string"
+                          },
+                          {
+                            "const": "pillar_snow",
+                            "type": "string"
+                          },
+                          {
+                            "const": "gallows_snow",
+                            "type": "string"
+                          },
+                          {
+                            "const": "fence_snow",
+                            "type": "string"
+                          },
+                          {
+                            "const": "deadtree_fog",
+                            "type": "string"
+                          },
+                          {
+                            "const": "shrine_gothic",
+                            "type": "string"
+                          },
+                          {
+                            "const": "tomb_tall",
+                            "type": "string"
+                          },
+                          {
+                            "const": "pine_frost",
+                            "type": "string"
+                          },
+                          {
+                            "const": "angel_dark",
+                            "type": "string"
+                          },
+                          {
+                            "const": "tombs_pair",
+                            "type": "string"
+                          },
+                          {
+                            "const": "gate_spiked",
+                            "type": "string"
+                          },
+                          {
+                            "const": "banner_dark",
+                            "type": "string"
+                          },
+                          {
+                            "const": "arch_dark",
+                            "type": "string"
+                          },
+                          {
+                            "const": "lamp_post",
+                            "type": "string"
+                          },
+                          {
+                            "const": "chapel_lit",
+                            "type": "string"
+                          },
+                          {
+                            "const": "wood_stand",
+                            "type": "string"
+                          },
+                          {
+                            "const": "flame_pedestal",
+                            "type": "string"
+                          },
+                          {
+                            "const": "cross_big",
+                            "type": "string"
+                          },
+                          {
+                            "const": "gate_wide",
+                            "type": "string"
+                          },
+                          {
+                            "const": "cliff_snow_small",
+                            "type": "string"
+                          },
+                          {
+                            "const": "banner_red",
+                            "type": "string"
+                          },
+                          {
+                            "const": "gallows_cage",
+                            "type": "string"
+                          },
+                          {
+                            "const": "crates_stack",
+                            "type": "string"
+                          },
+                          {
+                            "const": "cage_hanger",
+                            "type": "string"
+                          },
+                          {
+                            "const": "rock_golem",
+                            "type": "string"
+                          },
+                          {
+                            "const": "terrain",
+                            "type": "string"
+                          }
+                        ]
+                      },
+                      "x": {
+                        "type": "number"
+                      },
+                      "y": {
+                        "type": "number"
+                      },
+                      "width": {
+                        "type": "number"
+                      },
+                      "height": {
+                        "type": "number"
+                      },
+                      "flip": {
+                        "description": "Copia especular del lado derecho; solo cambia el dibujo",
+                        "type": "boolean"
+                      }
+                    }
+                  }
                 },
                 "windAccel": {
                   "type": "number"
@@ -1139,10 +1570,49 @@
                 "seq": 3,
                 "version": 3,
                 "arenaId": "frozen_bridge",
+                "obstacles": [
+                  {
+                    "kind": "terrain",
+                    "x": 0,
+                    "y": 0,
+                    "width": 540,
+                    "height": 60
+                  },
+                  {
+                    "kind": "spruce_snow_a",
+                    "x": 760,
+                    "y": 0,
+                    "width": 28,
+                    "height": 98
+                  },
+                  {
+                    "kind": "arch_snow",
+                    "x": 918,
+                    "y": 0,
+                    "width": 164,
+                    "height": 150
+                  },
+                  {
+                    "kind": "spruce_snow_a",
+                    "x": 1212,
+                    "y": 0,
+                    "width": 28,
+                    "height": 98,
+                    "flip": true
+                  },
+                  {
+                    "kind": "terrain",
+                    "x": 1460,
+                    "y": 0,
+                    "width": 540,
+                    "height": 60,
+                    "flip": true
+                  }
+                ],
                 "windAccel": -40,
                 "maxRounds": 12,
                 "round": 1,
-                "physicsVersion": 4,
+                "physicsVersion": 5,
                 "turn": {
                   "playerId": "c4e8a1d2-7b36-49f0-a5c3-1f2e6d8b0a33",
                   "round": 1,
@@ -1245,6 +1715,7 @@
                             "seq",
                             "version",
                             "arenaId",
+                            "obstacles",
                             "windAccel",
                             "maxRounds",
                             "round",
@@ -1308,6 +1779,436 @@
                                   "type": "string"
                                 }
                               ]
+                            },
+                            "obstacles": {
+                              "description": "Terreno y objetos sorteados para esta partida; públicos para ambos jugadores",
+                              "type": "array",
+                              "items": {
+                                "additionalProperties": false,
+                                "description": "Rectángulo de colisión de un objeto o bloque de terreno; (x, y) es su esquina inferior izquierda",
+                                "type": "object",
+                                "required": [
+                                  "kind",
+                                  "x",
+                                  "y",
+                                  "width",
+                                  "height"
+                                ],
+                                "properties": {
+                                  "kind": {
+                                    "anyOf": [
+                                      {
+                                        "const": "arch_steps",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "pillar_a",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "rubble_a",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "rubble_stub",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "pillar_b",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "rubble_b",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "angel",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "arch_gate",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "tower_pillar",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "tomb_a",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "tomb_b",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "deadtree_purple",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "tomb_c",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "cross_stone",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "castle_ruin",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "wall_slab",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "banner_cross",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "shrine_small",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "gallows_pole",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "torch_sign",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "crates_barrels",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "oak_a",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "oak_b",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "bush_a",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "bush_b",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "deadtree_twisted",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "spruce_dark",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "spruce_light",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "oak_c",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "bush_c",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "fence_spiked",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "boulder_pile",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "stump",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "bush_d",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "fence_dead",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "watchtower",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "mound_grass",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "rocks_mossy",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "well",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "cart_ruin",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "arch_big",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "barrel",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "log_fallen",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "roots_stump",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "wood_frame",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "cactus_a",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "cactus_b",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "cactus_c",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "rocks_desert",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "ribs_skull",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "mesa",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "arch_desert",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "banner_desert",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "deadtree_desert",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "tower_desert_a",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "tower_desert_b",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "rock_slab",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "rock_big",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "gallows_desert",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "steps_desert",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "spruce_snow_a",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "deadtree_snow_a",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "wall_stairs_snow",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "pines_snow_pair",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "spruce_snow_b",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "mound_snow",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "arch_snow",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "tomb_snow",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "crate_snow",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "deadtree_snow_b",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "spruce_snow_c",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "pine_cluster_snow",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "sapling_snow",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "pillar_snow",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "gallows_snow",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "fence_snow",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "deadtree_fog",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "shrine_gothic",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "tomb_tall",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "pine_frost",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "angel_dark",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "tombs_pair",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "gate_spiked",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "banner_dark",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "arch_dark",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "lamp_post",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "chapel_lit",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "wood_stand",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "flame_pedestal",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "cross_big",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "gate_wide",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "cliff_snow_small",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "banner_red",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "gallows_cage",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "crates_stack",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "cage_hanger",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "rock_golem",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "const": "terrain",
+                                        "type": "string"
+                                      }
+                                    ]
+                                  },
+                                  "x": {
+                                    "type": "number"
+                                  },
+                                  "y": {
+                                    "type": "number"
+                                  },
+                                  "width": {
+                                    "type": "number"
+                                  },
+                                  "height": {
+                                    "type": "number"
+                                  },
+                                  "flip": {
+                                    "description": "Copia especular del lado derecho; solo cambia el dibujo",
+                                    "type": "boolean"
+                                  }
+                                }
+                              }
                             },
                             "windAccel": {
                               "type": "number"
