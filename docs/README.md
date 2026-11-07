@@ -1,8 +1,11 @@
 # Documentación de ASHENFALL
 
-Toda la documentación del proyecto vive en esta carpeta. En la raíz del repositorio solo quedan, por convención, [README.md](../README.md) (cómo correrlo), [CHANGELOG.md](../CHANGELOG.md) (cambios por ticket) y `CLAUDE.md` (contexto para el asistente).
+Toda la documentación del proyecto vive en esta carpeta. En la raíz del repositorio solo quedan, por convención, [README.md](../README.md) (historia, cómo jugar y enlace al juego), [CHANGELOG.md](../CHANGELOG.md) (cambios por ticket) y `CLAUDE.md` (contexto para el asistente).
 
 Si dos documentos se contradicen, manda este orden: el enunciado del curso (`Proyecto3.pdf`, no versionado), luego [DECISIONS.md](DECISIONS.md) y por último el brief de diseño.
+
+## Jugar
+- [jugar-en-local.md](jugar-en-local.md): correr el juego en tu equipo con Docker, y comandos de desarrollo y pruebas.
 
 ## Cumplimiento
 - [cumplimiento-enunciado.md](cumplimiento-enunciado.md): matriz de cada requisito del enunciado con su evidencia (código, prueba, documento, workflow o Bicep), su estado y lo que queda pendiente.

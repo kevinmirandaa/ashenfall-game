@@ -51,8 +51,9 @@ button.primary:hover:not(:disabled) { background: linear-gradient(#37436a, #232b
 
 /* Acceso */
 .login .backdrop { filter: brightness(0.7); }
-.logo { position: absolute; left: 50%; top: 22px; width: 520px; transform: translateX(-50%); pointer-events: none !important; }
-.login-box { position: absolute; left: 50%; top: 214px; width: 440px; transform: translateX(-50%); }
+.emblem { position: absolute; left: 50%; top: 8px; height: 124px; transform: translateX(-50%); filter: drop-shadow(0 4px 10px #000a); pointer-events: none !important; }
+.logo { position: absolute; left: 50%; top: 128px; width: 400px; transform: translateX(-50%); pointer-events: none !important; }
+.login-box { position: absolute; left: 50%; top: 262px; width: 440px; transform: translateX(-50%); }
 #auth { display: grid; gap: 10px; }
 #auth label { display: grid; gap: 3px; color: var(--gold); font-size: 15px; }
 #auth small { color: var(--dim); }
