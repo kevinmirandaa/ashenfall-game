@@ -30,6 +30,7 @@ ContainerAppConsoleLogs
 ## Sondas
 - `/health/live`: el proceso responde; sin dependencias y sin límite de tasa.
 - `/health/ready`: PostgreSQL y Redis responden; 503 si alguno falla, sin detalles.
+- Las sondas y los ficheros estáticos no escriben registro de petición (nivel `warn`): llegan cada pocos segundos y solo encarecerían Log Analytics. Un fallo de disponibilidad sí se registra.
 
 ## Alertas (`infra/main.bicep`)
 

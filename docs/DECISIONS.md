@@ -48,6 +48,13 @@ El próximo plazo se guarda en `matches.next_deadline_ms` y todas las réplicas 
 ## D13. Cliente ligero
 Phaser con renderizador Canvas y arte por código, servido por el propio servidor: sin otro servicio que pagar y sin CORS. La guía muestra solo el 30 % inicial del arco, porque la posición del rival es visible y una guía completa haría trivial apuntar. Con la pestaña oculta se omiten las animaciones para que la partida no se detenga.
 
+## D14. Recursos mínimos en el navegador, el servidor y Azure (SCRUM-70)
+- **Cliente**: cada partida descarga solo su arte (dos cuerpos, sus armas, un fondo, un terreno y el atlas); nada pesado antes de iniciar sesión. Una partida que llega mientras faltan texturas espera, igual que antes de `preload`. Phaser va en un fichero aparte para que la caché sobreviva a los despliegues. El atlas de obstáculos pasa a WebP con pérdida (calidad 90, alfa exacto): −65 % de peso con una diferencia media de ~2,6/255 por canal.
+- **Estáticos**: brotli y gzip precalculados en el build (cero CPU por petición) y caché `immutable` para `/assets`, una hora para `/art`, `no-cache` para el HTML. Sin registros de petición para estáticos ni sondas.
+- **PostgreSQL**: una jugada son 5 idas y vueltas en vez de 7; el listado de salas, 2 consultas en vez de 1 + 2 por sala; la limpieza de cola y salas, cada 30 s en vez de cada segundo.
+- **Azure**: dev con el contenedor mínimo, heap de Node acotado, sin copiar métricas de plataforma a Log Analytics y disco de PostgreSQL sin crecimiento automático. Lo que reduce capacidad o disponibilidad (prod más pequeño, prod a cero réplicas, ACR compartido) queda como decisión del usuario en [azure-cost.md](azure-cost.md).
+- Cifras antes y después en [optimizacion.md](optimizacion.md).
+
 ## Pendientes
 - Valores de armas: son iniciales y no se han probado jugando.
 

@@ -5,7 +5,7 @@ Toda la documentación del proyecto vive en esta carpeta. En la raíz del reposi
 Si dos documentos se contradicen, manda este orden: el enunciado del curso (`Proyecto3.pdf`, no versionado), luego [DECISIONS.md](DECISIONS.md) y por último el brief de diseño.
 
 ## Arquitectura y decisiones
-- [DECISIONS.md](DECISIONS.md): decisiones de arquitectura y de juego (D1 a D13) y cambios de diseño por ticket. SCRUM-66 reemplaza lo anterior sobre armas, pociones, viento y cosméticos.
+- [DECISIONS.md](DECISIONS.md): decisiones de arquitectura y de juego (D1 a D14) y cambios de diseño por ticket. SCRUM-66 reemplaza lo anterior sobre armas, pociones, viento y cosméticos.
 - [ASHENFALL_MASTER_BRIEF.md](ASHENFALL_MASTER_BRIEF.md): brief original de diseño, arte y arquitectura. Es histórico: describe edificios, pociones, cosméticos y viento que ya no existen; para el estado actual vale DECISIONS.md.
 
 ## Contratos
@@ -16,7 +16,8 @@ Si dos documentos se contradicen, manda este orden: el enunciado del curso (`Pro
 
 ## Rendimiento
 - [load-report.md](load-report.md): prueba de carga reproducible, punto de quiebre y optimización medida (antes y después).
-- [load/](load/): resultados crudos de esas ejecuciones (`before.json`, `break.json`, `storm.json`).
+- [optimizacion.md](optimizacion.md): peso de descarga del cliente, compresión y caché, CPU y consultas del servidor, imagen Docker y coste en Azure, con cifras antes y después.
+- [load/](load/): resultados crudos de esas ejecuciones (`before.json`, `break.json`, `storm.json`, `opt-quiebre-*.json`).
 
 ## Observabilidad
 - [observability.md](observability.md): métricas propias, trazas, logs correlacionados por partida, sondas y alertas.
