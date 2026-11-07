@@ -1,6 +1,6 @@
 /**
- * Familias de arma: cada personaje pertenece a una y solo puede cambiar su arma por otra de la misma familia.
- * Dentro de una familia hay tres niveles: el común (gratis), uno mejor y uno especial con veneno o fuego.
+ * Familias de arma: cada personaje pertenece a una y usa siempre su arma común (SCRUM-66: no hay cambio de armas).
+ * Los niveles superiores de cada familia, los dos últimos con veneno o fuego, solo los llevan los monstruos.
  */
 export const WEAPON_FAMILIES = ['dagger', 'bow', 'crossbow', 'axe', 'sword', 'staff', 'flask', 'mace'] as const;
 export type WeaponFamily = (typeof WEAPON_FAMILIES)[number];
@@ -74,7 +74,7 @@ export interface WeaponProfile {
   /** Radio de colisión del proyectil, en unidades de mundo. */
   readonly radius: number;
   readonly baseDamage: number;
-  /** Marcas de Ceniza; 0 para el arma común. */
+  /** Precio de cuando se vendían armas; hoy no se vende ninguna y solo lo comprueban las pruebas de equilibrio. */
   readonly price: number;
   readonly effect?: WeaponEffect;
 }
@@ -99,8 +99,7 @@ interface FamilyBase {
 }
 
 /**
- * Ligeras: rápidas y tensas. Pesadas: lentas y de arco pronunciado. Los niveles 2 y 3 dejan veneno o fuego
- * y cuestan mucho: el dinero se gasta poco a poco y la habilidad crece con él.
+ * Ligeras: rápidas y tensas. Pesadas: lentas y de arco pronunciado. Los niveles 3 y 4 dejan veneno o fuego.
  */
 const FAMILY_BASE: Readonly<Record<WeaponFamily, FamilyBase>> = {
   dagger: { weight: 1, maxSpeed: 1550, gravityScale: 0.75, windScale: 0.6, radius: 5, tiers: [
@@ -159,7 +158,7 @@ export const WEAPONS: Readonly<Record<WeaponId, WeaponProfile>> = Object.fromEnt
   WEAPON_FAMILIES.flatMap((family) => TIERS.map((tier) => [`${family}${suffix(tier)}`, buildWeapon(family, tier)] as const)),
 ) as Record<WeaponId, WeaponProfile>;
 
-/** Arma común de cada personaje: la que usa mientras no equipe otra de su familia. */
+/** Arma común de cada personaje: la única que usa. */
 export function starterWeapon(characterId: CharacterId): WeaponId {
   return CHARACTER_FAMILY[characterId];
 }
@@ -168,10 +167,6 @@ export const MAX_DAMAGE_PER_SHOT = 36;
 
 export function isWeaponId(value: string): value is WeaponId {
   return (WEAPON_IDS as readonly string[]).includes(value);
-}
-
-export function weaponFamilyOf(id: WeaponId): WeaponFamily {
-  return WEAPONS[id].family;
 }
 
 /** Daño directo, entero y acotado, según el nivel de potencia y la zona alcanzada. */

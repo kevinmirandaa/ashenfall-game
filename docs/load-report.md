@@ -20,7 +20,7 @@ node apps/bot/dist/load.js --steps 200,400,800 --think-ms 100 --shots 20 --no-st
 ```bash
 node apps/bot/dist/load.js --steps 100 --think-ms 1000 --shots 12 --login-storm 100 --container ashenfall-server-1 --db-container ashenfall-postgres-1 --out load-results/pico.json
 ```
-Los datos crudos están en [docs/load/](load/). `docker-compose.load.yml` desactiva en la práctica los límites de tasa, porque todos los bots comparten IP.
+Los datos crudos están en [load/](load/). `docker-compose.load.yml` desactiva en la práctica los límites de tasa, porque todos los bots comparten IP.
 
 ## Ritmo de un disparo por segundo y partida
 Sin jugadas perdidas ni duplicadas y sin errores en ningún escalón. Esta serie se midió antes de cambiar Argon2, que no interviene durante la partida.

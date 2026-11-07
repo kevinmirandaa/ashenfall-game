@@ -36,7 +36,7 @@ SCRUM-35 proponía un bloqueo en Redis. En su lugar, cada réplica ordena sus ju
 El próximo plazo se guarda en `matches.next_deadline_ms` y todas las réplicas lo barren. Repetir un barrido es inofensivo. Tras una caída brusca no se registra la desconexión, y esas partidas terminan por los timeouts de turno.
 
 ## D11. Argon2id acotado
-19 MiB, t=2, p=1 (mínimo de OWASP), una contraseña a la vez y fila de 32. Lo que no cabe recibe 503. Protege las partidas en curso a costa de rechazar logins en un pico. Ver [docs/load-report.md](docs/load-report.md).
+19 MiB, t=2, p=1 (mínimo de OWASP), una contraseña a la vez y fila de 32. Lo que no cabe recibe 503. Protege las partidas en curso a costa de rechazar logins en un pico. Ver [load-report.md](load-report.md).
 
 ## D12. Azure: Redis en Container Apps sin contraseña y otras sustituciones
 - Redis corre como Container App (`redis:7-alpine`, ingress TCP interno, 0,25 CPU) en vez de Azure Cache for Redis, por costo en Azure for Students. No tiene contraseña: la frontera es la red (solo es alcanzable dentro del entorno de Container Apps, sin ingress externo). Redis guarda solo estado caliente (presencia, difusión entre réplicas, límites de tasa); la verdad está en PostgreSQL, así que perderlo no pierde partidas ni monedas. Sin persistencia (`--save "" --appendonly no`).

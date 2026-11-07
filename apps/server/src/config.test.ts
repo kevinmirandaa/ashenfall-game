@@ -26,4 +26,12 @@ describe('loadConfig', () => {
     expect(config.allowedOrigins).toEqual(['https://a.test', 'https://b.test']);
     expect(config.trustProxy).toBe(true);
   });
+
+  it('no arranca con un número mal escrito en el puerto o en los límites de tasa', () => {
+    const valid = { ...base, JWT_SECRET: 'x'.repeat(32) };
+    expect(loadConfig(valid).port).toBe(8080);
+    expect(loadConfig({ ...valid, PORT: '9090', RATE_LIMIT_AUTH_PER_MINUTE: '5' })).toMatchObject({ port: 9090, rateLimit: { authPerMinute: 5 } });
+    expect(() => loadConfig({ ...valid, PORT: 'ocho' })).toThrow(/PORT/);
+    expect(() => loadConfig({ ...valid, RATE_LIMIT_GLOBAL_PER_MINUTE: '0' })).toThrow(/RATE_LIMIT_GLOBAL_PER_MINUTE/);
+  });
 });

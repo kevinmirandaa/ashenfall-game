@@ -29,8 +29,10 @@ export class LoginThrottle {
   private async hitRedis(redis: Redis, key: string): Promise<{ count: number; retryAfterSeconds: number }> {
     try {
       const count = await redis.incr(key);
-      if (count === 1) await redis.expire(key, WINDOW_SECONDS);
       const ttl = await redis.ttl(key);
+      // -1: la clave no caduca. Pasa en el primer intento y también si una réplica cayó entre INCR y EXPIRE;
+      // sin esto ese contador nunca se borraría y la cuenta quedaría bloqueada para siempre.
+      if (ttl === -1) await redis.expire(key, WINDOW_SECONDS);
       return { count, retryAfterSeconds: ttl > 0 ? ttl : WINDOW_SECONDS };
     } catch {
       // Si Redis cae, sigue el contador local: el límite se debilita a uno por réplica, pero no desaparece.

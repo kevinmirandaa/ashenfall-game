@@ -1,5 +1,5 @@
 /** Datos de personajes y acceso al arte recortado de las hojas de referencia (public/art). */
-import { CHARACTER_FAMILY, type CharacterId, type FighterId, type WeaponFamily } from '@ashenfall/domain';
+import type { CharacterId, FighterId, WeaponFamily } from '@ashenfall/domain';
 
 export type { CharacterId, FighterId } from '@ashenfall/domain';
 export const FAMILY_LABEL: Readonly<Record<WeaponFamily, string>> = {
@@ -24,9 +24,6 @@ export const CHARACTERS: readonly { id: CharacterId; name: string; race: string;
   { id: 'morveth', name: 'Morveth', race: 'El Hechicero Errante', lore: 'Dicen que murió hace siglos; él discute el detalle.' },
   { id: 'rurik', name: 'Rurik', race: 'Cazador de Maldiciones', lore: 'Rastrea monstruos con una ballesta y mucha costumbre.' },
 ];
-/** Familia del arma de cada personaje: también es el nombre de su icono. */
-export const DEFAULT_WEAPON: Readonly<Record<CharacterId, WeaponFamily>> = CHARACTER_FAMILY;
-
 /** Cómo se dibuja un luchador: solo su personaje o monstruo, sin apariencias sueltas. */
 export interface Look {
   character: FighterId;
