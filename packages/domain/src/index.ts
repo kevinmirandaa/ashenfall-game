@@ -3,7 +3,7 @@ export * from './bot.js';
 export * from './match.js';
 export * from './monsters.js';
 export * from './physics.js';
-export * from './potions.js';
+export * from './progression.js';
 export * from './types.js';
 export * from './view.js';
 export * from './weapons.js';

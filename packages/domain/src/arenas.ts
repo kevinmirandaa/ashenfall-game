@@ -21,7 +21,7 @@ export interface ArenaDefinition {
   readonly width: number;
   readonly obstacles: readonly Obstacle[];
   readonly spawnPairs: readonly SpawnPair[];
-  /** El viento de la partida se sortea en [-maxWind, +maxWind], en unidades por segundo². */
+  /** Viento máximo en unidades por segundo². Todas las arenas lo dejan en 0: la versión estable no tiene viento. */
   readonly maxWind: number;
 }
 
@@ -49,49 +49,49 @@ export const ARENAS: Readonly<Record<ArenaId, ArenaDefinition>> = {
   hamlet_ruins: {
     id: 'hamlet_ruins',
     width: ARENA_WIDTH,
-    maxWind: 60,
+    maxWind: 0,
     obstacles: [central('ruinwall', 90, 170), ...mirrored('crate', 700, 64, 56), ...mirrored('boulder', 860, 70, 74)],
     spawnPairs: [mirroredPair(300), mirroredPair(380), mirroredPair(460)],
   },
   graveyard: {
     id: 'graveyard',
     width: ARENA_WIDTH,
-    maxWind: 70,
+    maxWind: 0,
     obstacles: [central('tombstone', 84, 190), ...mirrored('tombstone', 700, 60, 100), ...mirrored('tombstone', 880, 52, 62)],
     spawnPairs: [mirroredPair(300), mirroredPair(380), mirroredPair(460)],
   },
   ember_desert: {
     id: 'ember_desert',
     width: ARENA_WIDTH,
-    maxWind: 100,
+    maxWind: 0,
     obstacles: [central('column', 120, 190), ...mirrored('cactus', 700, 56, 130), ...mirrored('boulder', 880, 66, 68)],
     spawnPairs: [mirroredPair(300), mirroredPair(380), mirroredPair(460)],
   },
   misty_pines: {
     id: 'misty_pines',
     width: ARENA_WIDTH,
-    maxWind: 60,
+    maxWind: 0,
     obstacles: [central('deadtree', 90, 200), ...mirrored('boulder', 680, 90, 84), ...mirrored('stump', 860, 58, 50)],
     spawnPairs: [mirroredPair(300), mirroredPair(380), mirroredPair(460)],
   },
   frozen_bridge: {
     id: 'frozen_bridge',
     width: ARENA_WIDTH,
-    maxWind: 120,
+    maxWind: 0,
     obstacles: [central('ice', 100, 180), ...mirrored('boulder', 690, 76, 72), ...mirrored('ice', 860, 56, 60)],
     spawnPairs: [mirroredPair(300), mirroredPair(380), mirroredPair(460)],
   },
   blood_keep: {
     id: 'blood_keep',
     width: ARENA_WIDTH,
-    maxWind: 80,
+    maxWind: 0,
     obstacles: [central('ruinwall', 110, 200), ...mirrored('column', 690, 64, 130), ...mirrored('boulder', 870, 64, 62)],
     spawnPairs: [mirroredPair(300), mirroredPair(380), mirroredPair(460)],
   },
   fog_ruins: {
     id: 'fog_ruins',
     width: ARENA_WIDTH,
-    maxWind: 90,
+    maxWind: 0,
     obstacles: [central('column', 90, 180), ...mirrored('ruinwall', 680, 110, 96), ...mirrored('crate', 880, 60, 54)],
     spawnPairs: [mirroredPair(300), mirroredPair(380), mirroredPair(460)],
   },

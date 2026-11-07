@@ -108,7 +108,7 @@ describe('createMatchSetup', () => {
     expect(() => createMatchSetup({ matchId: 'm', playerIds: [A, A] }, zeroRandom)).toThrow(MatchInvariantError);
   });
 
-  it('usa todo lo que el azar del servidor decide: arena, lados, viento y primer turno', () => {
+  it('usa todo lo que el azar del servidor decide: arena, lados y primer turno; el viento es siempre cero', () => {
     const seen = {
       arenas: new Set<string>(),
       winds: new Set<number>(),
@@ -127,7 +127,8 @@ describe('createMatchSetup', () => {
       expect(Math.abs(result.windAccel)).toBeLessThanOrEqual(ARENAS[result.arenaId].maxWind);
     }
     expect(seen.arenas.size).toBe(ARENA_IDS.length);
-    expect(seen.winds.size).toBeGreaterThan(1);
+    // La versión estable no tiene viento: todas las arenas lo dejan en cero.
+    expect(seen.winds).toEqual(new Set([0]));
     expect(seen.leftPlayers).toEqual(new Set([A, B]));
     expect(seen.first).toEqual(new Set([A, B]));
   });

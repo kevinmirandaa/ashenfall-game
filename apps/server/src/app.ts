@@ -21,8 +21,8 @@ import { logMatchEvents } from './telemetry/match-logs.js';
 import { defaultTelemetry, type Telemetry } from './telemetry/telemetry.js';
 import { problemBody, ProblemError } from './problem.js';
 import { registerBotRoutes } from './matches/bot-routes.js';
+import { registerStatsRoute } from './matches/stats.js';
 import { MatchSweeper } from './matches/sweeper.js';
-import { registerPotionRoutes } from './shop/potions.js';
 import { RedisEventBus } from './realtime/event-bus.js';
 import { Presence } from './realtime/presence.js';
 import { RealtimeGateway, type GatewayOptions } from './realtime/gateway.js';
@@ -236,8 +236,8 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
 
     registerHistoryRoutes(api, auth, dependencies.pool, store);
     registerBotRoutes(api, auth, dependencies.pool, announceMatch);
+    registerStatsRoute(api, auth, dependencies.pool);
     registerShopRoutes(api, auth, dependencies.pool);
-    registerPotionRoutes(api, auth, dependencies.pool);
     registerAdminRoutes(api, auth, dependencies.pool, engine, (userId) => bus?.publishUserSuspended(userId));
 
     if (realtime !== undefined && bus !== null) {

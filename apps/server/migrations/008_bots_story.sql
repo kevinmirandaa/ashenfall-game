@@ -1,4 +1,4 @@
--- Modo contra bot e historia, y pociones.
+-- Modo historia contra monstruos.
 -- Los monstruos son usuarios de verdad (sin contraseña) para que partidas, historial y claves foráneas funcionen igual
 -- que con humanos; nadie puede iniciar sesión con ellos.
 ALTER TABLE users ADD COLUMN is_bot boolean NOT NULL DEFAULT false;
@@ -19,8 +19,8 @@ ALTER TABLE match_players ADD COLUMN is_bot boolean NOT NULL DEFAULT false;
 DROP INDEX match_players_one_active;
 CREATE UNIQUE INDEX match_players_one_active ON match_players (user_id) WHERE active AND NOT is_bot;
 
--- pvp: dos humanos; quick: partida rápida contra un monstruo al azar; story: nivel del modo historia.
-ALTER TABLE matches ADD COLUMN mode text NOT NULL DEFAULT 'pvp' CHECK (mode IN ('pvp', 'quick', 'story'));
+-- pvp: dos humanos; story: nivel del modo historia contra un monstruo.
+ALTER TABLE matches ADD COLUMN mode text NOT NULL DEFAULT 'pvp' CHECK (mode IN ('pvp', 'story'));
 ALTER TABLE matches ADD COLUMN monster_id text;
 ALTER TABLE matches ADD COLUMN reward integer NOT NULL DEFAULT 100 CHECK (reward >= 0);
 -- Instante a partir del cual le toca mover al bot. Vive en la base para que cualquier réplica lo retome tras un reinicio.
@@ -31,12 +31,3 @@ CREATE TABLE story_progress (
   user_id uuid PRIMARY KEY REFERENCES users (id) ON DELETE CASCADE,
   cleared integer NOT NULL DEFAULT 0 CHECK (cleared >= 0)
 );
-
--- Pociones: cantidad por tipo y las que se llevarán a la próxima partida (se descuentan al empezarla).
-CREATE TABLE player_potions (
-  user_id   uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
-  potion_id text NOT NULL,
-  quantity  integer NOT NULL CHECK (quantity >= 0),
-  PRIMARY KEY (user_id, potion_id)
-);
-ALTER TABLE users ADD COLUMN potion_loadout jsonb NOT NULL DEFAULT '[]'::jsonb;
