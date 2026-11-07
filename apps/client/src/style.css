@@ -189,7 +189,15 @@ input[type='range']:disabled { cursor: not-allowed; }
 .meter u { display: block; height: 100%; width: 0; background: linear-gradient(to right, #3f8fb0, #d8b47a 50%, #c0392b); background-size: 420px 100%; }
 .hint { margin: 0; font-size: 14px; color: var(--dim); text-align: right; }
 
-.dock { position: absolute; cursor: grab; user-select: none; touch-action: none; }
-.dock img { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
-.dock.dragging { cursor: grabbing; filter: drop-shadow(0 8px 14px #000c); z-index: 5; }
-.dock .hotspot { cursor: pointer; }
+/* Barra inferior del pueblo: panel oscuro con marco de bronce, arrastrable. */
+.dock { position: absolute; display: flex; align-items: stretch; gap: 10px; padding: 10px 18px 10px 26px; box-sizing: border-box; cursor: grab; user-select: none; touch-action: none; background: linear-gradient(#17131dee, #0d0a12f2); border: 2px solid #6b5334; box-shadow: inset 0 0 0 2px #0d0a12, inset 0 0 0 3px #3c2f20, 0 8px 22px #000b; clip-path: polygon(14px 0, calc(100% - 14px) 0, 100% 14px, 100% calc(100% - 14px), calc(100% - 14px) 100%, 14px 100%, 0 calc(100% - 14px), 0 14px); }
+.dock-grip { position: absolute; left: 8px; top: 50%; width: 6px; height: 34px; transform: translateY(-50%); background: repeating-linear-gradient(#8a6a40 0 4px, transparent 4px 8px); opacity: .7; }
+.dock-btn { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; background: #1a1620; border: 2px solid #3c2f20; color: #e8d8b0; font: inherit; font-size: 20px; cursor: pointer; padding: 0 12px; transition: background 140ms, border-color 140ms, box-shadow 140ms, transform 140ms; }
+.dock-btn img { height: 42px; image-rendering: pixelated; pointer-events: none; filter: drop-shadow(0 2px 2px #000a); }
+.dock-btn:hover, .dock-btn:focus-visible { background: #2a2230; border-color: #c9a05a; box-shadow: 0 0 18px #f0c07a55; outline: 0; transform: translateY(-2px); }
+.dock-btn:active { transform: translateY(1px); }
+.dock-btn.primary { flex: 1.35; border-color: #c9a05a; background: linear-gradient(#34281c, #1d1710); color: #fff1cf; box-shadow: 0 0 16px #f0b24a33; }
+.dock-btn.primary img { height: 48px; }
+.dock.dragging { cursor: grabbing; filter: drop-shadow(0 10px 16px #000c); z-index: 5; }
+.slider { display: flex; align-items: center; justify-content: space-between; gap: 14px; font-size: 20px; }
+.slider input { flex: 1; accent-color: #c9a05a; }

@@ -11,6 +11,7 @@ import {
   type WeaponId,
 } from '@ashenfall/domain';
 import Phaser from 'phaser';
+import { audio } from './audio.js';
 import { bodyTint, CHARACTERS, DEFAULT_WEAPON, type CharacterId, type Look } from './art.js';
 import { BIOME_ART, drawGround, GROUND_DEPTH, GROUND_HEADROOM, WORLD_LEFT, WORLD_WIDTH } from './biomes.js';
 
@@ -169,6 +170,7 @@ export class ArenaScene extends Phaser.Scene {
       if (!this.canAim || pointer.rightButtonDown()) return;
       this.anchor = { x: pointer.x, y: pointer.y };
       this.pullReady = false;
+      audio.sfx('stretch');
       this.power = POWER_MIN;
       this.drawBand(pointer);
       this.hooks.onAim();
@@ -240,7 +242,13 @@ export class ArenaScene extends Phaser.Scene {
   /** Los eventos se animan en orden, uno tras otro, en ambos jugadores. */
   applyEvent(payload: PlayerEventPayload): void {
     if (payload.type === 'shot_resolved') this.enqueue(() => this.playShot(payload));
-    if (payload.type === 'turn_started') this.enqueue(() => this.focusShooter());
+    if (payload.type === 'turn_started') {
+      const mine = payload.playerId === this.view?.you.playerId;
+      this.enqueue(async () => {
+        if (mine) audio.sfx('turn');
+        await this.focusShooter();
+      });
+    }
   }
 
   get busy(): boolean {
@@ -279,17 +287,63 @@ export class ArenaScene extends Phaser.Scene {
       return { from, to: point, length: Math.hypot(point.x - from.x, point.y - from.y) };
     });
     const shownLength = segments.reduce((sum, segment) => sum + segment.length, 0) * GUIDE_FRACTION;
-    guide.fillStyle(0xf4efdf, 0.95);
+    // Puntos que se achican y se desvanecen con la distancia: se lee la curva sin ver dónde cae.
     let walked = 0;
     let nextDot = GUIDE_SPACING;
     for (const { from, to, length } of segments) {
       while (nextDot <= walked + length && nextDot <= shownLength) {
         const t = (nextDot - walked) / length;
-        guide.fillRect(Math.round(from.x + (to.x - from.x) * t) - 2, Math.round(from.y + (to.y - from.y) * t) - 2, 4, 4);
+        const fade = 1 - nextDot / Math.max(1, shownLength);
+        const size = 3 + Math.round(fade * 4);
+        const dotX = Math.round(from.x + (to.x - from.x) * t) - size / 2;
+        const dotY = Math.round(from.y + (to.y - from.y) * t) - size / 2;
+        // Contorno oscuro: se lee igual sobre la nieve clara que sobre el bosque oscuro.
+        guide.fillStyle(0x15101a, 0.55 + fade * 0.4);
+        guide.fillRect(dotX - 2, dotY - 2, size + 4, size + 4);
+        guide.fillStyle(fade > 0.6 ? 0xfff4d6 : 0xf0d9a0, 0.5 + fade * 0.5);
+        guide.fillRect(dotX, dotY, size, size);
         nextDot += GUIDE_SPACING;
       }
       walked += length;
     }
+    this.drawProtractor(guide, muzzlePosition(side.position, side.facing), side.facing);
+  }
+
+  /** Semicírculo de ángulo junto al arma: línea de 0°, arco recorrido y flecha de dirección. */
+  private drawProtractor(guide: Phaser.GameObjects.Graphics, muzzle: Vec2, facing: 1 | -1): void {
+    const origin = toScreen(muzzle);
+    const radius = 62;
+    const rad = Phaser.Math.DegToRad(this.angleDeg);
+    for (const [width, colour, alpha] of [[5, 0x15101a, 0.6], [2, 0xf0d9a0, 0.8]] as const) {
+      guide.lineStyle(width, colour, alpha);
+      for (let x = 14; x < radius + 18; x += 10) guide.lineBetween(origin.x + facing * x, origin.y, origin.x + facing * (x + 4), origin.y);
+    }
+    const steps = Math.max(2, Math.round(this.angleDeg / 4));
+    for (const [width, colour] of [[7, 0x15101a], [3, 0xf0b24a]] as const) {
+      guide.lineStyle(width, colour, 0.95);
+      guide.beginPath();
+      for (let i = 0; i <= steps; i += 1) {
+        const a = (rad * i) / steps;
+        const x = origin.x + facing * Math.cos(a) * radius;
+        const y = origin.y - Math.sin(a) * radius;
+        if (i === 0) guide.moveTo(x, y);
+        else guide.lineTo(x, y);
+      }
+      guide.strokePath();
+    }
+    const tipX = origin.x + facing * Math.cos(rad) * (radius + 26);
+    const tipY = origin.y - Math.sin(rad) * (radius + 26);
+    const baseX = origin.x + facing * Math.cos(rad) * 18;
+    const baseY = origin.y - Math.sin(rad) * 18;
+    const back = Math.atan2(baseY - tipY, baseX - tipX);
+    guide.lineStyle(8, 0x15101a, 0.8);
+    guide.lineBetween(baseX, baseY, tipX, tipY);
+    guide.lineStyle(4, 0xfff4d6, 0.95);
+    guide.lineBetween(baseX, baseY, tipX, tipY);
+    guide.fillStyle(0x15101a, 0.8);
+    guide.fillTriangle(tipX + Math.cos(back + Math.PI) * 4, tipY + Math.sin(back + Math.PI) * 4, tipX + Math.cos(back + 0.6) * 18, tipY + Math.sin(back + 0.6) * 18, tipX + Math.cos(back - 0.6) * 18, tipY + Math.sin(back - 0.6) * 18);
+    guide.fillStyle(0xfff4d6, 0.95);
+    guide.fillTriangle(tipX, tipY, tipX + Math.cos(back + 0.5) * 14, tipY + Math.sin(back + 0.5) * 14, tipX + Math.cos(back - 0.5) * 14, tipY + Math.sin(back - 0.5) * 14);
   }
 
   /** El nombre puede conocerse después de empezar: en sala se consulta aparte. */
@@ -625,7 +679,8 @@ export class ArenaScene extends Phaser.Scene {
   private wait(ms: number): Promise<void> {
     // Con la pestaña oculta el navegador pausa el juego: sin esto la partida se quedaría esperando la animación.
     if (document.hidden) return Promise.resolve();
-    return new Promise((resolve) => this.time.delayedCall(ms, resolve));
+    // Reloj del navegador, no del juego: si se pausa el dibujado (ventana tapada) la cola no se queda esperando.
+    return new Promise((resolve) => window.setTimeout(resolve, ms));
   }
 
   /** `lead` adelanta el encuadre hacia el rival para ver hacia dónde se dispara. */
@@ -639,8 +694,15 @@ export class ArenaScene extends Phaser.Scene {
       return Promise.resolve();
     }
     return new Promise((resolve) => {
+      const fallback = window.setTimeout(() => {
+        camera.centerOn(x, y);
+        resolve();
+      }, duration + 400);
       camera.pan(x, y, duration, 'Sine.easeInOut', true, (_camera, progress) => {
-        if (progress === 1) resolve();
+        if (progress === 1) {
+          window.clearTimeout(fallback);
+          resolve();
+        }
       });
     });
   }
@@ -668,6 +730,7 @@ export class ArenaScene extends Phaser.Scene {
     // La trayectoria es pública; de su inicio se deduce a dónde apuntar el arma.
     const aim = second === undefined ? 30 : Phaser.Math.RadToDeg(Math.atan2(start.y - second.y, Math.abs(second.x - start.x)));
     await this.animateShot(shooter, aim, shot.weaponId);
+    audio.sfx(shot.weaponId);
 
     const spin = shot.weaponId === 'axe';
     const arrow = shot.weaponId === 'bow';
@@ -720,6 +783,7 @@ export class ArenaScene extends Phaser.Scene {
     }
     if (shot.targetHpAfter <= 0) {
       void this.relocate(target, shot.targetPosition, 700);
+      audio.sfx('fall');
       this.knockDown(target, true);
       const winner = this.figures.get(shot.shooterId);
       if (winner !== undefined) this.showPose(winner, 'win');
@@ -745,6 +809,7 @@ export class ArenaScene extends Phaser.Scene {
         onComplete: () => piece.destroy(),
       });
     }
+    audio.sfx(hit ? (shot.zone === 'head' ? 'hit_head' : shot.zone === 'legs' ? 'hit_legs' : 'hit_body') : shot.impactKind === 'obstacle' ? 'hit_obstacle' : shot.impactKind === 'ground' ? 'hit_ground' : 'miss');
     if (hit) this.cameras.main.shake(180, 0.007);
     const zone = shot.zone === 'head' ? '¡Cabeza! ' : shot.zone === 'legs' ? 'Piernas ' : '';
     const text = hit ? `${zone}-${String(shot.damage)}` : shot.impactKind === 'out_of_bounds' ? 'Fuera' : 'Fallo';

@@ -1,6 +1,7 @@
 import { powerTier, type PlayerEventPayload, type PlayerMatchView, type ShotView, type WeaponId } from '@ashenfall/domain';
 import Phaser from 'phaser';
 import { ArenaScene } from './arena.js';
+import { audio } from './audio.js';
 import { baseLook, bodyFilter, DEFAULT_WEAPON, frameUrl, icon, type Look } from './art.js';
 import { ApiError, GameSocket, Session, type ServerMessage } from './net.js';
 import { biomeCard, closeModal, el, END_REASON, escapeHtml, lookFrom, openArsenal, openBrotherhood, openModal, openShop, portrait, type Profile, type Room, type ShopActions } from './screens.js';
@@ -21,6 +22,14 @@ function fitStage(): void {
   ui.style.transform = `translate(-50%, -50%) scale(${String(scale)})`;
 }
 window.addEventListener('resize', fitStage);
+// El navegador solo permite sonido tras un gesto: el primero lo desbloquea.
+window.addEventListener('pointerdown', () => { audio.unlock(); });
+window.addEventListener('keydown', () => { audio.unlock(); });
+document.addEventListener('click', (event) => {
+  const button = (event.target as HTMLElement | null)?.closest('button');
+  if (button === null || button === undefined || button.disabled) return;
+  audio.sfx(button.classList.contains('primary') || button.id === 'settings' ? 'open' : 'click');
+});
 fitStage();
 
 const session = new Session();
@@ -201,13 +210,19 @@ const HOTSPOTS: readonly Hotspot[] = [
   { id: 'history', label: 'Historial', area: [28, 584, 76, 84], open: () => void guarded(() => openBrotherhood(shopActions, 'Historial', false)) },
 ];
 
-/** La barra inferior es una pieza aparte del fondo para poder arrastrarla; sus botones van relativos a ella. */
-const DOCK_SIZE = { width: 575, height: 120 } as const;
-const DOCK_HOME = { x: 355, y: 575 } as const;
-const DOCK_SPOTS: readonly Hotspot[] = [
-  { id: 'characters', label: 'Personajes', area: [30, 25, 172, 84], open: () => void guarded(() => openArsenal(shopActions)) },
-  { id: 'play', label: 'Jugar', area: [211, 17, 148, 94], open: () => { showPlay(); } },
-  { id: 'guild', label: 'Gremio', area: [367, 25, 170, 84], open: () => void guarded(() => openBrotherhood(shopActions)) },
+/** La barra inferior es una pieza de la interfaz, no del fondo, para poder arrastrarla. */
+const DOCK_SIZE = { width: 380, height: 104 } as const;
+const DOCK_HOME = { x: 450, y: 590 } as const;
+interface DockItem {
+  id: string;
+  label: string;
+  icon: string;
+  primary?: boolean;
+  open(): void;
+}
+const DOCK_ITEMS: readonly DockItem[] = [
+  { id: 'characters', label: 'Personajes', icon: 'helm', open: () => void guarded(() => openArsenal(shopActions)) },
+  { id: 'play', label: 'Jugar', icon: 'swords', primary: true, open: () => { showPlay(); } },
 ];
 let dockPos: { x: number; y: number } = loadDock();
 
@@ -314,6 +329,7 @@ function showTown(): void {
   inMatch = false;
   syncLoop();
   closeModal();
+  audio.setScene('town');
   screen.className = 'town';
   const lanterns = [[126, 262, 60], [250, 306, 70], [430, 440, 110], [830, 432, 80], [1096, 440, 90], [790, 182, 90]] as const;
   screen.innerHTML = `
@@ -324,22 +340,25 @@ function showTown(): void {
     <img class="town-hero" id="town-hero" alt="" />
     ${HOTSPOTS.map((spot) => `<button class="hotspot" data-spot="${spot.id}" title="${spot.label}" aria-label="${spot.label}"
         style="left:${String(spot.area[0])}px;top:${String(spot.area[1])}px;width:${String(spot.area[2])}px;height:${String(spot.area[3])}px"></button>`).join('')}
-    <div class="dock" id="dock" style="left:${String(dockPos.x)}px;top:${String(dockPos.y)}px;width:${String(DOCK_SIZE.width)}px;height:${String(DOCK_SIZE.height)}px" title="Arrastra la barra para moverla">
-      <img src="/art/dock.webp" alt="" draggable="false" />
-      ${DOCK_SPOTS.map((spot) => `<button class="hotspot" data-spot="${spot.id}" title="${spot.label}" aria-label="${spot.label}"
-        style="left:${String(spot.area[0])}px;top:${String(spot.area[1])}px;width:${String(spot.area[2])}px;height:${String(spot.area[3])}px"></button>`).join('')}
-    </div>
+    <nav class="dock" id="dock" style="left:${String(dockPos.x)}px;top:${String(dockPos.y)}px;width:${String(DOCK_SIZE.width)}px;height:${String(DOCK_SIZE.height)}px" title="Arrastra la barra para moverla">
+      <i class="dock-grip" aria-hidden="true"></i>
+      ${DOCK_ITEMS.map((item) => `<button class="dock-btn${item.primary === true ? ' primary' : ''}" data-dock="${item.id}" aria-label="${item.label}">
+        <img src="/art/icon-${item.icon}.webp" alt="" draggable="false" /><span>${item.label}</span></button>`).join('')}
+    </nav>
     <div id="player-card"></div>
     <div id="town-level"></div>
     <b class="purse" id="purse-value"></b>
     <button class="hotspot" id="settings" aria-label="Ajustes" title="Ajustes" style="left:1160px;top:22px;width:46px;height:44px"></button>
-    <button class="hotspot" id="exit" aria-label="Cerrar sesión" title="Cerrar sesión" style="left:1214px;top:22px;width:46px;height:44px"></button>
-    <button class="hotspot" id="earn" aria-label="Cómo ganar Marcas" title="Cómo ganar Marcas" style="left:1108px;top:28px;width:32px;height:32px"></button>`;
+`;
+  for (const node of screen.querySelectorAll<HTMLElement>('[data-dock]')) {
+    const item = DOCK_ITEMS.find((candidate) => candidate.id === node.dataset.dock);
+    if (item !== undefined) node.addEventListener('click', item.open);
+  }
   enableDockDrag(el('dock'));
   paintPlayerCard();
   void paintLevel().catch(() => undefined);
   for (const node of screen.querySelectorAll<HTMLElement>('[data-spot]')) {
-    const spot = [...HOTSPOTS, ...DOCK_SPOTS].find((candidate) => candidate.id === node.dataset.spot);
+    const spot = HOTSPOTS.find((candidate) => candidate.id === node.dataset.spot);
     if (spot !== undefined) node.addEventListener('click', spot.open);
   }
   const logout = (): void => {
@@ -351,10 +370,18 @@ function showTown(): void {
       showLogin();
     });
   };
-  el('earn').addEventListener('click', () => { notify('Gana duelos para conseguir Marcas de Ceniza: +100 por victoria.'); });
-  el('exit').addEventListener('click', logout);
   el('settings').addEventListener('click', () => {
-    openModal('Ajustes', profile.displayName, `<div class="stack"><button id="logout">Cerrar sesión</button></div>`);
+    openModal('Ajustes', profile.displayName, `<div class="stack">
+      <label class="slider">Música <input type="range" id="vol-music" min="0" max="100" value="${String(Math.round(audio.music * 100))}" /></label>
+      <label class="slider">Efectos <input type="range" id="vol-sfx" min="0" max="100" value="${String(Math.round(audio.sfxVolume * 100))}" /></label>
+      <button id="logout">Cerrar sesión</button></div>`);
+    el<HTMLInputElement>('vol-music').addEventListener('input', (event) => {
+      audio.setVolumes({ music: Number((event.currentTarget as HTMLInputElement).value) / 100 });
+    });
+    el<HTMLInputElement>('vol-sfx').addEventListener('change', (event) => {
+      audio.setVolumes({ sfx: Number((event.currentTarget as HTMLInputElement).value) / 100 });
+      audio.sfx('coin');
+    });
     el('logout').addEventListener('click', logout);
   });
 }
@@ -488,6 +515,8 @@ function beginMatch(next: PlayerMatchView, intro: boolean): void {
   awaitingAck = false;
   shownHp = { you: next.you.hp, rival: next.opponent.hp };
   if (fresh) {
+    audio.setScene('battle');
+    audio.sfx('match_start');
     inMatch = true;
     stopRoomPoll();
     window.clearTimeout(searchTimeout);
@@ -646,6 +675,8 @@ function showResult(): void {
   pendingResult = null;
   const won = result.winnerId === view.you.playerId;
   const title = result.winnerId === null ? 'Empate' : won ? '¡Victoria!' : 'Derrota';
+  audio.setScene('off');
+  if (result.winnerId !== null) audio.sfx(won ? 'victory' : 'defeat');
   el('controls').hidden = true;
   const modal = el('modal');
   modal.hidden = false;

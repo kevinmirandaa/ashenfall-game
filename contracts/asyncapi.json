@@ -608,7 +608,7 @@
                 "windAccel": -40,
                 "maxRounds": 12,
                 "round": 1,
-                "physicsVersion": 3,
+                "physicsVersion": 4,
                 "turn": {
                   "playerId": "c4e8a1d2-7b36-49f0-a5c3-1f2e6d8b0a33",
                   "round": 1,
