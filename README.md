@@ -6,7 +6,7 @@ Servidor autoritativo para un duelo 1v1 por turnos de proyectiles, de fantasía 
 - Cada partida es un log de eventos en PostgreSQL con número de secuencia: se reproduce jugada por jugada y sobrevive a reinicios.
 - Jugadas ordenadas e idempotentes, varias réplicas coordinadas por PostgreSQL y Redis, y una vista por jugador que nunca filtra el ángulo, la potencia ni el `actionId` del rival.
 
-**URL pública en Azure:** pendiente. La infraestructura está en `infra/` y el pipeline en `.github/workflows/deploy.yml`; la guía para desplegar es [docs/azure-setup.md](docs/azure-setup.md).
+**URL pública en Azure:** <https://ashenfall-server-prod.icytree-9cfd11e3.canadacentral.azurecontainerapps.io> (prod, Azure Container Apps en `canadacentral`; la API está documentada en `/docs`). La infraestructura está en `infra/` y el pipeline en `.github/workflows/deploy.yml`; la guía para desplegar es [docs/azure-setup.md](docs/azure-setup.md).
 
 ## Correr en local con Docker (menos de 10 minutos)
 Solo necesitas Docker Desktop abierto; no hace falta Node ni configurar secretos.

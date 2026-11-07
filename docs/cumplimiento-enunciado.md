@@ -140,7 +140,7 @@ Los 2 "No cumple" son de calendario y dependen de desplegar: la URL pública en 
 | E2 | Contiene servidor, IaC, pipelines, contratos, pruebas, scripts de carga, bot y cliente de prueba | `apps/server`, `infra`, `.github/workflows`, `contracts`, `*.test.ts`, `apps/bot`, `apps/client` | Cumple | — |
 | E3 | README: correr en local en menos de 10 minutos | [README.md](../README.md) con `docker compose up --build` (imagen en ~1 min, medido el 7 nov) | Cumple | No se repitió desde cero en esta auditoría |
 | E4 | README: cómo correr las pruebas | [README.md](../README.md) «Desarrollo y pruebas» | Cumple | — |
-| E5 | README: URL pública en Azure disponible durante la revisión | «pendiente» en [README.md](../README.md) | No cumple | Desplegar prod y escribir la URL |
+| E5 | README: URL pública en Azure disponible durante la revisión | URL de prod en [README.md](../README.md); `/health/ready` 200, registro y login probados contra prod el 7 nov | Cumple | — |
 | E6 | Versión etiquetada `v1.0.0` en la fecha de entrega (12 nov) | Sin tags | No cumple | Etiquetar tras desplegar y revisar |
 | E7 | Documentación clara y completa | [docs/README.md](README.md) | Cumple | — |
 | E8 | Dominio aislado del transporte y la persistencia; código limpio y consistente | T2; ESLint estricto en verde | Cumple | — |
@@ -157,7 +157,7 @@ El conteo del resumen sale de estas tablas: J 5, F 21, S 10, T 9, SE 12, R 5, A 
 ## Pendientes
 
 **Dependen de Azure o del usuario (no se hicieron aquí):**
-1. Desplegar la versión final en dev y prod, y escribir la URL pública en el README (E5).
+1. ~~Desplegar la versión final en dev y prod~~ Hecho el 7 nov: dev se desplegó y probó, y se borró por el límite de un entorno por región; prod quedó arriba y su URL está en el README (E5).
 2. Crear el tag `v1.0.0` antes del 12 nov (E6).
 3. Tras desplegar, comprobar HTTPS/WSS exclusivos, Key Vault con identidad, telemetría en Application Insights y que las alertas existen (T4, SE7, SE9, A10, A11, A15).
 4. Probar un rollback con `scripts/rollback.sh prod` y anotar el tiempo (A9), y un despliegue con una partida abierta (A8).
