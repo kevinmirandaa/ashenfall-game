@@ -133,6 +133,8 @@ export class ArenaScene extends Phaser.Scene {
   private guideLabel: Phaser.GameObjects.Text | null = null;
   /** Las texturas se cargan en preload: una partida que llega antes (al reanudar) espera a que termine. */
   private ready = false;
+  /** Sube cada vez que se reconstruye la arena: invalida colas de animación que quedaron esperando. */
+  private epoch = 0;
   private pendingLoad: (() => void) | null = null;
   private pendingEvents: PlayerEventPayload[] = [];
   private moteList: Mote[] = [];
@@ -233,6 +235,7 @@ export class ArenaScene extends Phaser.Scene {
   /** Construye la arena; con `intro` hace el paneo inicial: tu personaje, el rival y quien dispara. */
   loadMatch(view: PlayerMatchView, intro: boolean, looks: MatchLooks): void {
     this.view = view;
+    this.epoch += 1;
     if (!this.ready) {
       this.pendingLoad = () => { this.loadMatch(view, intro, looks); };
       return;
@@ -691,8 +694,13 @@ export class ArenaScene extends Phaser.Scene {
   }
 
   private async drain(): Promise<void> {
+    const epoch = this.epoch;
     this.playing = true;
-    for (let step = this.queue.shift(); step !== undefined; step = this.queue.shift()) await step();
+    for (let step = this.queue.shift(); step !== undefined; step = this.queue.shift()) {
+      await step();
+      // Si la arena se reconstruyó mientras tanto, esta cola ya no es la vigente.
+      if (epoch !== this.epoch) return;
+    }
     this.playing = false;
     this.hooks.onAnimationsIdle();
   }
