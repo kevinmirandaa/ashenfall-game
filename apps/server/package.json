@@ -18,7 +18,6 @@
     "@fastify/swagger-ui": "6.1.3",
     "@opentelemetry/api": "1.9.1",
     "@opentelemetry/sdk-metrics": "2.12.0",
-    "@opentelemetry/sdk-trace-base": "2.12.0",
     "@opentelemetry/sdk-trace-node": "2.12.0",
     "@sinclair/typebox": "0.34.52",
     "argon2": "0.45.2",
@@ -30,6 +29,7 @@
   },
   "devDependencies": {
     "@asyncapi/parser": "^3.6.6",
+    "@opentelemetry/sdk-trace-base": "2.12.0",
     "@seriousme/openapi-schema-validator": "^2.11.0",
     "@types/node": "^22",
     "@types/pg": "^8",
