@@ -1,6 +1,7 @@
 # Changelog
 
 ## Sin publicar
+- SCRUM-76: rollback probado en prod (22 s). `scripts/rollback.sh` no detectaba la revisión actual cuando el tráfico iba a la última revisión y «volvía» a la misma; ahora la toma de la lista de revisiones.
 - SCRUM-75: el despliegue manual admite `solo_prod` para saltar dev (Azure for Students permite un solo entorno de Container Apps por región); un CI verde sin `AUTO_DEPLOY` sigue sin llegar a prod.
 - SCRUM-74: README centrado en la historia, cómo jugar y el enlace al juego; la guía para correr en local pasa a `docs/jugar-en-local.md`. Emblema del juego en el README, en la pantalla de acceso y como favicon.
 - SCRUM-73: despliegue de prod en Azure Container Apps (`canadacentral`) con su URL pública en el README, y nota del límite de un entorno de Container Apps por región en Azure for Students.

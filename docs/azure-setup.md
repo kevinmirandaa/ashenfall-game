@@ -59,7 +59,7 @@ Cada despliegue crea una revisión; la anterior se deja activa. Con `az login` (
 ```bash
 scripts/rollback.sh prod
 ```
-Lo mismo desde el portal: Container App `ashenfall-server-prod`, **Gestión de revisiones**, poner 100 % en la revisión anterior. Es un solo cambio de tráfico; los 5 minutos son un objetivo, aún no medido. Si la causa es un esquema de base de datos incompatible, el rollback de tráfico no revierte migraciones.
+Lo mismo desde el portal: Container App `ashenfall-server-prod`, **Gestión de revisiones**, poner 100 % en la revisión anterior. Es un solo cambio de tráfico; medido el 7 nov 2026 en prod: **22 s** de la revisión nueva a la anterior, con `/health/ready` en 200 durante el cambio (la primera ejecución reveló que el script no detectaba la revisión actual cuando el tráfico iba a «la última revisión»; corregido en SCRUM-76). Si la causa es un esquema de base de datos incompatible, el rollback de tráfico no revierte migraciones.
 
 ## Cómo funciona un despliegue (resumen)
 `scripts/deploy.sh <ambiente>`: crea el grupo, despliega la infraestructura base, construye y sube la imagen a ACR (tag = sha), crea `jwt-secret` en Key Vault solo si falta (valor aleatorio sin imprimir), despliega la app. En prod la revisión nueva nace con 0 % de tráfico, se prueba por su URL de revisión (`/health/ready`), recibe el tráfico y se desactivan las revisiones más antiguas; la inmediatamente anterior queda activa para el rollback y se desactiva en el siguiente despliegue.
