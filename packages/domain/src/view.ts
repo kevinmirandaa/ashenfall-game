@@ -2,7 +2,7 @@ import type { ArenaId } from './arenas.js';
 import type { EventPayload, MatchEvent, MatchResult, MatchState, PlayerSetup, TurnState } from './match.js';
 import type { ImpactKind } from './physics.js';
 import type { ActionId, MatchId, PlayerId, Vec2 } from './types.js';
-import type { CharacterId, HitZone, WeaponId } from './weapons.js';
+import { starterWeapon, type CharacterId, type HitZone, type WeaponEffect, type WeaponId } from './weapons.js';
 
 export interface PlayerSideView {
   readonly playerId: PlayerId;
@@ -12,6 +12,7 @@ export interface PlayerSideView {
   readonly connected: boolean;
   readonly characterId: CharacterId;
   readonly displayName: string;
+  readonly weaponId: WeaponId;
 }
 
 /** Lo único que un jugador recibe del estado de la partida, también al reconectar. */
@@ -42,6 +43,8 @@ export interface ShotView {
   readonly damage: number;
   readonly zone: HitZone | null;
   readonly targetHpAfter: number;
+  /** Veneno o fuego del arma, o null: ya descontado de `targetHpAfter`. */
+  readonly effect: WeaponEffect | null;
   /** Posición del impactado tras retroceder; la misma que tenía si no hubo daño. Pública para ambos jugadores. */
   readonly targetPosition: Vec2;
   /** Solo para quien disparó: confirma su intención. El rival nunca recibe estos tres campos. */
@@ -72,6 +75,7 @@ function sideView(state: MatchState, setup: PlayerSetup): PlayerSideView {
     connected: player.connected,
     characterId: setup.characterId ?? 'edrik',
     displayName: setup.displayName ?? 'Mercenario',
+    weaponId: setup.weaponId ?? starterWeapon(setup.characterId ?? 'edrik'),
   };
 }
 
@@ -129,6 +133,7 @@ export function toPlayerEvent(event: MatchEvent, stateAfter: MatchState, viewerI
         damage: payload.damage,
         zone: payload.zone ?? null,
         targetHpAfter: payload.targetHpAfter,
+        effect: payload.effect ?? null,
         targetPosition: payload.targetPosition ?? targetPositionBefore(stateAfter, payload.shooterId),
       };
       return {

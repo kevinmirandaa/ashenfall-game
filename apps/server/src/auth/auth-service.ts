@@ -1,4 +1,5 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import { STARTER_CHARACTER } from '@ashenfall/domain';
 import { jwtVerify, SignJWT } from 'jose';
 import type pg from 'pg';
 import { ProblemError } from '../problem.js';
@@ -184,7 +185,12 @@ export class AuthService {
     return { id: row.id, email: row.email, displayName: row.display_name, role: row.role, balance: row.balance, characterId: row.character_id };
   }
 
+  /** Solo el inicial o uno ya comprado: el servidor no cree en lo que el cliente dice tener. */
   async chooseCharacter(userId: string, characterId: string): Promise<void> {
+    if (characterId !== STARTER_CHARACTER) {
+      const owned = await this.pool.query('SELECT 1 FROM player_cosmetics WHERE user_id = $1 AND cosmetic_id = $2', [userId, `char-${characterId}`]);
+      if ((owned.rowCount ?? 0) === 0) throw new ProblemError(403, 'CHARACTER_NOT_OWNED', 'Todavía no has comprado este personaje');
+    }
     await this.pool.query('UPDATE users SET character_id = $1 WHERE id = $2', [characterId, userId]);
   }
 

@@ -93,7 +93,7 @@ async function startDuel(): Promise<Duel> {
   return { a, b, clientA, clientB, matchId: view.matchId, firstPlayerId: view.turn?.playerId ?? '' };
 }
 
-const MISS = { weaponId: 'bow', angleDeg: 45, power: 10 };
+const MISS = { weaponId: 'dagger', angleDeg: 45, power: 10 };
 
 function byTurn(duel: Duel, playerId: string): WsTestClient {
   return playerId === duel.a.id ? duel.clientA : duel.clientB;
@@ -133,8 +133,8 @@ describe('validación de mensajes', () => {
     ['JSON roto', 'esto no es json'],
     ['tipo desconocido', JSON.stringify({ v: 1, type: 'hack' })],
     ['versión incorrecta', JSON.stringify({ v: 9, type: 'sync', matchId: randomUUID() })],
-    ['resultado enviado por el cliente', JSON.stringify({ v: 1, type: 'shoot', matchId: randomUUID(), actionId: randomUUID(), expectedVersion: 1, weaponId: 'bow', angleDeg: 45, power: 50, damage: 999 })],
-    ['ángulo fuera de rango', JSON.stringify({ v: 1, type: 'shoot', matchId: randomUUID(), actionId: randomUUID(), expectedVersion: 1, weaponId: 'bow', angleDeg: 500, power: 50 })],
+    ['resultado enviado por el cliente', JSON.stringify({ v: 1, type: 'shoot', matchId: randomUUID(), actionId: randomUUID(), expectedVersion: 1, weaponId: 'dagger', angleDeg: 45, power: 50, damage: 999 })],
+    ['ángulo fuera de rango', JSON.stringify({ v: 1, type: 'shoot', matchId: randomUUID(), actionId: randomUUID(), expectedVersion: 1, weaponId: 'dagger', angleDeg: 500, power: 50 })],
   ])('rechaza %s sin cerrar la conexión', async (_name, raw) => {
     const client = await connect(await registerUser(app));
     client.socket.send(raw);

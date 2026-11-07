@@ -35,7 +35,7 @@ async function playFinished(a: TestUser, b: TestUser, actionId = randomUUID(), f
     playerId: state.turn?.playerId ?? '',
     actionId,
     expectedVersion: state.version,
-    weaponId: 'bow',
+    weaponId: 'dagger',
     angleDeg: 43.21,
     power: 56.78,
     nowMs,

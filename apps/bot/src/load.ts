@@ -174,7 +174,7 @@ async function playMatch(
     const ack = shooter.waitFor((message) => message.type === 'ack' && message.actionId === actionId);
     const startedAt = performance.now();
     shooter.socket.send(
-      JSON.stringify({ v: 1, type: 'shoot', matchId: match.matchId, actionId, expectedVersion: version, weaponId: 'bow', angleDeg: 45, power: 10 }),
+      JSON.stringify({ v: 1, type: 'shoot', matchId: match.matchId, actionId, expectedVersion: version, weaponId: 'dagger', angleDeg: 45, power: 10 }),
     );
     metrics.shotsSent += 1;
     await Promise.all([shotA, shotB, ack]);

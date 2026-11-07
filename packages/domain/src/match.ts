@@ -10,7 +10,7 @@ import {
   type ShotOutcome,
 } from './physics.js';
 import type { ActionId, MatchId, PlayerId, RandomSource, Vec2 } from './types.js';
-import { CHARACTER_WEAPON, computeDamage, isWeaponId, WEAPONS, type CharacterId, type HitZone, type WeaponId } from './weapons.js';
+import { computeDamage, effectTotal, isWeaponId, starterWeapon, WEAPONS, type CharacterId, type HitZone, type WeaponEffect, type WeaponId } from './weapons.js';
 
 export const ANGLE_RANGE = { min: 0, max: 90 } as const;
 export const POWER_RANGE = { min: 10, max: 100 } as const;
@@ -38,6 +38,8 @@ export interface PlayerSetup {
   /** Fijados al empezar. Ausentes en partidas anteriores a este cambio. */
   readonly characterId?: CharacterId;
   readonly displayName?: string;
+  /** Arma equipada de la familia de su personaje, fijada al empezar. Ausente: la común. */
+  readonly weaponId?: WeaponId;
 }
 
 export interface MatchSetup {
@@ -80,6 +82,8 @@ export type EventPayload =
       readonly damage: number;
       readonly zone?: HitZone | null;
       readonly targetHpAfter: number;
+      /** Veneno o fuego que deja el arma: ya está descontado de `targetHpAfter` y se muestra segundo a segundo. */
+      readonly effect?: WeaponEffect;
       /** Dónde queda el impactado tras retroceder. Ausente en partidas anteriores: no se movía. */
       readonly targetPosition?: Vec2;
     }
@@ -171,7 +175,7 @@ export interface CreateSetupInput {
   readonly playerIds: readonly [PlayerId, PlayerId];
   readonly config?: MatchConfig;
   /** Por jugador; quien no aparezca juega como Edrik. */
-  readonly profiles?: Readonly<Record<PlayerId, { readonly characterId: CharacterId; readonly displayName: string }>>;
+  readonly profiles?: Readonly<Record<PlayerId, { readonly characterId: CharacterId; readonly displayName: string; readonly weaponId?: WeaponId }>>;
 }
 
 /** Arena, posiciones, viento y primer jugador los decide siempre el servidor. */
@@ -423,7 +427,8 @@ function decideShoot(state: MatchState, command: Extract<MatchCommand, { type: '
 
   const weapon = WEAPONS[command.weaponId];
   const shooter = setupOf(state, playerId);
-  if (shooter.characterId !== undefined && CHARACTER_WEAPON[shooter.characterId] !== weapon.id) return rejected('INVALID_WEAPON');
+  // Solo el arma equipada de su familia: no puede llevar otro tipo de arma ni una que no tenga.
+  if (shooter.characterId !== undefined && (shooter.weaponId ?? starterWeapon(shooter.characterId)) !== weapon.id) return rejected('INVALID_WEAPON');
   const opponent = opponentOf(state, playerId);
   const shooterPosition = opponentOf(state, opponent.playerId).position;
   const targetBox = playerHitbox(opponent.position);
@@ -439,6 +444,7 @@ function decideShoot(state: MatchState, command: Extract<MatchCommand, { type: '
   });
   const zone = outcome.impactKind === 'player' ? hitZone(outcome.impact, targetBox) : null;
   const damage = zone === null ? 0 : computeDamage(weapon, command.power, zone);
+  const effect = damage > 0 ? weapon.effect : undefined;
   const targetPosition =
     damage > 0
       ? applyKnockback(opponent.position, setupOf(state, opponent.playerId).facing, damage, ARENAS[state.setup.arenaId])
@@ -457,7 +463,8 @@ function decideShoot(state: MatchState, command: Extract<MatchCommand, { type: '
       outcome,
       damage,
       zone,
-      targetHpAfter: Math.max(0, opponent.hp - damage),
+      targetHpAfter: Math.max(0, opponent.hp - damage - effectTotal(effect)),
+      ...(effect === undefined ? {} : { effect }),
       targetPosition,
     },
     (after) => followUp(after, playerId, nowMs),

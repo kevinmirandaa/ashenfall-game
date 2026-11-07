@@ -31,7 +31,7 @@ function shot(state: MatchState): readonly MatchEvent[] {
     playerId: state.turn.playerId,
     actionId: randomUUID(),
     expectedVersion: state.version,
-    weaponId: 'bow',
+    weaponId: 'dagger',
     angleDeg: 45,
     power: 10,
     nowMs: T0 + 1,
