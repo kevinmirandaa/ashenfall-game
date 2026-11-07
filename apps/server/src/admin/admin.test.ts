@@ -87,6 +87,19 @@ describe('partidas', () => {
     expect(audit.items).toContainEqual(expect.objectContaining({ action: 'match.terminate', target: matchId, adminId: admin.id }));
   });
 
+  it('muestra las conexiones vivas de cada jugador de la partida', async () => {
+    const { a, b, matchId } = await startMatch();
+    const ticket = (await a.request('POST', '/v1/ws-ticket')).json<{ ticket: string }>().ticket;
+    const client = new WsTestClient(new WebSocket(`${wsUrl}?ticket=${ticket}`));
+    await client.until((messages) => messages.find((message) => message.type === 'snapshot'));
+    type Player = { playerId: string; connected: boolean; connections: number };
+    const list = (await admin.request('GET', '/v1/admin/matches?limit=100')).json<{ items: { matchId: string; players: Player[] }[] }>();
+    const players = list.items.find((item) => item.matchId === matchId)?.players ?? [];
+    expect(players.find((player) => player.playerId === a.id)).toMatchObject({ connected: true, connections: 1 });
+    expect(players.find((player) => player.playerId === b.id)).toMatchObject({ connections: 0 });
+    client.socket.close();
+  });
+
   it('terminar dos veces o una inexistente da error y no se audita de nuevo', async () => {
     const { matchId } = await startMatch();
     await admin.request('POST', `/v1/admin/matches/${matchId}/terminate`, reason);

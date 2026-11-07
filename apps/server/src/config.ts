@@ -12,6 +12,10 @@ export interface ServerConfig {
   /** Client ID de la identidad administrada; si existe, PostgreSQL se autentica con Entra. */
   readonly managedIdentityClientId: string | undefined;
   readonly rateLimit: { readonly globalPerMinute: number; readonly authPerMinute: number; readonly loginPerAccountPerMinute: number };
+  /** Espera máxima en la cola rápida antes de informar `timed_out`. */
+  readonly matchmakingMaxWaitMs: number;
+  /** Periodo de gracia para reconectar; al vencer se aplica la regla de abandono. */
+  readonly reconnectGraceMs: number;
 }
 
 const MIN_SECRET_LENGTH = 32;
@@ -54,5 +58,7 @@ export function loadConfig(env: NodeJS.ProcessEnv): ServerConfig {
       authPerMinute: positiveInt(env, 'RATE_LIMIT_AUTH_PER_MINUTE', 20),
       loginPerAccountPerMinute: positiveInt(env, 'RATE_LIMIT_LOGIN_PER_MINUTE', 10),
     },
+    matchmakingMaxWaitMs: positiveInt(env, 'MATCHMAKING_MAX_WAIT_MS', 60_000),
+    reconnectGraceMs: positiveInt(env, 'RECONNECT_GRACE_MS', 60_000),
   };
 }

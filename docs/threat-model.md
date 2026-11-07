@@ -8,7 +8,7 @@ Cuentas y tokens, integridad de la partida, saldo de Marcas de Ceniza, disponibi
 ## Fronteras de confianza
 1. Cliente → servidor (HTTP y WebSocket): todo lo que llega es hostil hasta validarse.
 2. Servidor → PostgreSQL y Redis: red privada e identidad administrada en Azure (pendiente de desplegar).
-3. CI/CD → Azure: pendiente de SCRUM-44 y 45.
+3. CI/CD → Azure: GitHub Actions con OIDC federado, sin secretos (`.github/workflows/deploy.yml`); prod exige aprobación manual. Sin verificar todavía contra Azure.
 
 ## Amenazas y defensas
 
@@ -34,7 +34,7 @@ Cuentas y tokens, integridad de la partida, saldo de Marcas de Ceniza, disponibi
 | Denegación | Inundar el WebSocket | Tamaño máximo, tasa por conexión, conexiones por usuario | `gateway.test.ts`, `hardening.test.ts` |
 | Denegación | Pico de logins agota CPU o memoria | Argon2id acotado con fila y 503 | `auth/password-hasher.test.ts`, `docs/load-report.md` |
 | Denegación | Saturar la base con la sonda | Límite propio en `/health/ready` | `health.test.ts` |
-| Denegación | Fallo que tumba el servidor | Errores aislados por mensaje y por partida | `gateway.test.ts` (parcial) |
+| Denegación | Fallo que tumba el servidor | Errores aislados por mensaje y por partida: fila por partida en el motor, `try/catch` por partida en el barrido | `gateway.test.ts`, `resilience.test.ts` (aislamiento: log dañado en una partida) |
 | Elevación | Jugador usa funciones de administrador | Rol leído de la base en cada petición; ninguna ruta lo concede | `admin/admin.test.ts`, `hardening.test.ts` |
 | Elevación | Imagen comprometida | Usuario no root; Trivy y Dependabot en CI | CI |
 
@@ -46,7 +46,7 @@ Cuentas y tokens, integridad de la partida, saldo de Marcas de Ceniza, disponibi
 - **Ticket en la URL.** Puede aparecer en logs de un proxy; es de un solo uso y dura 30 s. El servidor no registra esa URL.
 - **Conexiones por usuario.** La cuenta entre réplicas no es atómica: varias conexiones exactamente simultáneas pueden superar el máximo por poco.
 - **Terminar partida y auditar.** No están en la misma transacción, porque la partida pasa por el motor. Si la base falla justo entre ambas, la terminación queda sin auditar. Suspender y reactivar sí son atómicos.
-- **Partidas entre cuentas propias.** Se pueden generar monedas jugando contra uno mismo; solo compran cosméticos y no hay ranking.
+- **Partidas entre cuentas propias.** Se pueden generar monedas jugando contra uno mismo; solo compran personajes y no hay ranking.
 - **Caída brusca de una réplica.** No registra desconexiones; las partidas terminan por timeouts de turno.
 
 ## Pendiente de verificar al desplegar

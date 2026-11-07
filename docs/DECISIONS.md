@@ -55,6 +55,11 @@ Phaser con renderizador Canvas y arte por código, servido por el propio servido
 - **Azure**: dev con el contenedor mínimo, heap de Node acotado, sin copiar métricas de plataforma a Log Analytics y disco de PostgreSQL sin crecimiento automático. Lo que reduce capacidad o disponibilidad (prod más pequeño, prod a cero réplicas, ACR compartido) queda como decisión del usuario en [azure-cost.md](azure-cost.md).
 - Cifras antes y después en [optimizacion.md](optimizacion.md).
 
+## D15. Ajustes de la auditoría contra el enunciado (SCRUM-72)
+- **Gracia y espera configurables.** El enunciado pide ambos configurables. `RECONNECT_GRACE_MS` y `MATCHMAKING_MAX_WAIT_MS` (60 s por defecto) se leen al arrancar; la gracia se fija en `setup.config` al crear cada partida, así que cambiarla no altera las partidas en curso ni su reproducción.
+- **Conexiones en administración.** `GET /v1/admin/matches` añade `connections` por jugador: conexiones WebSocket vivas en todas las réplicas, leídas de la presencia en Redis (dos consultas por partida listada, máximo 100 partidas por página).
+- La matriz completa requisito → evidencia está en [cumplimiento-enunciado.md](cumplimiento-enunciado.md).
+
 ## Pendientes
 - Valores de armas: son iniciales y no se han probado jugando.
 

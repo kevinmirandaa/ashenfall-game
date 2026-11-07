@@ -10280,6 +10280,7 @@
                               "required": [
                                 "playerId",
                                 "connected",
+                                "connections",
                                 "hp"
                               ],
                               "properties": {
@@ -10289,6 +10290,11 @@
                                 },
                                 "connected": {
                                   "type": "boolean"
+                                },
+                                "connections": {
+                                  "minimum": 0,
+                                  "description": "Conexiones WebSocket vivas del jugador en todas las réplicas",
+                                  "type": "integer"
                                 },
                                 "hp": {
                                   "type": "integer"

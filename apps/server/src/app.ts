@@ -5,7 +5,7 @@ import rateLimit from '@fastify/rate-limit';
 import swagger from '@fastify/swagger';
 import fastifyStatic from '@fastify/static';
 import swaggerUi from '@fastify/swagger-ui';
-import { initialState } from '@ashenfall/domain';
+import { DEFAULT_MATCH_CONFIG, initialState } from '@ashenfall/domain';
 import Fastify, { type FastifyInstance } from 'fastify';
 import type { Redis } from 'ioredis';
 import type pg from 'pg';
@@ -49,6 +49,8 @@ export interface AppDependencies {
   readonly trustProxy?: boolean;
   /** Espera máxima en la cola rápida. */
   readonly matchmakingMaxWaitMs?: number;
+  /** Periodo de gracia para reconectar antes de perder por abandono. Sin esto, el del dominio (60 s). */
+  readonly reconnectGraceMs?: number;
   /** Sin esto no se abre el WebSocket; las pruebas que solo usan REST no necesitan Redis. */
   readonly realtime?: RealtimeConfig;
   readonly health?: { readonly redis: Pick<Redis, 'ping'> };
@@ -255,23 +257,32 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       });
     };
 
-    registerRoomRoutes(api, auth, new RoomService(dependencies.pool, announceMatch), dependencies.pool);
+    const matchConfig =
+      dependencies.reconnectGraceMs === undefined ? undefined : { ...DEFAULT_MATCH_CONFIG, gracePeriodMs: dependencies.reconnectGraceMs };
+    registerRoomRoutes(api, auth, new RoomService(dependencies.pool, announceMatch, matchConfig), dependencies.pool);
     registerMatchmakingRoutes(
       api,
       auth,
-      new MatchmakingService(dependencies.pool, dependencies.matchmakingMaxWaitMs ?? 60_000, announceMatch),
+      new MatchmakingService(dependencies.pool, dependencies.matchmakingMaxWaitMs ?? 60_000, announceMatch, matchConfig),
     );
 
     registerHistoryRoutes(api, auth, dependencies.pool, store);
-    registerBotRoutes(api, auth, dependencies.pool, announceMatch);
+    registerBotRoutes(api, auth, dependencies.pool, announceMatch, matchConfig);
     registerStatsRoute(api, auth, dependencies.pool);
     registerShopRoutes(api, auth, dependencies.pool);
-    registerAdminRoutes(api, auth, dependencies.pool, engine, (userId) => bus?.publishUserSuspended(userId));
+    const presence =
+      realtime === undefined ? null : new Presence(realtime.redis, namespace, (realtime.gateway.heartbeatMs ?? 15_000) * 3);
+    registerAdminRoutes(
+      api,
+      auth,
+      dependencies.pool,
+      engine,
+      (userId) => bus?.publishUserSuspended(userId),
+      presence === null ? undefined : (userId) => presence.count(userId),
+    );
 
-    if (realtime !== undefined && bus !== null) {
+    if (realtime !== undefined && bus !== null && presence !== null) {
       const tickets = new WsTicketStore(realtime.redis, namespace);
-      const heartbeatMs = realtime.gateway.heartbeatMs ?? 15_000;
-      const presence = new Presence(realtime.redis, namespace, heartbeatMs * 3);
       const activeGateway = new RealtimeGateway(app.server, dependencies.pool, () => engine, tickets, presence, app.log, realtime.gateway, telemetry);
       const sweeper = new MatchSweeper(dependencies.pool, engine, app.log);
       api.post('/v1/ws-ticket', async (request, reply) => {
