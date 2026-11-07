@@ -18,8 +18,9 @@ export function registerHistoryRoutes(app: FastifyInstance, auth: AuthService, p
   // La consulta parte de los participantes: una partida ajena no puede aparecer aquí.
   app.get<{ Querystring: Static<typeof Page> }>('/v1/me/matches', { schema: { querystring: Page } }, async (request) => {
     const { userId } = await auth.authenticate(request.headers.authorization);
-    const { rows } = await pool.query<{ match_id: string; result: MatchResult; ended_at: Date }>(
-      `SELECT r.match_id, r.result, r.ended_at
+    const { rows } = await pool.query<{ match_id: string; result: MatchResult; ended_at: Date; opponent: string | null }>(
+      `SELECT r.match_id, r.result, r.ended_at,
+              (SELECT u.display_name FROM match_players o JOIN users u ON u.id = o.user_id WHERE o.match_id = r.match_id AND o.user_id <> $1 LIMIT 1) AS opponent
        FROM match_players p JOIN match_results r ON r.match_id = p.match_id
        WHERE p.user_id = $1 ORDER BY r.ended_at DESC, r.match_id LIMIT $2 OFFSET $3`,
       [userId, request.query.limit, request.query.offset],
@@ -33,6 +34,7 @@ export function registerHistoryRoutes(app: FastifyInstance, auth: AuthService, p
       items: rows.map((row) => ({
         matchId: row.match_id,
         outcome: row.result.winnerId === null ? 'draw' : row.result.winnerId === userId ? 'win' : 'loss',
+        opponent: row.opponent ?? 'Rival',
         reason: row.result.reason,
         rounds: row.result.rounds,
         endedAt: row.ended_at.toISOString(),

@@ -96,7 +96,7 @@ describe('autorización en todo el contrato', () => {
   // /v1/ws-ticket solo existe con tiempo real activo; se prueba en realtime/gateway.test.ts.
   const authRoutes = Object.entries(REST_CONTRACT).filter(([route, contract]) => contract.auth && route !== 'POST /v1/ws-ticket');
   const concrete = (path: string) =>
-    path.replace(':cosmeticId', 'frame-ash').replace(/:\w+/g, randomUUID());
+    path.replace(/:\w+/g, randomUUID());
 
   it.each(authRoutes.map(([route]) => route))('%s rechaza sin token', async (route) => {
     const [method, path] = route.split(' ') as ['GET' | 'POST' | 'PUT' | 'DELETE', string];
@@ -127,12 +127,9 @@ function validBodies(path: string): object {
   if (path.endsWith('/rooms')) return { visibility: 'public' };
   if (path.endsWith('join-by-code')) return { inviteCode: 'ABCDEFGH' };
   if (path.endsWith('/ready')) return { ready: true };
-  if (path.endsWith('/potions')) return { potionId: 'vital', purchaseId: randomUUID() };
-  if (path.endsWith('/loadout')) return { potions: [] };
-  if (path.endsWith('/matches/bot')) return { mode: 'quick' };
-  if (path.endsWith('/purchases')) return { cosmeticId: 'frame-ash', purchaseId: randomUUID() };
+  if (path.endsWith('/matches/bot')) return { level: 1 };
+  if (path.endsWith('/purchases')) return { cosmeticId: 'char-sylwen', purchaseId: randomUUID() };
   if (path.endsWith('/character')) return { characterId: 'sylwen' };
-  if (path.endsWith('/equip')) return { equipped: true };
   if (path.includes('/admin/')) return { reason: 'motivo' };
   return {};
 }

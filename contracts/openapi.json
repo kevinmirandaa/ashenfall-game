@@ -5541,6 +5541,7 @@
                         "required": [
                           "matchId",
                           "outcome",
+                          "opponent",
                           "reason",
                           "rounds",
                           "endedAt"
@@ -5551,6 +5552,9 @@
                             "type": "string"
                           },
                           "outcome": {
+                            "type": "string"
+                          },
+                          "opponent": {
                             "type": "string"
                           },
                           "reason": {
@@ -6084,7 +6088,6 @@
                                           "connected",
                                           "characterId",
                                           "weaponId",
-                                          "buffs",
                                           "displayName"
                                         ],
                                         "properties": {
@@ -6449,59 +6452,6 @@
                                                 ]
                                               }
                                             ]
-                                          },
-                                          "buffs": {
-                                            "additionalProperties": false,
-                                            "description": "Efectos de pociones activos; públicos",
-                                            "type": "object",
-                                            "required": [
-                                              "ward",
-                                              "fury",
-                                              "focus"
-                                            ],
-                                            "properties": {
-                                              "ward": {
-                                                "type": "boolean"
-                                              },
-                                              "fury": {
-                                                "type": "boolean"
-                                              },
-                                              "focus": {
-                                                "type": "boolean"
-                                              }
-                                            }
-                                          },
-                                          "potions": {
-                                            "description": "Solo las recibe el propio jugador",
-                                            "type": "array",
-                                            "items": {
-                                              "anyOf": [
-                                                {
-                                                  "type": "string",
-                                                  "enum": [
-                                                    "vital"
-                                                  ]
-                                                },
-                                                {
-                                                  "type": "string",
-                                                  "enum": [
-                                                    "ward"
-                                                  ]
-                                                },
-                                                {
-                                                  "type": "string",
-                                                  "enum": [
-                                                    "fury"
-                                                  ]
-                                                },
-                                                {
-                                                  "type": "string",
-                                                  "enum": [
-                                                    "focus"
-                                                  ]
-                                                }
-                                              ]
-                                            }
                                           },
                                           "displayName": {
                                             "type": "string"
@@ -6519,7 +6469,6 @@
                                           "connected",
                                           "characterId",
                                           "weaponId",
-                                          "buffs",
                                           "displayName"
                                         ],
                                         "properties": {
@@ -6884,59 +6833,6 @@
                                                 ]
                                               }
                                             ]
-                                          },
-                                          "buffs": {
-                                            "additionalProperties": false,
-                                            "description": "Efectos de pociones activos; públicos",
-                                            "type": "object",
-                                            "required": [
-                                              "ward",
-                                              "fury",
-                                              "focus"
-                                            ],
-                                            "properties": {
-                                              "ward": {
-                                                "type": "boolean"
-                                              },
-                                              "fury": {
-                                                "type": "boolean"
-                                              },
-                                              "focus": {
-                                                "type": "boolean"
-                                              }
-                                            }
-                                          },
-                                          "potions": {
-                                            "description": "Solo las recibe el propio jugador",
-                                            "type": "array",
-                                            "items": {
-                                              "anyOf": [
-                                                {
-                                                  "type": "string",
-                                                  "enum": [
-                                                    "vital"
-                                                  ]
-                                                },
-                                                {
-                                                  "type": "string",
-                                                  "enum": [
-                                                    "ward"
-                                                  ]
-                                                },
-                                                {
-                                                  "type": "string",
-                                                  "enum": [
-                                                    "fury"
-                                                  ]
-                                                },
-                                                {
-                                                  "type": "string",
-                                                  "enum": [
-                                                    "focus"
-                                                  ]
-                                                }
-                                              ]
-                                            }
                                           },
                                           "displayName": {
                                             "type": "string"
@@ -7441,73 +7337,6 @@
                                       },
                                       "power": {
                                         "type": "number"
-                                      }
-                                    }
-                                  }
-                                }
-                              },
-                              {
-                                "additionalProperties": false,
-                                "type": "object",
-                                "required": [
-                                  "type",
-                                  "playerId",
-                                  "potionId",
-                                  "hpAfter"
-                                ],
-                                "properties": {
-                                  "type": {
-                                    "type": "string",
-                                    "enum": [
-                                      "potion_used"
-                                    ]
-                                  },
-                                  "playerId": {
-                                    "description": "UUID",
-                                    "type": "string"
-                                  },
-                                  "potionId": {
-                                    "anyOf": [
-                                      {
-                                        "type": "string",
-                                        "enum": [
-                                          "vital"
-                                        ]
-                                      },
-                                      {
-                                        "type": "string",
-                                        "enum": [
-                                          "ward"
-                                        ]
-                                      },
-                                      {
-                                        "type": "string",
-                                        "enum": [
-                                          "fury"
-                                        ]
-                                      },
-                                      {
-                                        "type": "string",
-                                        "enum": [
-                                          "focus"
-                                        ]
-                                      }
-                                    ]
-                                  },
-                                  "hpAfter": {
-                                    "type": "integer"
-                                  },
-                                  "own": {
-                                    "additionalProperties": false,
-                                    "description": "Solo lo recibe quien la usó",
-                                    "type": "object",
-                                    "required": [
-                                      "actionId"
-                                    ],
-                                    "properties": {
-                                      "actionId": {
-                                        "description": "UUID",
-                                        "type": "string"
                                       }
                                     }
                                   }
@@ -8282,7 +8111,7 @@
     },
     "/v1/matches/bot": {
       "post": {
-        "summary": "Empezar una partida rápida o un nivel de historia contra un monstruo",
+        "summary": "Empezar un nivel del modo historia contra un monstruo",
         "tags": [
           "Partidas"
         ],
@@ -8294,25 +8123,9 @@
                 "additionalProperties": false,
                 "type": "object",
                 "required": [
-                  "mode"
+                  "level"
                 ],
                 "properties": {
-                  "mode": {
-                    "anyOf": [
-                      {
-                        "type": "string",
-                        "enum": [
-                          "quick"
-                        ]
-                      },
-                      {
-                        "type": "string",
-                        "enum": [
-                          "story"
-                        ]
-                      }
-                    ]
-                  },
                   "level": {
                     "minimum": 1,
                     "maximum": 10,
@@ -8637,9 +8450,272 @@
         }
       }
     },
+    "/v1/me/stats": {
+      "get": {
+        "summary": "Partidas, victorias, derrotas, empates y nivel propios",
+        "tags": [
+          "Partidas"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta correcta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "type": "object",
+                  "required": [
+                    "played",
+                    "wins",
+                    "losses",
+                    "draws",
+                    "level",
+                    "xp",
+                    "xpInLevel",
+                    "xpForNext"
+                  ],
+                  "properties": {
+                    "played": {
+                      "type": "integer"
+                    },
+                    "wins": {
+                      "type": "integer"
+                    },
+                    "losses": {
+                      "type": "integer"
+                    },
+                    "draws": {
+                      "type": "integer"
+                    },
+                    "level": {
+                      "type": "integer"
+                    },
+                    "xp": {
+                      "type": "integer"
+                    },
+                    "xpInLevel": {
+                      "type": "integer"
+                    },
+                    "xpForNext": {
+                      "type": "integer"
+                    }
+                  },
+                  "description": "Respuesta correcta"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Problem Details (RFC 9457)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "description": "Problem Details (RFC 9457)",
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "code",
+                    "instance"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    },
+                    "errors": {
+                      "type": "array",
+                      "items": {}
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem Details (RFC 9457)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "description": "Problem Details (RFC 9457)",
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "code",
+                    "instance"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    },
+                    "errors": {
+                      "type": "array",
+                      "items": {}
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem Details (RFC 9457)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "description": "Problem Details (RFC 9457)",
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "code",
+                    "instance"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    },
+                    "errors": {
+                      "type": "array",
+                      "items": {}
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Problem Details (RFC 9457)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "description": "Problem Details (RFC 9457)",
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "code",
+                    "instance"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    },
+                    "errors": {
+                      "type": "array",
+                      "items": {}
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Problem Details (RFC 9457)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "description": "Problem Details (RFC 9457)",
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "code",
+                    "instance"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    },
+                    "errors": {
+                      "type": "array",
+                      "items": {}
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/shop/catalog": {
       "get": {
-        "summary": "Catálogo cosmético",
+        "summary": "Catálogo de personajes",
         "tags": [
           "Tienda"
         ],
@@ -8898,7 +8974,7 @@
     },
     "/v1/shop/purchases": {
       "post": {
-        "summary": "Comprar un cosmético; reintentar con el mismo purchaseId no cobra de nuevo",
+        "summary": "Comprar un personaje (exige nivel y dinero); reintentar con el mismo purchaseId no cobra de nuevo",
         "tags": [
           "Tienda"
         ],
@@ -9246,7 +9322,7 @@
     },
     "/v1/me/inventory": {
       "get": {
-        "summary": "Inventario propio",
+        "summary": "Personajes comprados",
         "tags": [
           "Tienda"
         ],
@@ -9275,8 +9351,7 @@
                         "required": [
                           "id",
                           "name",
-                          "kind",
-                          "equipped"
+                          "kind"
                         ],
                         "properties": {
                           "id": {
@@ -9287,9 +9362,6 @@
                           },
                           "kind": {
                             "type": "string"
-                          },
-                          "equipped": {
-                            "type": "boolean"
                           }
                         }
                       }
@@ -9381,1202 +9453,6 @@
             }
           },
           "403": {
-            "description": "Problem Details (RFC 9457)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": false,
-                  "description": "Problem Details (RFC 9457)",
-                  "type": "object",
-                  "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "code",
-                    "instance"
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "instance": {
-                      "type": "string"
-                    },
-                    "errors": {
-                      "type": "array",
-                      "items": {}
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Problem Details (RFC 9457)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": false,
-                  "description": "Problem Details (RFC 9457)",
-                  "type": "object",
-                  "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "code",
-                    "instance"
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "instance": {
-                      "type": "string"
-                    },
-                    "errors": {
-                      "type": "array",
-                      "items": {}
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Problem Details (RFC 9457)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": false,
-                  "description": "Problem Details (RFC 9457)",
-                  "type": "object",
-                  "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "code",
-                    "instance"
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "instance": {
-                      "type": "string"
-                    },
-                    "errors": {
-                      "type": "array",
-                      "items": {}
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/me/inventory/{cosmeticId}/equip": {
-      "post": {
-        "summary": "Equipar o desequipar",
-        "tags": [
-          "Tienda"
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "additionalProperties": false,
-                "type": "object",
-                "required": [
-                  "equipped"
-                ],
-                "properties": {
-                  "equipped": {
-                    "type": "boolean"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "parameters": [
-          {
-            "schema": {
-              "pattern": "^[a-z0-9-]{1,64}$",
-              "type": "string"
-            },
-            "in": "path",
-            "name": "cosmeticId",
-            "required": true
-          }
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "Sin contenido"
-          },
-          "400": {
-            "description": "Problem Details (RFC 9457)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": false,
-                  "description": "Problem Details (RFC 9457)",
-                  "type": "object",
-                  "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "code",
-                    "instance"
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "instance": {
-                      "type": "string"
-                    },
-                    "errors": {
-                      "type": "array",
-                      "items": {}
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Problem Details (RFC 9457)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": false,
-                  "description": "Problem Details (RFC 9457)",
-                  "type": "object",
-                  "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "code",
-                    "instance"
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "instance": {
-                      "type": "string"
-                    },
-                    "errors": {
-                      "type": "array",
-                      "items": {}
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Problem Details (RFC 9457)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": false,
-                  "description": "Problem Details (RFC 9457)",
-                  "type": "object",
-                  "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "code",
-                    "instance"
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "instance": {
-                      "type": "string"
-                    },
-                    "errors": {
-                      "type": "array",
-                      "items": {}
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Problem Details (RFC 9457)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": false,
-                  "description": "Problem Details (RFC 9457)",
-                  "type": "object",
-                  "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "code",
-                    "instance"
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "instance": {
-                      "type": "string"
-                    },
-                    "errors": {
-                      "type": "array",
-                      "items": {}
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Problem Details (RFC 9457)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": false,
-                  "description": "Problem Details (RFC 9457)",
-                  "type": "object",
-                  "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "code",
-                    "instance"
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "instance": {
-                      "type": "string"
-                    },
-                    "errors": {
-                      "type": "array",
-                      "items": {}
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Problem Details (RFC 9457)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": false,
-                  "description": "Problem Details (RFC 9457)",
-                  "type": "object",
-                  "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "code",
-                    "instance"
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "instance": {
-                      "type": "string"
-                    },
-                    "errors": {
-                      "type": "array",
-                      "items": {}
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/me/potions": {
-      "get": {
-        "summary": "Pociones propias y las elegidas para la próxima partida",
-        "tags": [
-          "Tienda"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Respuesta correcta",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": false,
-                  "type": "object",
-                  "required": [
-                    "items",
-                    "loadout",
-                    "loadoutMax"
-                  ],
-                  "properties": {
-                    "items": {
-                      "type": "array",
-                      "items": {
-                        "additionalProperties": false,
-                        "type": "object",
-                        "required": [
-                          "id",
-                          "name",
-                          "description",
-                          "price",
-                          "quantity"
-                        ],
-                        "properties": {
-                          "id": {
-                            "type": "string"
-                          },
-                          "name": {
-                            "type": "string"
-                          },
-                          "description": {
-                            "type": "string"
-                          },
-                          "price": {
-                            "type": "integer"
-                          },
-                          "quantity": {
-                            "type": "integer"
-                          }
-                        }
-                      }
-                    },
-                    "loadout": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      }
-                    },
-                    "loadoutMax": {
-                      "type": "integer"
-                    }
-                  },
-                  "description": "Respuesta correcta"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Problem Details (RFC 9457)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": false,
-                  "description": "Problem Details (RFC 9457)",
-                  "type": "object",
-                  "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "code",
-                    "instance"
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "instance": {
-                      "type": "string"
-                    },
-                    "errors": {
-                      "type": "array",
-                      "items": {}
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Problem Details (RFC 9457)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": false,
-                  "description": "Problem Details (RFC 9457)",
-                  "type": "object",
-                  "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "code",
-                    "instance"
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "instance": {
-                      "type": "string"
-                    },
-                    "errors": {
-                      "type": "array",
-                      "items": {}
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Problem Details (RFC 9457)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": false,
-                  "description": "Problem Details (RFC 9457)",
-                  "type": "object",
-                  "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "code",
-                    "instance"
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "instance": {
-                      "type": "string"
-                    },
-                    "errors": {
-                      "type": "array",
-                      "items": {}
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Problem Details (RFC 9457)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": false,
-                  "description": "Problem Details (RFC 9457)",
-                  "type": "object",
-                  "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "code",
-                    "instance"
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "instance": {
-                      "type": "string"
-                    },
-                    "errors": {
-                      "type": "array",
-                      "items": {}
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Problem Details (RFC 9457)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": false,
-                  "description": "Problem Details (RFC 9457)",
-                  "type": "object",
-                  "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "code",
-                    "instance"
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "instance": {
-                      "type": "string"
-                    },
-                    "errors": {
-                      "type": "array",
-                      "items": {}
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/shop/potions": {
-      "post": {
-        "summary": "Comprar una poción; reintentar con el mismo purchaseId no cobra de nuevo",
-        "tags": [
-          "Tienda"
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "additionalProperties": false,
-                "type": "object",
-                "required": [
-                  "potionId",
-                  "purchaseId"
-                ],
-                "properties": {
-                  "potionId": {
-                    "anyOf": [
-                      {
-                        "type": "string",
-                        "enum": [
-                          "vital"
-                        ]
-                      },
-                      {
-                        "type": "string",
-                        "enum": [
-                          "ward"
-                        ]
-                      },
-                      {
-                        "type": "string",
-                        "enum": [
-                          "fury"
-                        ]
-                      },
-                      {
-                        "type": "string",
-                        "enum": [
-                          "focus"
-                        ]
-                      }
-                    ]
-                  },
-                  "purchaseId": {
-                    "format": "uuid",
-                    "type": "string"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Respuesta correcta",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": false,
-                  "type": "object",
-                  "required": [
-                    "balance",
-                    "duplicate"
-                  ],
-                  "properties": {
-                    "balance": {
-                      "type": "integer"
-                    },
-                    "duplicate": {
-                      "type": "boolean"
-                    }
-                  },
-                  "description": "Respuesta correcta"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Problem Details (RFC 9457)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": false,
-                  "description": "Problem Details (RFC 9457)",
-                  "type": "object",
-                  "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "code",
-                    "instance"
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "instance": {
-                      "type": "string"
-                    },
-                    "errors": {
-                      "type": "array",
-                      "items": {}
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Problem Details (RFC 9457)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": false,
-                  "description": "Problem Details (RFC 9457)",
-                  "type": "object",
-                  "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "code",
-                    "instance"
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "instance": {
-                      "type": "string"
-                    },
-                    "errors": {
-                      "type": "array",
-                      "items": {}
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Problem Details (RFC 9457)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": false,
-                  "description": "Problem Details (RFC 9457)",
-                  "type": "object",
-                  "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "code",
-                    "instance"
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "instance": {
-                      "type": "string"
-                    },
-                    "errors": {
-                      "type": "array",
-                      "items": {}
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Problem Details (RFC 9457)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": false,
-                  "description": "Problem Details (RFC 9457)",
-                  "type": "object",
-                  "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "code",
-                    "instance"
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "instance": {
-                      "type": "string"
-                    },
-                    "errors": {
-                      "type": "array",
-                      "items": {}
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Problem Details (RFC 9457)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": false,
-                  "description": "Problem Details (RFC 9457)",
-                  "type": "object",
-                  "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "code",
-                    "instance"
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "instance": {
-                      "type": "string"
-                    },
-                    "errors": {
-                      "type": "array",
-                      "items": {}
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Problem Details (RFC 9457)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": false,
-                  "description": "Problem Details (RFC 9457)",
-                  "type": "object",
-                  "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "code",
-                    "instance"
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "instance": {
-                      "type": "string"
-                    },
-                    "errors": {
-                      "type": "array",
-                      "items": {}
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/me/loadout": {
-      "put": {
-        "summary": "Elegir las pociones de la próxima partida; se descuentan al empezarla",
-        "tags": [
-          "Tienda"
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "additionalProperties": false,
-                "type": "object",
-                "required": [
-                  "potions"
-                ],
-                "properties": {
-                  "potions": {
-                    "maxItems": 3,
-                    "type": "array",
-                    "items": {
-                      "anyOf": [
-                        {
-                          "type": "string",
-                          "enum": [
-                            "vital"
-                          ]
-                        },
-                        {
-                          "type": "string",
-                          "enum": [
-                            "ward"
-                          ]
-                        },
-                        {
-                          "type": "string",
-                          "enum": [
-                            "fury"
-                          ]
-                        },
-                        {
-                          "type": "string",
-                          "enum": [
-                            "focus"
-                          ]
-                        }
-                      ]
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "Sin contenido"
-          },
-          "400": {
-            "description": "Problem Details (RFC 9457)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": false,
-                  "description": "Problem Details (RFC 9457)",
-                  "type": "object",
-                  "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "code",
-                    "instance"
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "instance": {
-                      "type": "string"
-                    },
-                    "errors": {
-                      "type": "array",
-                      "items": {}
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Problem Details (RFC 9457)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": false,
-                  "description": "Problem Details (RFC 9457)",
-                  "type": "object",
-                  "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "code",
-                    "instance"
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "instance": {
-                      "type": "string"
-                    },
-                    "errors": {
-                      "type": "array",
-                      "items": {}
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Problem Details (RFC 9457)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": false,
-                  "description": "Problem Details (RFC 9457)",
-                  "type": "object",
-                  "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "code",
-                    "instance"
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "instance": {
-                      "type": "string"
-                    },
-                    "errors": {
-                      "type": "array",
-                      "items": {}
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "409": {
             "description": "Problem Details (RFC 9457)",
             "content": {
               "application/json": {

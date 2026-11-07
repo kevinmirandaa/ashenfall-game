@@ -1,10 +1,10 @@
-import { POTIONS, powerTier, WEAPONS, type PlayerEventPayload, type PlayerMatchView, type PotionId, type ShotView } from '@ashenfall/domain';
+import { powerTier, WEAPONS, type PlayerEventPayload, type PlayerMatchView, type ShotView } from '@ashenfall/domain';
 import Phaser from 'phaser';
 import { ArenaScene } from './arena.js';
 import { audio } from './audio.js';
-import { baseLook, bodyFilter, frameUrl, icon, type Look } from './art.js';
+import { baseLook, frameUrl, icon, type Look } from './art.js';
 import { ApiError, GameSocket, Session, type ServerMessage } from './net.js';
-import { biomeCard, closeModal, el, END_REASON, escapeHtml, lookFrom, openAlchemist, openBrotherhood, openModal, openRoster, openShop, openStory, portrait, type Profile, type Room, type ShopActions } from './screens.js';
+import { biomeCard, closeModal, el, END_REASON, escapeHtml, openCharacters, openHistory, openModal, openProfile, openStore, openStory, portrait, type Profile, type Room, type ShopActions, type Stats } from './screens.js';
 
 const STAGE_W = 1280;
 const STAGE_H = 720;
@@ -65,7 +65,8 @@ let roomPoll = 0;
 let searchTimeout = 0;
 let shownHp = { you: 100, rival: 100 };
 let look: Look = baseLook('edrik');
-let ownedCache: Parameters<typeof lookFrom>[1] = [];
+let level = 1;
+let levelProgress = 0;
 
 /** Fuera de la arena el bucle de Phaser se detiene: el pueblo no consume CPU en cada fotograma. */
 function syncLoop(): void {
@@ -129,16 +130,9 @@ const shopActions: ShopActions = {
     const purse = document.getElementById('purse-value');
     if (purse !== null) purse.textContent = String(balance);
   },
-  character: () => profile.characterId,
   setCharacter: (id) => {
     profile = { ...profile, characterId: id };
-    look = lookFrom(id, ownedCache);
-    paintPlayerCard();
-    void guarded(() => session.call('POST', '/v1/me/character', { characterId: id }));
-  },
-  refreshLook: (items) => {
-    ownedCache = [...items];
-    look = lookFrom(profile.characterId, ownedCache);
+    look = baseLook(id);
     paintPlayerCard();
   },
 };
@@ -182,13 +176,11 @@ async function enterTown(): Promise<void> {
   socket ??= new GameSocket(session, onServerMessage, (connected) => {
     if (!connected && inMatch) notify('Conexión perdida. Reconectando…');
   });
-  const [me, inventory] = await Promise.all([
-    session.call<Profile>('GET', '/v1/me'),
-    session.call<{ items: Parameters<typeof lookFrom>[1] }>('GET', '/v1/me/inventory'),
-  ]);
+  const [me, stats] = await Promise.all([session.call<Profile>('GET', '/v1/me'), session.call<Stats>('GET', '/v1/me/stats')]);
   profile = me;
-  ownedCache = inventory.items;
-  look = lookFrom(me.characterId, ownedCache);
+  level = stats.level;
+  levelProgress = stats.xpInLevel / stats.xpForNext;
+  look = baseLook(me.characterId);
   await socket.ensureConnected();
   // Al reconectar con una partida activa, el servidor ya pudo enviar su estado.
   if (!inMatch) showTown();
@@ -202,30 +194,29 @@ interface Hotspot {
   open(): void;
 }
 
-const shop = (title: string, subtitle: string, kinds: readonly string[]) => (): void => void guarded(() => openShop(title, subtitle, kinds, shopActions));
-
 // Los rótulos y botones forman parte de la imagen; aquí se les da su función.
 const HOTSPOTS: readonly Hotspot[] = [
-  { id: 'arsenal', label: 'Arsenal: yelmos y capas', area: [342, 258, 192, 224], open: shop('Arsenal', 'Yelmos, capas y estelas', ['helmet', 'cloak', 'projectile_effect']) },
-  { id: 'alchemist', label: 'Alquimista: pociones', area: [770, 276, 172, 214], open: () => void guarded(() => openAlchemist(shopActions)) },
-  { id: 'profile', label: 'Perfil', area: [28, 498, 76, 84], open: () => void guarded(() => openBrotherhood(shopActions, 'Perfil', false)) },
-  { id: 'history', label: 'Historial', area: [28, 584, 76, 84], open: () => void guarded(() => openBrotherhood(shopActions, 'Historial', false)) },
+  { id: 'arsenal', label: 'Arsenal: comprar personajes', area: [342, 258, 192, 224], open: () => void guarded(() => openStore(shopActions)) },
+  { id: 'history', label: 'Historial', area: [25, 575, 83, 97], open: () => void guarded(() => openHistory(shopActions)) },
 ];
 
-/** La barra inferior es una pieza de la interfaz, no del fondo, para poder arrastrarla. */
-const DOCK_SIZE = { width: 540, height: 104 } as const;
-const DOCK_HOME = { x: 370, y: 590 } as const;
+/**
+ * La barra inferior es la de la referencia, pero como pieza aparte para poder arrastrarla. Sus tres botones se
+ * iluminan al pasar el ratón igual que el central; las zonas son relativas a la imagen de la barra (575×120).
+ */
+const DOCK_SIZE = { width: 575, height: 120 } as const;
+const DOCK_HOME = { x: 355, y: 575 } as const;
 interface DockItem {
   id: string;
   label: string;
-  icon: string;
-  primary?: boolean;
+  /** x, y, ancho y alto dentro de la imagen de la barra. */
+  area: readonly [number, number, number, number];
   open(): void;
 }
 const DOCK_ITEMS: readonly DockItem[] = [
-  { id: 'characters', label: 'Personajes', icon: 'helm', open: () => void guarded(() => openRoster(shopActions)) },
-  { id: 'play', label: 'Jugar', icon: 'swords', primary: true, open: () => { showPlay(); } },
-  { id: 'story', label: 'Historia', icon: 'scroll', open: () => void guarded(() => openStory(shopActions, (level) => void guarded(() => startBotMatch({ mode: 'story', level })))) },
+  { id: 'characters', label: 'Personajes', area: [27, 22, 173, 90], open: () => void guarded(() => openCharacters(shopActions)) },
+  { id: 'play', label: 'Jugar', area: [211, 17, 148, 94], open: () => { showPlay(); } },
+  { id: 'profile', label: 'Perfil', area: [367, 22, 178, 90], open: () => void guarded(() => openProfile(shopActions)) },
 ];
 let dockPos: { x: number; y: number } = loadDock();
 
@@ -238,7 +229,7 @@ function clampDock(point: { x: number; y: number }): { x: number; y: number } {
 
 function loadDock(): { x: number; y: number } {
   try {
-    const saved = JSON.parse(window.sessionStorage.getItem('ashenfall.dock') ?? 'null') as { x?: unknown; y?: unknown } | null;
+    const saved = JSON.parse(window.sessionStorage.getItem('ashenfall.dock.v2') ?? 'null') as { x?: unknown; y?: unknown } | null;
     if (saved !== null && typeof saved.x === 'number' && typeof saved.y === 'number') return clampDock({ x: saved.x, y: saved.y });
   } catch {
     // sin almacenamiento disponible: se usa la posición original
@@ -248,7 +239,7 @@ function loadDock(): { x: number; y: number } {
 
 function saveDock(): void {
   try {
-    window.sessionStorage.setItem('ashenfall.dock', JSON.stringify(dockPos));
+    window.sessionStorage.setItem('ashenfall.dock.v2', JSON.stringify(dockPos));
   } catch {
     // no es imprescindible recordar la posición
   }
@@ -307,23 +298,20 @@ function paintPlayerCard(): void {
   const card = document.getElementById('player-card');
   if (card === null) return;
   card.innerHTML = `
-    <img class="medal-face${look.frame ? ' ornate' : ''}" src="/art/portrait-${look.character}.webp" alt="" />
+    <img class="medal-face" src="/art/portrait-${look.character}.webp" alt="" />
     <b class="town-name">${escapeHtml(profile.displayName)}</b>`;
   const coins = document.getElementById('purse-value');
   if (coins !== null) coins.textContent = String(profile.balance);
   const hero = document.getElementById('town-hero') as HTMLImageElement | null;
-  if (hero !== null) {
-    hero.src = `/art/body-${look.character}.webp`;
-    hero.style.setProperty('filter', bodyFilter(look));
-  }
+  if (hero !== null) hero.src = `/art/body-${look.character}.webp`;
+  paintLevel();
 }
 
-/** El servidor no tiene niveles: es un distintivo visual a partir de las partidas jugadas. */
-async function paintLevel(): Promise<void> {
-  const { total } = await session.call<{ total: number }>('GET', '/v1/me/matches?limit=1&offset=0');
-  const level = document.getElementById('town-level');
-  if (level === null) return;
-  level.innerHTML = `Lv. ${String(1 + Math.floor(total / 5))} <i class="xp"><u style="width:${String(((total % 5) + 0.15) * 20)}%"></u></i>`;
+/** El nivel lo calcula el servidor a partir de las partidas jugadas y ganadas. */
+function paintLevel(): void {
+  const node = document.getElementById('town-level');
+  if (node === null) return;
+  node.innerHTML = `Lv. ${String(level)} <i class="xp"><u style="width:${String(Math.round(Math.max(0.04, levelProgress) * 100))}%"></u></i>`;
 }
 
 function showTown(): void {
@@ -344,9 +332,9 @@ function showTown(): void {
     ${HOTSPOTS.map((spot) => `<button class="hotspot" data-spot="${spot.id}" title="${spot.label}" aria-label="${spot.label}"
         style="left:${String(spot.area[0])}px;top:${String(spot.area[1])}px;width:${String(spot.area[2])}px;height:${String(spot.area[3])}px"></button>`).join('')}
     <nav class="dock" id="dock" style="left:${String(dockPos.x)}px;top:${String(dockPos.y)}px;width:${String(DOCK_SIZE.width)}px;height:${String(DOCK_SIZE.height)}px" title="Arrastra la barra para moverla">
-      <i class="dock-grip" aria-hidden="true"></i>
-      ${DOCK_ITEMS.map((item) => `<button class="dock-btn${item.primary === true ? ' primary' : ''}" data-dock="${item.id}" aria-label="${item.label}">
-        <img src="/art/icon-${item.icon}.webp" alt="" draggable="false" /><span>${item.label}</span></button>`).join('')}
+      <img src="/art/dock.webp" alt="" draggable="false" />
+      ${DOCK_ITEMS.map((item) => `<button class="dock-hot" data-dock="${item.id}" title="${item.label}" aria-label="${item.label}"
+        style="left:${String(item.area[0])}px;top:${String(item.area[1])}px;width:${String(item.area[2])}px;height:${String(item.area[3])}px"></button>`).join('')}
     </nav>
     <div id="player-card"></div>
     <div id="town-level"></div>
@@ -359,7 +347,6 @@ function showTown(): void {
   }
   enableDockDrag(el('dock'));
   paintPlayerCard();
-  void paintLevel().catch(() => undefined);
   for (const node of screen.querySelectorAll<HTMLElement>('[data-spot]')) {
     const spot = HOTSPOTS.find((candidate) => candidate.id === node.dataset.spot);
     if (spot !== undefined) node.addEventListener('click', spot.open);
@@ -391,8 +378,8 @@ function showTown(): void {
 
 // ---------- Contra monstruos ----------
 /** El servidor crea la partida y avisa por WebSocket, igual que en una sala; si el aviso se retrasa, se pide el estado. */
-async function startBotMatch(body: { mode: 'quick' | 'story'; level?: number }): Promise<void> {
-  const { matchId } = await session.call<{ matchId: string }>('POST', '/v1/matches/bot', body);
+async function startStoryMatch(level: number): Promise<void> {
+  const { matchId } = await session.call<{ matchId: string }>('POST', '/v1/matches/bot', { level });
   notify('Un monstruo te espera…');
   closeModal();
   window.setTimeout(() => {
@@ -402,20 +389,21 @@ async function startBotMatch(body: { mode: 'quick' | 'story'; level?: number }):
 
 // ---------- Jugar ----------
 function showPlay(): void {
-  openModal('Jugar', 'Busca rival o reúne a un amigo', `
-    <div class="stack tavern">
+  openModal('Jugar', 'Elige cómo quieres pelear', `
+    <div class="stack play">
       <button class="primary" id="quick">${icon('swords', 24)} Buscar partida</button>
-      <button id="create">Crear sala privada</button>
-      <button id="vs-monster">${icon('swords', 24)} Contra un monstruo</button>
-      <button id="story">${icon('scroll', 24)} Modo historia</button>
-      <form id="join" class="row">
-        <input name="code" placeholder="Código de invitación" maxlength="8" required aria-label="Código de invitación" />
-        <button>Unirse</button>
-      </form>
+      <button id="story">${icon('scroll', 24)} Modo historia <small>contra monstruos</small></button>
+      <div class="private">
+        <h3>Partida privada</h3>
+        <button id="create">Crear sala y ver el código</button>
+        <form id="join" class="row">
+          <input name="code" placeholder="Código de invitación" maxlength="8" required aria-label="Código de invitación" />
+          <button>Unirse</button>
+        </form>
+      </div>
     </div>`);
   el('quick').addEventListener('click', () => void guarded(searchMatch));
-  el('vs-monster').addEventListener('click', () => void guarded(() => startBotMatch({ mode: 'quick' })));
-  el('story').addEventListener('click', () => void guarded(() => openStory(shopActions, (level) => void guarded(() => startBotMatch({ mode: 'story', level })))));
+  el('story').addEventListener('click', () => void guarded(() => openStory(shopActions, (level) => void guarded(() => startStoryMatch(level)))));
   el('create').addEventListener('click', () => {
     void guarded(async () => {
       showRoom(await session.call<Room>('POST', '/v1/rooms', { visibility: 'private' }));
@@ -480,7 +468,7 @@ function showRoom(room: Room): void {
 async function searchMatch(): Promise<void> {
   const result = await session.call<{ status: string }>('POST', '/v1/matchmaking');
   if (result.status === 'matched') return;
-  openModal('Buscando rival…', 'La espera máxima es de un minuto', `<div class="stack"><p class="dots">Preguntando por la taberna</p><button id="cancel">Cancelar</button></div>`);
+  openModal('Buscando rival…', 'La espera máxima es de un minuto', `<div class="stack"><p class="dots">Buscando un rival en Ashenfall</p><button id="cancel">Cancelar</button></div>`);
   const cancel = (): Promise<void> => session.call('DELETE', '/v1/matchmaking');
   searchTimeout = window.setTimeout(() => {
     if (inMatch) return;
@@ -569,9 +557,6 @@ function onMatchEvent(matchId: string, seq: number, payload: PlayerEventPayload)
   lastSeq = seq;
   view = applyToView(view, seq, payload);
   arena.updateView(view);
-  if (payload.type === 'potion_used' && payload.potionId === 'vital') {
-    shownHp = payload.playerId === view.you.playerId ? { ...shownHp, you: payload.hpAfter } : { ...shownHp, rival: payload.hpAfter };
-  }
   arena.applyEvent(payload);
   if (payload.type === 'match_finished') pendingResult = payload.result;
   if (payload.type === 'turn_timed_out') notify(payload.playerId === view.you.playerId ? 'Se agotó tu tiempo: pierdes el turno.' : 'El rival agotó su tiempo.');
@@ -584,40 +569,8 @@ function applyToView(current: PlayerMatchView, seq: number, payload: PlayerEvent
   const base = { ...current, seq };
   switch (payload.type) {
     case 'shot_resolved': {
-      const shooter = payload.shooterId === current.you.playerId ? 'you' : 'opponent';
-      const target = shooter === 'you' ? 'opponent' : 'you';
-      return {
-        ...base,
-        version: current.version + 1,
-        // El disparo gasta la furia y el ojo de halcón; la piel de piedra se gasta con el primer daño recibido.
-        [shooter]: { ...current[shooter], buffs: { ...current[shooter].buffs, fury: false, focus: false } },
-        [target]: {
-          ...current[target],
-          hp: payload.targetHpAfter,
-          position: payload.targetPosition,
-          buffs: payload.damage > 0 ? { ...current[target].buffs, ward: false } : current[target].buffs,
-        },
-      };
-    }
-    case 'potion_used': {
-      const key = payload.playerId === current.you.playerId ? 'you' : 'opponent';
-      const side = current[key];
-      const used = side.potions === undefined ? -1 : side.potions.indexOf(payload.potionId);
-      const potions = side.potions === undefined ? undefined : side.potions.filter((_id, index) => index !== used);
-      return {
-        ...base,
-        version: current.version + 1,
-        [key]: {
-          ...side,
-          hp: payload.potionId === 'vital' ? payload.hpAfter : side.hp,
-          ...(potions === undefined ? {} : { potions }),
-          buffs: {
-            ward: side.buffs.ward || payload.potionId === 'ward',
-            fury: side.buffs.fury || payload.potionId === 'fury',
-            focus: side.buffs.focus || payload.potionId === 'focus',
-          },
-        },
-      };
+      const target = payload.shooterId === current.you.playerId ? 'opponent' : 'you';
+      return { ...base, version: current.version + 1, [target]: { ...current[target], hp: payload.targetHpAfter, position: payload.targetPosition } };
     }
     case 'turn_timed_out':
       return { ...base, version: current.version + 1 };
@@ -641,32 +594,29 @@ function applyToView(current: PlayerMatchView, seq: number, payload: PlayerEvent
 }
 
 function showHud(match: PlayerMatchView): void {
-  potionKey = '';
   screen.className = 'hud';
   const rival = match.opponent.characterId;
   screen.innerHTML = `
     <header class="hud-top">
       <div class="fighter">
-        ${portrait(match.you.characterId, look.frame)}
+        ${portrait(match.you.characterId, false)}
         <div><b>${escapeHtml(match.you.displayName)}</b>
-        <div class="hp"><i id="you-hp"></i><span id="you-hp-text"></span></div><div class="buffs" id="you-buffs"></div></div>
+        <div class="hp"><i id="you-hp"></i><span id="you-hp-text"></span></div></div>
       </div>
       <div class="turn-box">
         <small id="turn"></small><b id="timer">30</b>
-        <span id="wind"></span><small id="round"></small>
+        <small id="round"></small>
       </div>
       <div class="fighter right">
         <div><b><span id="rival-name">${escapeHtml(match.opponent.displayName)}</span><em id="rival-status"></em></b>
-        <div class="hp"><i id="rival-hp"></i><span id="rival-hp-text"></span></div><div class="buffs" id="rival-buffs"></div></div>
+        <div class="hp"><i id="rival-hp"></i><span id="rival-hp-text"></span></div></div>
         ${portrait(rival, false)}
       </div>
     </header>
     <div id="intro" hidden>${biomeCard(match.arenaId)}</div>
     <footer class="controls" id="controls">
       <div class="own-weapon"><img class="wpn" src="/art/icon-${WEAPONS[match.you.weaponId].family}.webp" alt="" /><small>${escapeHtml(WEAPONS[match.you.weaponId].name)}</small></div>
-      <div class="readout"><span>Ángulo</span><b id="angle-text"></b></div>
       <div class="charge"><span>Potencia: <b id="power-text"></b> <em id="tier"></em></span><i class="meter"><u id="power-bar"></u></i></div>
-      <div class="potion-bar" id="potion-bar"></div>
       <p class="hint" id="hint"></p>
     </footer>`;
 }
@@ -683,53 +633,6 @@ function setBar(id: string, hp: number): void {
   if (node !== null) node.style.width = `${String(Math.max(0, hp))}%`;
 }
 
-let potionKey = '';
-
-/** Botones de las pociones que le quedan; solo se rehacen si cambian, para no parpadear en cada refresco. */
-function renderPotions(enabled: boolean): void {
-  const bar = document.getElementById('potion-bar');
-  if (bar === null || view === null) return;
-  const list = view.you.potions ?? [];
-  const key = `${list.join(',')}|${String(enabled)}`;
-  if (key === potionKey) return;
-  potionKey = key;
-  bar.innerHTML = list
-    .map((id, index) => `<button class="potion-btn" data-potion="${id}" ${enabled ? '' : 'disabled'} title="${escapeHtml(POTIONS[id].name)}: ${escapeHtml(POTIONS[id].description)}"><img src="/art/potion-${id}.webp" alt="" /><kbd>${String(index + 1)}</kbd></button>`)
-    .join('');
-  for (const node of bar.querySelectorAll<HTMLElement>('[data-potion]')) {
-    node.addEventListener('click', () => {
-      drink(node.dataset.potion as PotionId);
-    });
-  }
-}
-
-function renderBuffs(): void {
-  if (view === null) return;
-  for (const [id, side] of [['you-buffs', view.you], ['rival-buffs', view.opponent]] as const) {
-    const node = document.getElementById(id);
-    if (node === null) continue;
-    const active = (['ward', 'fury', 'focus'] as const).filter((buff) => side.buffs[buff]);
-    const html = active.map((buff) => `<img src="/art/potion-${buff}.webp" title="${escapeHtml(POTIONS[buff].name)}" alt="" />`).join('');
-    if (node.dataset['buffs'] !== html) {
-      node.dataset['buffs'] = html;
-      node.innerHTML = html;
-    }
-  }
-}
-
-function drink(potionId: PotionId): void {
-  if (view === null || !arena.canAim) return;
-  awaitingAck = true;
-  socket?.send({ type: 'use_potion', matchId: view.matchId, actionId: crypto.randomUUID(), expectedVersion: view.version, potionId });
-  refreshHud();
-}
-
-window.addEventListener('keydown', (event) => {
-  if (!inMatch || event.repeat) return;
-  const slot = Number(event.key);
-  if (Number.isInteger(slot) && slot >= 1 && slot <= 3) document.querySelectorAll<HTMLButtonElement>('#potion-bar .potion-btn')[slot - 1]?.click();
-});
-
 function refreshHud(): void {
   if (view === null) return;
   const mine = view.turn?.playerId === view.you.playerId;
@@ -738,20 +641,15 @@ function refreshHud(): void {
   arena.drawGuide();
   if (document.getElementById('controls') === null) return;
   el('controls').classList.toggle('idle', !canShoot);
-  renderPotions(canShoot);
-  renderBuffs();
-  setText('hint', canShoot ? 'Mantén pulsado y arrastra hacia atrás: la distancia es la potencia y subir o bajar el cursor, el ángulo · suelta para disparar · Esc cancela' : 'Esperando…');
+  setText('hint', canShoot ? 'Mantén pulsado y arrastra hacia atrás: más lejos, más fuerza; sube o baja para elegir la altura · suelta para disparar · Esc cancela' : 'Esperando…');
   setText('turn', view.status === 'finished' ? 'Fin del duelo' : mine ? 'Tu turno' : 'Turno del rival');
   if (view.status === 'finished') setText('timer', '—');
-  const wind = Math.round(view.windAccel);
-  setText('wind', `Viento ${wind === 0 ? '—' : wind > 0 ? '→' : '←'} ${String(Math.abs(wind))}`);
   setText('round', `Ronda ${String(view.round)}/${String(view.maxRounds)}`);
   setBar('you-hp', shownHp.you);
   setBar('rival-hp', shownHp.rival);
   setText('you-hp-text', `${String(shownHp.you)} / 100`);
   setText('rival-hp-text', `${String(shownHp.rival)} / 100`);
   setText('rival-status', view.opponent.connected ? '' : ' (desconectado)');
-  setText('angle-text', `${String(arena.angleDeg)}°`);
   setText('power-text', `${String(arena.power)}%`);
   setText('tier', TIER_LABEL[powerTier(arena.power)]);
   const bar = document.getElementById('power-bar');

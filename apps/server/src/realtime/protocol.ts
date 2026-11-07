@@ -1,4 +1,4 @@
-import { ANGLE_RANGE, POTION_IDS, POWER_RANGE, WEAPON_IDS, type PlayerEvent, type PlayerMatchView } from '@ashenfall/domain';
+import { ANGLE_RANGE, POWER_RANGE, WEAPON_IDS, type PlayerEvent, type PlayerMatchView } from '@ashenfall/domain';
 import { Type, type Static } from '@sinclair/typebox';
 import { TypeCompiler } from '@sinclair/typebox/compiler';
 
@@ -30,27 +30,15 @@ const Shoot = Type.Object(
   { additionalProperties: false },
 );
 
-const UsePotion = Type.Object(
-  {
-    v: Type.Literal(PROTOCOL_VERSION),
-    type: Type.Literal('use_potion'),
-    matchId: Uuid,
-    actionId: Uuid,
-    expectedVersion: Type.Integer({ minimum: 1 }),
-    potionId: Type.Union(POTION_IDS.map((id) => Type.Literal(id))),
-  },
-  { additionalProperties: false },
-);
-
 const Sync = Type.Object(
   { v: Type.Literal(PROTOCOL_VERSION), type: Type.Literal('sync'), matchId: Uuid },
   { additionalProperties: false },
 );
 
 /** Publicados tal cual en el contrato AsyncAPI. */
-export const CLIENT_MESSAGES = { shoot: Shoot, use_potion: UsePotion, sync: Sync } as const;
+export const CLIENT_MESSAGES = { shoot: Shoot, sync: Sync } as const;
 
-const ClientMessageSchema = Type.Union([Shoot, UsePotion, Sync]);
+const ClientMessageSchema = Type.Union([Shoot, Sync]);
 export type ClientMessage = Static<typeof ClientMessageSchema>;
 
 const validator = TypeCompiler.Compile(ClientMessageSchema);

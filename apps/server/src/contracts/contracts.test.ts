@@ -12,6 +12,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { WebSocket } from 'ws';
 import { buildApp } from '../app.js';
 import { registerUser, type TestUser } from '../test-support/api.js';
+import { grantLevel } from '../test-support/progress.js';
 import { createTestDatabase, type TestDatabase } from '../test-support/database.js';
 import { WsTestClient } from '../test-support/ws-client.js';
 import { buildAsyncApi } from './asyncapi.js';
@@ -188,17 +189,15 @@ describe('las respuestas reales cumplen el contrato', () => {
     assertRoute('GET /v1/matchmaking', await a.request('GET', '/v1/matchmaking'));
     assertRoute('DELETE /v1/matchmaking', await a.request('DELETE', '/v1/matchmaking'));
 
-    await db.pool.query('UPDATE wallets SET balance = 500 WHERE user_id = $1', [a.id]);
+    await db.pool.query('UPDATE wallets SET balance = 5000 WHERE user_id = $1', [a.id]);
+    await grantLevel(db, a.id, 10);
     assertRoute('GET /v1/shop/catalog', await a.request('GET', '/v1/shop/catalog'));
-    assertRoute('POST /v1/shop/purchases', await a.request('POST', '/v1/shop/purchases', { cosmeticId: 'frame-ash', purchaseId: randomUUID() }));
+    assertRoute('POST /v1/shop/purchases', await a.request('POST', '/v1/shop/purchases', { cosmeticId: 'char-sylwen', purchaseId: randomUUID() }));
     assertRoute('GET /v1/me/inventory', await a.request('GET', '/v1/me/inventory'));
-    assertRoute('POST /v1/me/inventory/:cosmeticId/equip', await a.request('POST', '/v1/me/inventory/frame-ash/equip', { equipped: true }));
 
-    assertRoute('GET /v1/me/potions', await a.request('GET', '/v1/me/potions'));
-    assertRoute('POST /v1/shop/potions', await a.request('POST', '/v1/shop/potions', { potionId: 'vital', purchaseId: randomUUID() }));
-    assertRoute('PUT /v1/me/loadout', await a.request('PUT', '/v1/me/loadout', { potions: ['vital'] }));
+    assertRoute('GET /v1/me/stats', await a.request('GET', '/v1/me/stats'));
     assertRoute('GET /v1/me/story', await a.request('GET', '/v1/me/story'));
-    assertRoute('POST /v1/matches/bot', await a.request('POST', '/v1/matches/bot', { mode: 'story', level: 1 }));
+    assertRoute('POST /v1/matches/bot', await a.request('POST', '/v1/matches/bot', { level: 1 }));
 
     assertMatches('problem', ProblemSchema, (await a.request('GET', '/v1/no-existe')).json());
     expect([...covered].sort()).toEqual(Object.keys(REST_CONTRACT).sort());

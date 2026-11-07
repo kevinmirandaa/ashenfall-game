@@ -3,7 +3,6 @@ import type { EventPayload, MatchEvent, MatchResult, MatchState, PlayerSetup, Tu
 import type { ImpactKind } from './physics.js';
 import type { ActionId, MatchId, PlayerId, Vec2 } from './types.js';
 import { defaultWeapon, type FighterId } from './monsters.js';
-import type { PotionId } from './potions.js';
 import type { HitZone, WeaponEffect, WeaponId } from './weapons.js';
 
 export interface PlayerSideView {
@@ -15,10 +14,6 @@ export interface PlayerSideView {
   readonly characterId: FighterId;
   readonly displayName: string;
   readonly weaponId: WeaponId;
-  /** Efectos de pociones activos: se ven en pantalla, así que son públicos. */
-  readonly buffs: { readonly ward: boolean; readonly fury: boolean; readonly focus: boolean };
-  /** Pociones que le quedan. Solo se envían al propio jugador: lo que lleva el rival es información oculta. */
-  readonly potions?: readonly PotionId[];
 }
 
 /** Lo único que un jugador recibe del estado de la partida, también al reconectar. */
@@ -57,16 +52,7 @@ export interface ShotView {
   readonly own?: { readonly actionId: ActionId; readonly angleDeg: number; readonly power: number };
 }
 
-export interface PotionView {
-  readonly type: 'potion_used';
-  readonly playerId: PlayerId;
-  readonly potionId: PotionId;
-  readonly hpAfter: number;
-  /** Solo para quien la usó. El rival nunca recibe el id de la acción. */
-  readonly own?: { readonly actionId: ActionId };
-}
-
-export type PlayerEventPayload = Exclude<EventPayload, { type: 'shot_resolved' | 'match_started' | 'potion_used' }> | ShotView | PotionView | MatchStartedView;
+export type PlayerEventPayload = Exclude<EventPayload, { type: 'shot_resolved' | 'match_started' }> | ShotView | MatchStartedView;
 
 export interface MatchStartedView {
   readonly type: 'match_started';
@@ -79,7 +65,7 @@ export interface PlayerEvent {
   readonly payload: PlayerEventPayload;
 }
 
-function sideView(state: MatchState, setup: PlayerSetup, own: boolean): PlayerSideView {
+function sideView(state: MatchState, setup: PlayerSetup): PlayerSideView {
   const player = state.players.find((candidate) => candidate.playerId === setup.playerId);
   if (player === undefined) throw new Error('Estado corrupto: jugador sin estado');
   return {
@@ -91,8 +77,6 @@ function sideView(state: MatchState, setup: PlayerSetup, own: boolean): PlayerSi
     characterId: setup.characterId ?? 'edrik',
     displayName: setup.displayName ?? 'Mercenario',
     weaponId: setup.weaponId ?? defaultWeapon(setup.characterId ?? 'edrik'),
-    buffs: player.buffs,
-    ...(own ? { potions: player.potions } : {}),
   };
 }
 
@@ -122,8 +106,8 @@ export function toPlayerView(state: MatchState, viewerId: PlayerId): PlayerMatch
     round: state.lastRound,
     physicsVersion: state.setup.physicsVersion,
     turn: state.turn,
-    you: sideView(state, mine, true),
-    opponent: sideView(state, theirs, false),
+    you: sideView(state, mine),
+    opponent: sideView(state, theirs),
     result: state.result,
   };
 }
@@ -160,10 +144,6 @@ export function toPlayerEvent(event: MatchEvent, stateAfter: MatchState, viewerI
             ? { ...shot, own: { actionId: payload.actionId, angleDeg: payload.angleDeg, power: payload.power } }
             : shot,
       };
-    }
-    case 'potion_used': {
-      const potion: PotionView = { type: 'potion_used', playerId: payload.playerId, potionId: payload.potionId, hpAfter: payload.hpAfter };
-      return { ...base, payload: payload.playerId === viewerId ? { ...potion, own: { actionId: payload.actionId } } : potion };
     }
     default:
       return { ...base, payload };

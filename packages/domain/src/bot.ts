@@ -30,7 +30,7 @@ export function chooseBotShot(state: MatchState, botId: PlayerId, skill: BotSkil
   const weapon = WEAPONS[botSetup.weaponId ?? (botSetup.characterId === undefined ? 'bow' : defaultWeapon(botSetup.characterId))];
   const arena = ARENAS[state.setup.arenaId];
   const target = playerHitbox(foe.position);
-  const wind = me.buffs.focus ? 0 : state.setup.windAccel;
+  const wind = state.setup.windAccel;
   const targetX = foe.position.x;
 
   const fire = (angleDeg: number, power: number): ShotOutcome =>

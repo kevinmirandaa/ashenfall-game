@@ -56,5 +56,3 @@ export function defaultWeapon(fighter: FighterId): WeaponId {
 }
 
 export const STORY_LEVELS = MONSTER_IDS.length;
-/** Recompensa de una partida rápida contra un bot, fija para que no sea una forma de repetir sin esfuerzo. */
-export const QUICK_BOT_REWARD = 25;

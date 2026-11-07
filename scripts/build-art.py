@@ -246,24 +246,6 @@ def build_weapons() -> None:
     print('armas', sum(len(t) for t in WEAPON_ART.values()))
 
 
-# Frascos de la hoja de objetos para las cuatro pociones.
-POTION_ART = {
-    'vital': (ITEMS, (45, 375, 148, 525)),
-    'ward': (ITEMS, (600, 394, 692, 530)),
-    'fury': (ITEMS, (325, 384, 422, 526)),
-    'focus': (ITEMS, (183, 374, 284, 526)),
-}
-
-
-def build_potions() -> None:
-    for name, (sheet, box) in POTION_ART.items():
-        icon = fit(cut_item(sheet, box), 80)
-        canvas = Image.new('RGBA', (96, 96), (0, 0, 0, 0))
-        canvas.alpha_composite(icon, ((96 - icon.width) // 2, (96 - icon.height) // 2))
-        canvas.save(OUT / f'potion-{name}.webp', lossless=True)
-    print('pociones', len(POTION_ART))
-
-
 # ---------- monstruos ----------
 
 # Orden de los monstruos en la hoja: fila superior (vampiro, licántropo, bruja, espectro), araña en medio y fila inferior.
@@ -355,5 +337,4 @@ if __name__ == '__main__':
     build_characters()
     build_biomes()
     build_weapons()
-    build_potions()
     build_monsters()
