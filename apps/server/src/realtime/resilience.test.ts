@@ -199,6 +199,27 @@ describe('desconexión', () => {
     expect(rows).toEqual([]);
   });
 
+  it('recargar la página (cerrar y abrir a la vez) nunca deja al jugador marcado como desconectado', async () => {
+    const namespace = `test-${randomUUID()}-`;
+    const replica = await startReplica(namespace);
+    const duel = await startDuel(replica, replica);
+    let current = duel.clientA;
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const old = current;
+      const [next] = await Promise.all([connect(duel.a, replica), Promise.resolve(old.socket.close())]);
+      await old.closed();
+      current = next;
+    }
+    await current.until((messages) => messages.find((message) => message.type === 'snapshot'));
+    // Las ejecuciones de esta réplica van en fila por partida: tras esta, las de los cierres ya terminaron.
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    const seen = duel.clientB.messages.length;
+    duel.clientB.send({ type: 'sync', matchId: duel.matchId });
+    const snapshot = await duel.clientB.until((messages) => messages.slice(seen).find((message) => message.type === 'snapshot'));
+    if (snapshot.type !== 'snapshot') throw new Error('Mensaje inesperado');
+    expect(snapshot.view.opponent.connected).toBe(true);
+  });
+
   it('al vencer la gracia gana el rival, una sola vez aunque se barra de nuevo', async () => {
     const namespace = `test-${randomUUID()}-`;
     const replica = await startReplica(namespace);
