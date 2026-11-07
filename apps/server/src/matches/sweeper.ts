@@ -5,6 +5,11 @@ import type { MatchEngine } from './match-engine.js';
 const BATCH_SIZE = 200;
 /** Salas abiertas sin iniciar más tiempo que esto se cierran y liberan a sus miembros. */
 const ROOM_MAX_AGE = '1 hour';
+/**
+ * La limpieza de cola y salas no tiene prisa: la cola ya filtra por `expires_at` y las salas caducan a la hora.
+ * Hacerla cada 30 s y no en cada barrido deja en reposo 2 consultas por segundo en vez de 4.
+ */
+const HOUSEKEEPING_INTERVAL_MS = 30_000;
 
 /**
  * Barre plazos vencidos. No hay réplica líder: si dos barren la misma partida, el dominio rechaza el
@@ -14,6 +19,7 @@ const ROOM_MAX_AGE = '1 hour';
 export class MatchSweeper {
   private timer: NodeJS.Timeout | null = null;
   private running = false;
+  private lastHousekeepingMs = Number.NEGATIVE_INFINITY;
 
   constructor(
     private readonly pool: pg.Pool,
@@ -55,6 +61,8 @@ export class MatchSweeper {
       }
     }
     await this.runBotTurns(nowMs);
+    if (nowMs - this.lastHousekeepingMs < HOUSEKEEPING_INTERVAL_MS) return;
+    this.lastHousekeepingMs = nowMs;
     await this.pool.query('DELETE FROM matchmaking_queue WHERE expires_at <= now()');
     await this.pool.query(
       `WITH stale AS (
