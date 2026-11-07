@@ -1,4 +1,4 @@
-import { MONSTER_IDS, MONSTERS, monsterForLevel, STORY_LEVELS } from '@ashenfall/domain';
+import { MONSTER_IDS, MONSTERS, monsterForLevel, STORY_LEVELS, type MatchConfig } from '@ashenfall/domain';
 import { Type, type Static } from '@sinclair/typebox';
 import type { FastifyInstance } from 'fastify';
 import type pg from 'pg';
@@ -11,7 +11,13 @@ import { createMatchInTransaction } from './start.js';
 const StartBotMatch = Type.Object({ level: Type.Integer({ minimum: 1, maximum: STORY_LEVELS }) }, { additionalProperties: false });
 
 /** Niveles del modo historia contra los monstruos. El PvP entre humanos no cambia. */
-export function registerBotRoutes(app: FastifyInstance, auth: AuthService, pool: pg.Pool, announce: (matchId: string) => void): void {
+export function registerBotRoutes(
+  app: FastifyInstance,
+  auth: AuthService,
+  pool: pg.Pool,
+  announce: (matchId: string) => void,
+  matchConfig?: MatchConfig,
+): void {
   async function cleared(userId: string): Promise<number> {
     const { rows } = await pool.query<{ cleared: number }>('SELECT cleared FROM story_progress WHERE user_id = $1', [userId]);
     return rows[0]?.cleared ?? 0;
@@ -43,7 +49,7 @@ export function registerBotRoutes(app: FastifyInstance, auth: AuthService, pool:
     if (monster === undefined) throw new ProblemError(404, 'LEVEL_NOT_FOUND', 'Ese nivel no existe');
     const profile = monster;
     const matchId = await inTransaction(pool, (client) =>
-      createMatchInTransaction(client, [userId, botUserId(profile.id)], Date.now(), undefined, { mode: 'story', monster: profile, reward: profile.reward }),
+      createMatchInTransaction(client, [userId, botUserId(profile.id)], Date.now(), matchConfig, { mode: 'story', monster: profile, reward: profile.reward }),
     );
     announce(matchId);
     return reply.code(201).send({ matchId, monsterId: profile.id });

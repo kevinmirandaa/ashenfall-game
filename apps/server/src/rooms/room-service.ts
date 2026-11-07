@@ -1,4 +1,5 @@
 import { randomInt, randomUUID } from 'node:crypto';
+import type { MatchConfig } from '@ashenfall/domain';
 import type pg from 'pg';
 import { inTransaction, isUniqueViolation } from '../db/transaction.js';
 import { activeMatchOf, createMatchInTransaction } from '../matches/start.js';
@@ -43,6 +44,7 @@ export class RoomService {
   constructor(
     private readonly pool: pg.Pool,
     private readonly onMatchStarted: (matchId: string) => void = () => undefined,
+    private readonly matchConfig?: MatchConfig,
   ) {}
 
   async create(userId: string, visibility: Visibility): Promise<RoomView> {
@@ -138,7 +140,7 @@ export class RoomService {
       );
       const [first, second] = rows;
       if (first?.ready === true && second?.ready === true && rows.length === room.capacity) {
-        const matchId = await createMatchInTransaction(client, [first.user_id, second.user_id], nowMs);
+        const matchId = await createMatchInTransaction(client, [first.user_id, second.user_id], nowMs, this.matchConfig);
         await client.query(`UPDATE rooms SET status = 'started', match_id = $1 WHERE id = $2`, [matchId, roomId]);
         await client.query('DELETE FROM room_members WHERE room_id = $1', [roomId]);
         startedMatchId = matchId;

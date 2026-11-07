@@ -1,3 +1,4 @@
+import type { MatchConfig } from '@ashenfall/domain';
 import type pg from 'pg';
 import { inTransaction } from '../db/transaction.js';
 import { activeMatchOf, createMatchInTransaction } from '../matches/start.js';
@@ -17,6 +18,7 @@ export class MatchmakingService {
     private readonly pool: pg.Pool,
     private readonly maxWaitMs: number,
     private readonly onMatchStarted: (matchId: string) => void = () => undefined,
+    private readonly matchConfig?: MatchConfig,
   ) {}
 
   async join(userId: string, nowMs: number): Promise<QueueStatus> {
@@ -45,7 +47,7 @@ export class MatchmakingService {
       const rivalId = rival.rows[0]?.user_id;
       if (rivalId !== undefined) {
         // Crear la partida también los saca de la cola.
-        const matchId = await createMatchInTransaction(client, [rivalId, userId], nowMs);
+        const matchId = await createMatchInTransaction(client, [rivalId, userId], nowMs, this.matchConfig);
         return { status: { status: 'matched', matchId }, created: matchId };
       }
 

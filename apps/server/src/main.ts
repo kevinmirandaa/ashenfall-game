@@ -26,6 +26,8 @@ const app = buildApp({
   enforceHttps: config.enforceHttps,
   auth: { jwtSecret: config.jwtSecret, accessTokenTtlSeconds: 900, refreshTokenTtlSeconds: 30 * 24 * 3600 },
   rateLimit: { ...config.rateLimit, redis },
+  matchmakingMaxWaitMs: config.matchmakingMaxWaitMs,
+  reconnectGraceMs: config.reconnectGraceMs,
   realtime: { redis, gateway: { allowedOrigins: config.allowedOrigins } },
   health: { redis },
 });

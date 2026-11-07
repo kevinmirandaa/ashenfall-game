@@ -34,4 +34,14 @@ describe('loadConfig', () => {
     expect(() => loadConfig({ ...valid, PORT: 'ocho' })).toThrow(/PORT/);
     expect(() => loadConfig({ ...valid, RATE_LIMIT_GLOBAL_PER_MINUTE: '0' })).toThrow(/RATE_LIMIT_GLOBAL_PER_MINUTE/);
   });
+
+  it('la espera máxima de la cola y el periodo de gracia son configurables', () => {
+    const valid = { ...base, JWT_SECRET: 'x'.repeat(32) };
+    expect(loadConfig(valid)).toMatchObject({ matchmakingMaxWaitMs: 60_000, reconnectGraceMs: 60_000 });
+    expect(loadConfig({ ...valid, MATCHMAKING_MAX_WAIT_MS: '15000', RECONNECT_GRACE_MS: '5000' })).toMatchObject({
+      matchmakingMaxWaitMs: 15_000,
+      reconnectGraceMs: 5_000,
+    });
+    expect(() => loadConfig({ ...valid, RECONNECT_GRACE_MS: '-1' })).toThrow(/RECONNECT_GRACE_MS/);
+  });
 });

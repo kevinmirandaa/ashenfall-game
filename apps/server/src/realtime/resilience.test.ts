@@ -38,8 +38,9 @@ interface Replica {
   readonly url: string;
 }
 
-async function startReplica(namespace: string): Promise<Replica> {
+async function startReplica(namespace: string, options: { reconnectGraceMs?: number } = {}): Promise<Replica> {
   const app = buildApp({
+    ...options,
     pool: db.pool,
     auth: { jwtSecret: JWT, accessTokenTtlSeconds: 300, refreshTokenTtlSeconds: 3600 },
     rateLimit: { globalPerMinute: 100_000, authPerMinute: 100_000, loginPerAccountPerMinute: 100_000 },
@@ -235,6 +236,52 @@ describe('desconexión', () => {
     await sweeper.runOnce(later + 1000);
     expect(await balanceOf(duel.b)).toBe(100);
     expect(await balanceOf(duel.a)).toBe(0);
+  });
+
+  it('el periodo de gracia es configurable: con 5 s, a los 6 s ya se aplica el abandono', async () => {
+    const namespace = `test-${randomUUID()}-`;
+    const replica = await startReplica(namespace, { reconnectGraceMs: 5_000 });
+    const duel = await startDuel(replica, replica);
+    duel.clientA.socket.close();
+    const disconnected = await duel.clientB.untilEvent('player_disconnected');
+    if (disconnected.type !== 'player_disconnected') throw new Error('Evento inesperado');
+    const sweeper = sweeperFor(namespace);
+    await sweeper.runOnce(Date.now() + 4_000);
+    const { rows } = await db.pool.query(`SELECT status FROM matches WHERE id = $1`, [duel.matchId]);
+    expect(rows).toEqual([{ status: 'in_progress' }]);
+    await sweeper.runOnce(Date.now() + 6_000);
+    const finished = await duel.clientB.untilEvent('match_finished');
+    if (finished.type !== 'match_finished') throw new Error('Evento inesperado');
+    expect(finished.result).toMatchObject({ winnerId: duel.b.id, reason: 'disconnect_forfeit' });
+  });
+});
+
+describe('aislamiento', () => {
+  it('una partida con el log dañado responde INTERNAL_ERROR sin cerrar la conexión, y las demás siguen jugando y venciendo plazos', async () => {
+    const namespace = `test-${randomUUID()}-`;
+    const replica = await startReplica(namespace);
+    const broken = await startDuel(replica, replica);
+    const healthy = await startDuel(replica, replica);
+    // Daña el log de la primera partida: reconstruir su estado lanza una excepción.
+    await db.pool.query(`UPDATE match_events SET payload = '{"type":"basura"}'::jsonb WHERE match_id = $1 AND seq = 1`, [broken.matchId]);
+
+    const brokenShooter = broken.firstPlayerId === broken.a.id ? broken.clientA : broken.clientB;
+    const brokenAction = randomUUID();
+    brokenShooter.send({ type: 'shoot', matchId: broken.matchId, actionId: brokenAction, expectedVersion: 1, ...MISS });
+    await brokenShooter.until((messages) =>
+      messages.find((message) => message.type === 'error' && message.code === 'INTERNAL_ERROR' && message.actionId === brokenAction),
+    );
+    expect(brokenShooter.socket.readyState).toBe(WebSocket.OPEN);
+
+    const healthyShooter = healthy.firstPlayerId === healthy.a.id ? healthy.clientA : healthy.clientB;
+    const healthyAction = randomUUID();
+    healthyShooter.send({ type: 'shoot', matchId: healthy.matchId, actionId: healthyAction, expectedVersion: 1, ...MISS });
+    await healthyShooter.until((messages) => messages.find((message) => message.type === 'ack' && message.actionId === healthyAction));
+
+    // El barrido encuentra primero la partida dañada (su plazo vence antes) y aun así aplica el de la sana.
+    await sweeperFor(namespace).runOnce(Date.now() + 120_000);
+    await healthy.clientA.untilEvent('turn_timed_out');
+    expect((await replica.app.inject({ method: 'GET', url: '/health/live' })).statusCode).toBe(200);
   });
 });
 
