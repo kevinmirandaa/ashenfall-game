@@ -282,14 +282,14 @@ describe('applyKnockback', () => {
   });
 
   it('no atraviesa un obstáculo alto', () => {
-    const arena: ArenaDefinition = { ...emptyArena, obstacles: [{ x: 900, y: 0, width: 50, height: 90 }] };
+    const arena: ArenaDefinition = { ...emptyArena, obstacles: [{ kind: 'column', x: 900, y: 0, width: 50, height: 90 }] };
     const result = applyKnockback(start, 1, 40, arena);
     expect(result.x - 24).toBeGreaterThanOrEqual(950);
     expect(result.y).toBe(0);
   });
 
   it('cae al suelo si retrocede fuera de una repisa', () => {
-    const arena: ArenaDefinition = { ...emptyArena, obstacles: [{ x: 960, y: 0, width: 60, height: 110 }] };
+    const arena: ArenaDefinition = { ...emptyArena, obstacles: [{ kind: 'column', x: 960, y: 0, width: 60, height: 110 }] };
     const result = applyKnockback({ x: 990, y: 110 }, 1, 20, arena);
     expect(result.y).toBe(0);
     expect(result.x).toBeLessThan(990);
