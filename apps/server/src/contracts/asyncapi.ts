@@ -33,7 +33,7 @@ const serverExamples: Record<keyof typeof serverMessages, unknown> = {
       windAccel: -40,
       maxRounds: 12,
       round: 1,
-      physicsVersion: 3,
+      physicsVersion: 4,
       turn: { playerId: USER, round: 1, deadlineMs: 1793906164944 },
       you: { playerId: USER, hp: 100, position: { x: 450, y: 0 }, facing: 1, connected: true, characterId: 'edrik', displayName: 'Edrik' },
       opponent: { playerId: ACTION, hp: 78, position: { x: 1550, y: 0 }, facing: -1, connected: true, characterId: 'edrik', displayName: 'Edrik' },
