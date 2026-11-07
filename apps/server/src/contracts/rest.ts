@@ -91,7 +91,17 @@ const AdminMatch = Type.Object(
     matchId: Id,
     createdAt: Timestamp,
     round: Type.Integer(),
-    players: Type.Array(Type.Object({ playerId: Id, connected: Type.Boolean(), hp: Type.Integer() }, strict)),
+    players: Type.Array(
+      Type.Object(
+        {
+          playerId: Id,
+          connected: Type.Boolean(),
+          connections: Type.Integer({ minimum: 0, description: 'Conexiones WebSocket vivas del jugador en todas las réplicas' }),
+          hp: Type.Integer(),
+        },
+        strict,
+      ),
+    ),
   },
   strict,
 );

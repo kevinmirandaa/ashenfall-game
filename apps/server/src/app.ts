@@ -270,12 +270,19 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     registerBotRoutes(api, auth, dependencies.pool, announceMatch, matchConfig);
     registerStatsRoute(api, auth, dependencies.pool);
     registerShopRoutes(api, auth, dependencies.pool);
-    registerAdminRoutes(api, auth, dependencies.pool, engine, (userId) => bus?.publishUserSuspended(userId));
+    const presence =
+      realtime === undefined ? null : new Presence(realtime.redis, namespace, (realtime.gateway.heartbeatMs ?? 15_000) * 3);
+    registerAdminRoutes(
+      api,
+      auth,
+      dependencies.pool,
+      engine,
+      (userId) => bus?.publishUserSuspended(userId),
+      presence === null ? undefined : (userId) => presence.count(userId),
+    );
 
-    if (realtime !== undefined && bus !== null) {
+    if (realtime !== undefined && bus !== null && presence !== null) {
       const tickets = new WsTicketStore(realtime.redis, namespace);
-      const heartbeatMs = realtime.gateway.heartbeatMs ?? 15_000;
-      const presence = new Presence(realtime.redis, namespace, heartbeatMs * 3);
       const activeGateway = new RealtimeGateway(app.server, dependencies.pool, () => engine, tickets, presence, app.log, realtime.gateway, telemetry);
       const sweeper = new MatchSweeper(dependencies.pool, engine, app.log);
       api.post('/v1/ws-ticket', async (request, reply) => {

@@ -37,6 +37,8 @@ export function registerAdminRoutes(
   pool: pg.Pool,
   engine: MatchEngine,
   onUserSuspended: (userId: string) => void,
+  /** Conexiones WebSocket vivas de un usuario en todas las réplicas. Sin tiempo real, siempre 0. */
+  connectionsOf: (userId: string) => Promise<number> = () => Promise.resolve(0),
 ): void {
   /** El rol se lee de la base en cada petición, no del token: revocarlo surte efecto de inmediato. */
   const requireAdmin = async (request: FastifyRequest): Promise<string> => {
@@ -58,7 +60,14 @@ export function registerAdminRoutes(
           matchId: row.id,
           createdAt: row.created_at.toISOString(),
           round: state.lastRound,
-          players: state.players.map((player) => ({ playerId: player.playerId, connected: player.connected, hp: player.hp })),
+          players: await Promise.all(
+            state.players.map(async (player) => ({
+              playerId: player.playerId,
+              connected: player.connected,
+              connections: await connectionsOf(player.playerId),
+              hp: player.hp,
+            })),
+          ),
         };
       }),
     );
