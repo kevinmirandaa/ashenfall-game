@@ -16,6 +16,11 @@ describe('loadConfig', () => {
     expect(first.jwtSecret).not.toBe(second.jwtSecret);
   });
 
+  it('HTTPS obligatorio solo si se configura', () => {
+    expect(loadConfig({ ...base, JWT_SECRET: 'x'.repeat(32) }).enforceHttps).toBe(false);
+    expect(loadConfig({ ...base, JWT_SECRET: 'x'.repeat(32), ENFORCE_HTTPS: '1' }).enforceHttps).toBe(true);
+  });
+
   it('interpreta orígenes y proxy', () => {
     const config = loadConfig({ ...base, JWT_SECRET: 'x'.repeat(32), ALLOWED_ORIGINS: 'https://a.test, https://b.test', TRUST_PROXY: '1' });
     expect(config.allowedOrigins).toEqual(['https://a.test', 'https://b.test']);

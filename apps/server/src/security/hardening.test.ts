@@ -56,6 +56,28 @@ describe('encabezados y CORS', () => {
     });
   });
 
+  it('en local la CSP no fuerza HTTPS y conserva los demás encabezados', async () => {
+    await withApp(base(), async (app) => {
+      const { headers } = await app.inject({ method: 'GET', url: '/health/live' });
+      const csp = String(headers['content-security-policy']);
+      expect(csp).not.toContain('upgrade-insecure-requests');
+      expect(csp).toContain("default-src 'self'");
+      expect(csp).toContain('ws:');
+      expect(headers['strict-transport-security']).toContain('max-age');
+      expect(headers['x-content-type-options']).toBe('nosniff');
+    });
+  });
+
+  it('en producción la CSP fuerza HTTPS y solo admite wss', async () => {
+    await withApp(base({ enforceHttps: true }), async (app) => {
+      const { headers } = await app.inject({ method: 'GET', url: '/health/live' });
+      const csp = String(headers['content-security-policy']);
+      expect(csp).toContain('upgrade-insecure-requests');
+      expect(csp).toContain("connect-src 'self' wss:");
+      expect(csp).not.toMatch(/\bws:/);
+    });
+  });
+
   it('solo permite orígenes configurados', async () => {
     await withApp(base(), async (app) => {
       const preflight = (origin: string) =>

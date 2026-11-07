@@ -37,6 +37,8 @@ export interface AppDependencies {
   readonly telemetry?: Telemetry;
   /** Orígenes de navegador permitidos en CORS. */
   readonly allowedOrigins?: readonly string[];
+  /** Activar solo detrás de HTTPS: añade upgrade-insecure-requests y prohíbe ws:// en la CSP. */
+  readonly enforceHttps?: boolean;
   /** Carpeta con el cliente compilado. */
   readonly clientDir?: string | undefined;
   readonly rateLimit: RateLimitConfig;
@@ -126,7 +128,9 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         // Swagger UI inyecta estilos en línea en /docs; la API no sirve HTML propio.
         styleSrc: ["'self'", "'unsafe-inline'"],
         imgSrc: ["'self'", 'data:', 'blob:'],
-        connectSrc: ["'self'", 'ws:', 'wss:'],
+        // Solo tras HTTPS: Safari no exime a localhost y en local convertiría los recursos a https, dejando la página en blanco.
+        connectSrc: dependencies.enforceHttps === true ? ["'self'", 'wss:'] : ["'self'", 'ws:', 'wss:'],
+        upgradeInsecureRequests: dependencies.enforceHttps === true ? [] : null,
       },
     },
   });

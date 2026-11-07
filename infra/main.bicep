@@ -268,6 +268,7 @@ var serverEnv = [
   { name: 'AZURE_CLIENT_ID', value: identity.properties.clientId }
   { name: 'REDIS_URL', value: 'redis://${redisAppName}:6379' }
   { name: 'TRUST_PROXY', value: '1' }
+  { name: 'ENFORCE_HTTPS', value: '1' }
   { name: 'OTEL_SERVICE_NAME', value: 'ashenfall-server' }
   { name: 'ALLOWED_ORIGINS', value: allowedOrigins }
   { name: 'JWT_SECRET', secretRef: 'jwt-secret' }
