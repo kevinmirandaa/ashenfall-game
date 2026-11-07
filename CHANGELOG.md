@@ -1,6 +1,7 @@
 # Changelog
 
 ## Sin publicar
+- SCRUM-75: el despliegue manual admite `solo_prod` para saltar dev (Azure for Students permite un solo entorno de Container Apps por región); un CI verde sin `AUTO_DEPLOY` sigue sin llegar a prod.
 - SCRUM-74: README centrado en la historia, cómo jugar y el enlace al juego; la guía para correr en local pasa a `docs/jugar-en-local.md`. Emblema del juego en el README, en la pantalla de acceso y como favicon.
 - SCRUM-73: despliegue de prod en Azure Container Apps (`canadacentral`) con su URL pública en el README, y nota del límite de un entorno de Container Apps por región en Azure for Students.
 - SCRUM-72: auditoría contra el enunciado con matriz requisito → evidencia en `docs/cumplimiento-enunciado.md` (94 requisitos). Periodo de gracia y espera de la cola configurables por entorno (`RECONNECT_GRACE_MS`, `MATCHMAKING_MAX_WAIT_MS`), conexiones vivas por jugador en `GET /v1/admin/matches`, prueba de aislamiento entre partidas y modelo de amenazas al día.
