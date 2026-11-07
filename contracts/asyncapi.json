@@ -129,15 +129,99 @@
             "weaponId": {
               "anyOf": [
                 {
+                  "const": "dagger",
+                  "type": "string"
+                },
+                {
+                  "const": "dagger_2",
+                  "type": "string"
+                },
+                {
+                  "const": "dagger_3",
+                  "type": "string"
+                },
+                {
                   "const": "bow",
                   "type": "string"
                 },
                 {
-                  "const": "spear",
+                  "const": "bow_2",
+                  "type": "string"
+                },
+                {
+                  "const": "bow_3",
+                  "type": "string"
+                },
+                {
+                  "const": "crossbow",
+                  "type": "string"
+                },
+                {
+                  "const": "crossbow_2",
+                  "type": "string"
+                },
+                {
+                  "const": "crossbow_3",
                   "type": "string"
                 },
                 {
                   "const": "axe",
+                  "type": "string"
+                },
+                {
+                  "const": "axe_2",
+                  "type": "string"
+                },
+                {
+                  "const": "axe_3",
+                  "type": "string"
+                },
+                {
+                  "const": "sword",
+                  "type": "string"
+                },
+                {
+                  "const": "sword_2",
+                  "type": "string"
+                },
+                {
+                  "const": "sword_3",
+                  "type": "string"
+                },
+                {
+                  "const": "staff",
+                  "type": "string"
+                },
+                {
+                  "const": "staff_2",
+                  "type": "string"
+                },
+                {
+                  "const": "staff_3",
+                  "type": "string"
+                },
+                {
+                  "const": "flask",
+                  "type": "string"
+                },
+                {
+                  "const": "flask_2",
+                  "type": "string"
+                },
+                {
+                  "const": "flask_3",
+                  "type": "string"
+                },
+                {
+                  "const": "mace",
+                  "type": "string"
+                },
+                {
+                  "const": "mace_2",
+                  "type": "string"
+                },
+                {
+                  "const": "mace_3",
                   "type": "string"
                 }
               ]
@@ -163,7 +247,7 @@
               "matchId": "6f1c2f5e-3a54-4a7e-9b1d-2c8f0a4e7d11",
               "actionId": "0b9a7c3e-52d1-4f60-8a2b-7e1d3c5f9a22",
               "expectedVersion": 3,
-              "weaponId": "bow",
+              "weaponId": "dagger",
               "angleDeg": 42.5,
               "power": 70
             }
@@ -311,15 +395,31 @@
                 "arenaId": {
                   "anyOf": [
                     {
-                      "const": "whispering_forest",
+                      "const": "hamlet_ruins",
                       "type": "string"
                     },
                     {
-                      "const": "frostlands",
+                      "const": "graveyard",
                       "type": "string"
                     },
                     {
-                      "const": "ashen_desert",
+                      "const": "ember_desert",
+                      "type": "string"
+                    },
+                    {
+                      "const": "misty_pines",
+                      "type": "string"
+                    },
+                    {
+                      "const": "frozen_bridge",
+                      "type": "string"
+                    },
+                    {
+                      "const": "blood_keep",
+                      "type": "string"
+                    },
+                    {
+                      "const": "fog_ruins",
                       "type": "string"
                     }
                   ]
@@ -374,6 +474,7 @@
                     "facing",
                     "connected",
                     "characterId",
+                    "weaponId",
                     "displayName"
                   ],
                   "properties": {
@@ -427,6 +528,134 @@
                         },
                         {
                           "const": "borgrim",
+                          "type": "string"
+                        },
+                        {
+                          "const": "aldric",
+                          "type": "string"
+                        },
+                        {
+                          "const": "vaela",
+                          "type": "string"
+                        },
+                        {
+                          "const": "corvus",
+                          "type": "string"
+                        },
+                        {
+                          "const": "anselmo",
+                          "type": "string"
+                        },
+                        {
+                          "const": "mirelle",
+                          "type": "string"
+                        },
+                        {
+                          "const": "morveth",
+                          "type": "string"
+                        },
+                        {
+                          "const": "rurik",
+                          "type": "string"
+                        }
+                      ]
+                    },
+                    "weaponId": {
+                      "anyOf": [
+                        {
+                          "const": "dagger",
+                          "type": "string"
+                        },
+                        {
+                          "const": "dagger_2",
+                          "type": "string"
+                        },
+                        {
+                          "const": "dagger_3",
+                          "type": "string"
+                        },
+                        {
+                          "const": "bow",
+                          "type": "string"
+                        },
+                        {
+                          "const": "bow_2",
+                          "type": "string"
+                        },
+                        {
+                          "const": "bow_3",
+                          "type": "string"
+                        },
+                        {
+                          "const": "crossbow",
+                          "type": "string"
+                        },
+                        {
+                          "const": "crossbow_2",
+                          "type": "string"
+                        },
+                        {
+                          "const": "crossbow_3",
+                          "type": "string"
+                        },
+                        {
+                          "const": "axe",
+                          "type": "string"
+                        },
+                        {
+                          "const": "axe_2",
+                          "type": "string"
+                        },
+                        {
+                          "const": "axe_3",
+                          "type": "string"
+                        },
+                        {
+                          "const": "sword",
+                          "type": "string"
+                        },
+                        {
+                          "const": "sword_2",
+                          "type": "string"
+                        },
+                        {
+                          "const": "sword_3",
+                          "type": "string"
+                        },
+                        {
+                          "const": "staff",
+                          "type": "string"
+                        },
+                        {
+                          "const": "staff_2",
+                          "type": "string"
+                        },
+                        {
+                          "const": "staff_3",
+                          "type": "string"
+                        },
+                        {
+                          "const": "flask",
+                          "type": "string"
+                        },
+                        {
+                          "const": "flask_2",
+                          "type": "string"
+                        },
+                        {
+                          "const": "flask_3",
+                          "type": "string"
+                        },
+                        {
+                          "const": "mace",
+                          "type": "string"
+                        },
+                        {
+                          "const": "mace_2",
+                          "type": "string"
+                        },
+                        {
+                          "const": "mace_3",
                           "type": "string"
                         }
                       ]
@@ -446,6 +675,7 @@
                     "facing",
                     "connected",
                     "characterId",
+                    "weaponId",
                     "displayName"
                   ],
                   "properties": {
@@ -499,6 +729,134 @@
                         },
                         {
                           "const": "borgrim",
+                          "type": "string"
+                        },
+                        {
+                          "const": "aldric",
+                          "type": "string"
+                        },
+                        {
+                          "const": "vaela",
+                          "type": "string"
+                        },
+                        {
+                          "const": "corvus",
+                          "type": "string"
+                        },
+                        {
+                          "const": "anselmo",
+                          "type": "string"
+                        },
+                        {
+                          "const": "mirelle",
+                          "type": "string"
+                        },
+                        {
+                          "const": "morveth",
+                          "type": "string"
+                        },
+                        {
+                          "const": "rurik",
+                          "type": "string"
+                        }
+                      ]
+                    },
+                    "weaponId": {
+                      "anyOf": [
+                        {
+                          "const": "dagger",
+                          "type": "string"
+                        },
+                        {
+                          "const": "dagger_2",
+                          "type": "string"
+                        },
+                        {
+                          "const": "dagger_3",
+                          "type": "string"
+                        },
+                        {
+                          "const": "bow",
+                          "type": "string"
+                        },
+                        {
+                          "const": "bow_2",
+                          "type": "string"
+                        },
+                        {
+                          "const": "bow_3",
+                          "type": "string"
+                        },
+                        {
+                          "const": "crossbow",
+                          "type": "string"
+                        },
+                        {
+                          "const": "crossbow_2",
+                          "type": "string"
+                        },
+                        {
+                          "const": "crossbow_3",
+                          "type": "string"
+                        },
+                        {
+                          "const": "axe",
+                          "type": "string"
+                        },
+                        {
+                          "const": "axe_2",
+                          "type": "string"
+                        },
+                        {
+                          "const": "axe_3",
+                          "type": "string"
+                        },
+                        {
+                          "const": "sword",
+                          "type": "string"
+                        },
+                        {
+                          "const": "sword_2",
+                          "type": "string"
+                        },
+                        {
+                          "const": "sword_3",
+                          "type": "string"
+                        },
+                        {
+                          "const": "staff",
+                          "type": "string"
+                        },
+                        {
+                          "const": "staff_2",
+                          "type": "string"
+                        },
+                        {
+                          "const": "staff_3",
+                          "type": "string"
+                        },
+                        {
+                          "const": "flask",
+                          "type": "string"
+                        },
+                        {
+                          "const": "flask_2",
+                          "type": "string"
+                        },
+                        {
+                          "const": "flask_3",
+                          "type": "string"
+                        },
+                        {
+                          "const": "mace",
+                          "type": "string"
+                        },
+                        {
+                          "const": "mace_2",
+                          "type": "string"
+                        },
+                        {
+                          "const": "mace_3",
                           "type": "string"
                         }
                       ]
@@ -604,7 +962,7 @@
                 "status": "in_progress",
                 "seq": 3,
                 "version": 3,
-                "arenaId": "frostlands",
+                "arenaId": "frozen_bridge",
                 "windAccel": -40,
                 "maxRounds": 12,
                 "round": 1,
@@ -624,7 +982,8 @@
                   "facing": 1,
                   "connected": true,
                   "characterId": "edrik",
-                  "displayName": "Edrik"
+                  "displayName": "Edrik",
+                  "weaponId": "dagger"
                 },
                 "opponent": {
                   "playerId": "0b9a7c3e-52d1-4f60-8a2b-7e1d3c5f9a22",
@@ -635,8 +994,9 @@
                   },
                   "facing": -1,
                   "connected": true,
-                  "characterId": "edrik",
-                  "displayName": "Edrik"
+                  "characterId": "sylwen",
+                  "displayName": "Sylwen",
+                  "weaponId": "bow_3"
                 },
                 "result": null
               }
@@ -744,15 +1104,31 @@
                             "arenaId": {
                               "anyOf": [
                                 {
-                                  "const": "whispering_forest",
+                                  "const": "hamlet_ruins",
                                   "type": "string"
                                 },
                                 {
-                                  "const": "frostlands",
+                                  "const": "graveyard",
                                   "type": "string"
                                 },
                                 {
-                                  "const": "ashen_desert",
+                                  "const": "ember_desert",
+                                  "type": "string"
+                                },
+                                {
+                                  "const": "misty_pines",
+                                  "type": "string"
+                                },
+                                {
+                                  "const": "frozen_bridge",
+                                  "type": "string"
+                                },
+                                {
+                                  "const": "blood_keep",
+                                  "type": "string"
+                                },
+                                {
+                                  "const": "fog_ruins",
                                   "type": "string"
                                 }
                               ]
@@ -807,6 +1183,7 @@
                                 "facing",
                                 "connected",
                                 "characterId",
+                                "weaponId",
                                 "displayName"
                               ],
                               "properties": {
@@ -860,6 +1237,134 @@
                                     },
                                     {
                                       "const": "borgrim",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "aldric",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "vaela",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "corvus",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "anselmo",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "mirelle",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "morveth",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "rurik",
+                                      "type": "string"
+                                    }
+                                  ]
+                                },
+                                "weaponId": {
+                                  "anyOf": [
+                                    {
+                                      "const": "dagger",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "dagger_2",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "dagger_3",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "bow",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "bow_2",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "bow_3",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "crossbow",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "crossbow_2",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "crossbow_3",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "axe",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "axe_2",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "axe_3",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "sword",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "sword_2",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "sword_3",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "staff",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "staff_2",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "staff_3",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "flask",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "flask_2",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "flask_3",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "mace",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "mace_2",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "mace_3",
                                       "type": "string"
                                     }
                                   ]
@@ -879,6 +1384,7 @@
                                 "facing",
                                 "connected",
                                 "characterId",
+                                "weaponId",
                                 "displayName"
                               ],
                               "properties": {
@@ -932,6 +1438,134 @@
                                     },
                                     {
                                       "const": "borgrim",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "aldric",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "vaela",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "corvus",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "anselmo",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "mirelle",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "morveth",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "rurik",
+                                      "type": "string"
+                                    }
+                                  ]
+                                },
+                                "weaponId": {
+                                  "anyOf": [
+                                    {
+                                      "const": "dagger",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "dagger_2",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "dagger_3",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "bow",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "bow_2",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "bow_3",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "crossbow",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "crossbow_2",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "crossbow_3",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "axe",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "axe_2",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "axe_3",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "sword",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "sword_2",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "sword_3",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "staff",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "staff_2",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "staff_3",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "flask",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "flask_2",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "flask_3",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "mace",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "mace_2",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "mace_3",
                                       "type": "string"
                                     }
                                   ]
@@ -1040,6 +1674,7 @@
                         "damage",
                         "zone",
                         "targetHpAfter",
+                        "effect",
                         "targetPosition"
                       ],
                       "properties": {
@@ -1054,15 +1689,99 @@
                         "weaponId": {
                           "anyOf": [
                             {
+                              "const": "dagger",
+                              "type": "string"
+                            },
+                            {
+                              "const": "dagger_2",
+                              "type": "string"
+                            },
+                            {
+                              "const": "dagger_3",
+                              "type": "string"
+                            },
+                            {
                               "const": "bow",
                               "type": "string"
                             },
                             {
-                              "const": "spear",
+                              "const": "bow_2",
+                              "type": "string"
+                            },
+                            {
+                              "const": "bow_3",
+                              "type": "string"
+                            },
+                            {
+                              "const": "crossbow",
+                              "type": "string"
+                            },
+                            {
+                              "const": "crossbow_2",
+                              "type": "string"
+                            },
+                            {
+                              "const": "crossbow_3",
                               "type": "string"
                             },
                             {
                               "const": "axe",
+                              "type": "string"
+                            },
+                            {
+                              "const": "axe_2",
+                              "type": "string"
+                            },
+                            {
+                              "const": "axe_3",
+                              "type": "string"
+                            },
+                            {
+                              "const": "sword",
+                              "type": "string"
+                            },
+                            {
+                              "const": "sword_2",
+                              "type": "string"
+                            },
+                            {
+                              "const": "sword_3",
+                              "type": "string"
+                            },
+                            {
+                              "const": "staff",
+                              "type": "string"
+                            },
+                            {
+                              "const": "staff_2",
+                              "type": "string"
+                            },
+                            {
+                              "const": "staff_3",
+                              "type": "string"
+                            },
+                            {
+                              "const": "flask",
+                              "type": "string"
+                            },
+                            {
+                              "const": "flask_2",
+                              "type": "string"
+                            },
+                            {
+                              "const": "flask_3",
+                              "type": "string"
+                            },
+                            {
+                              "const": "mace",
+                              "type": "string"
+                            },
+                            {
+                              "const": "mace_2",
+                              "type": "string"
+                            },
+                            {
+                              "const": "mace_3",
                               "type": "string"
                             }
                           ]
@@ -1153,6 +1872,43 @@
                         },
                         "targetHpAfter": {
                           "type": "integer"
+                        },
+                        "effect": {
+                          "anyOf": [
+                            {
+                              "additionalProperties": false,
+                              "description": "Veneno o fuego del arma; ya descontado de targetHpAfter",
+                              "type": "object",
+                              "required": [
+                                "kind",
+                                "perSecond",
+                                "seconds"
+                              ],
+                              "properties": {
+                                "kind": {
+                                  "anyOf": [
+                                    {
+                                      "const": "poison",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "burn",
+                                      "type": "string"
+                                    }
+                                  ]
+                                },
+                                "perSecond": {
+                                  "type": "integer"
+                                },
+                                "seconds": {
+                                  "type": "integer"
+                                }
+                              }
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
                         },
                         "targetPosition": {
                           "additionalProperties": false,

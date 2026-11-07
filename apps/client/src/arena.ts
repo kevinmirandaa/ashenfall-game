@@ -1,5 +1,6 @@
 import {
   ARENAS,
+  ARENA_IDS,
   muzzlePosition,
   playerHitbox,
   simulateShot,
@@ -8,11 +9,14 @@ import {
   type PlayerMatchView,
   type ShotView,
   type Vec2,
+  type WeaponEffect,
+  type WeaponFamily,
   type WeaponId,
+  WEAPON_FAMILIES,
 } from '@ashenfall/domain';
 import Phaser from 'phaser';
 import { audio } from './audio.js';
-import { bodyTint, CHARACTERS, DEFAULT_WEAPON, type CharacterId, type Look } from './art.js';
+import { bodyTint, CHARACTERS, type CharacterId, type Look } from './art.js';
 import { BIOME_ART, drawGround, GROUND_DEPTH, GROUND_HEADROOM, WORLD_LEFT, WORLD_WIDTH } from './biomes.js';
 
 const VIEW_W = 1280;
@@ -23,7 +27,7 @@ const WORLD_BOTTOM = GROUND_Y + GROUND_DEPTH;
 const WORLD_TOP = -1500;
 const REST_SCROLL_Y = WORLD_BOTTOM - VIEW_H;
 /** La guía muestra solo el inicio del arco: con la posición del rival a la vista, una guía completa haría trivial apuntar. */
-const GUIDE_FRACTION = 0.3;
+const GUIDE_FRACTION = 0.5;
 const GUIDE_SPACING = 20;
 const PAN_MS = 900;
 const SHOT_MIN_MS = 500;
@@ -36,12 +40,12 @@ const MAX_PULL = 240;
 const MIN_PULL = 28;
 /** Fotogramas que existen en las hojas de referencia; lo demás se anima con el muñeco. */
 const POSES: Readonly<Partial<Record<CharacterId, readonly ('hit' | 'down' | 'win' | 'shoot')[]>>> = {};
-const BODY_HEIGHT: Readonly<Record<CharacterId, number>> = { edrik: 146, sylwen: 144, borgrim: 128 };
-const WEAPON_ART: Readonly<Record<WeaponId, { length: number; originX: number }>> = {
-  bow: { length: 112, originX: 0.3 },
-  spear: { length: 150, originX: 0.38 },
-  axe: { length: 104, originX: 0.3 },
-};
+const BODY_HEIGHT: Readonly<Record<CharacterId, number>> = { edrik: 148, sylwen: 148, borgrim: 134, aldric: 156, vaela: 148, corvus: 156, anselmo: 148, mirelle: 148, morveth: 152, rurik: 148 };
+/** Armas que giran en el aire; el resto vuela apuntando a donde va. */
+const FIREFLY_ARENAS: ReadonlySet<string> = new Set(['graveyard', 'misty_pines', 'hamlet_ruins']);
+const FOG_ARENAS: ReadonlySet<string> = new Set(['graveyard', 'misty_pines', 'fog_ruins', 'blood_keep']);
+const SPINNING: ReadonlySet<WeaponFamily> = new Set<WeaponFamily>(['axe', 'mace', 'flask']);
+const EFFECT_COLORS: Readonly<Record<WeaponEffect['kind'], readonly [number, number]>> = { poison: [0x7ed957, 0xc8f08a], burn: [0xf2963c, 0xfbe58a] };
 
 const toScreen = (point: Vec2): Vec2 => ({ x: point.x, y: GROUND_Y - point.y });
 
@@ -99,7 +103,7 @@ export class ArenaScene extends Phaser.Scene {
   view: PlayerMatchView | null = null;
   angleDeg = 45;
   power = 60;
-  weaponId: WeaponId = 'bow';
+  weaponId: WeaponId = 'dagger';
   canAim = false;
 
   private guide: Phaser.GameObjects.Graphics | null = null;
@@ -109,6 +113,7 @@ export class ArenaScene extends Phaser.Scene {
   private trailIndex = 0;
   private trailAt = 0;
   private trailOn = false;
+  private trailColors: readonly [number, number] = [0xf2963c, 0xfbe58a];
   private projectile: Phaser.GameObjects.Image | null = null;
   private figures = new Map<string, Figure>();
   private queue: (() => Promise<void>)[] = [];
@@ -119,7 +124,7 @@ export class ArenaScene extends Phaser.Scene {
   private band: Phaser.GameObjects.Graphics | null = null;
   private moteList: Mote[] = [];
   private moteColor = 0xffffff;
-  private arenaId: PlayerMatchView['arenaId'] = 'whispering_forest';
+  private arenaId: PlayerMatchView['arenaId'] = 'hamlet_ruins';
   private blades: { x: number; height: number; phase: number }[] = [];
   private grass: Phaser.GameObjects.Graphics | null = null;
   private birds: { x: number; y: number; speed: number; phase: number }[] = [];
@@ -135,10 +140,9 @@ export class ArenaScene extends Phaser.Scene {
 
   preload(): void {
     for (const hero of CHARACTERS) this.load.image(`body-${hero.id}`, `/art/body-${hero.id}.webp`);
-    for (const id of ['bow', 'spear', 'axe'] as const) this.load.image(`weapon-${id}`, `/art/weapon-${id}.webp`);
+    for (const family of WEAPON_FAMILIES) this.load.image(`proj-${family}`, `/art/proj-${family}.webp`);
     for (const [hero, poses] of Object.entries(POSES)) for (const pose of poses) this.load.image(`pose-${hero}-${pose}`, `/art/pose-${hero}-${pose}.webp`);
-    for (const id of ['whispering_forest', 'frostlands', 'ashen_desert']) this.load.image(`biome-${id}`, `/art/biome-${id}.webp`);
-    this.load.image('fx-arrow', '/art/fx-arrow.webp');
+    for (const id of ARENA_IDS) this.load.image(`biome-${id}`, `/art/biome-${id}.webp`);
     this.load.image('helm', '/art/icon-helm.webp');
   }
 
@@ -257,8 +261,6 @@ export class ArenaScene extends Phaser.Scene {
 
   setWeapon(id: WeaponId): void {
     this.weaponId = id;
-    const { view } = this;
-    if (view !== null) this.equip(view.you.playerId, id);
     this.drawGuide();
   }
 
@@ -359,6 +361,7 @@ export class ArenaScene extends Phaser.Scene {
     if (!this.textures.exists(`ground-${id}`)) this.textures.addCanvas(`ground-${id}`, drawGround(id));
     // La imagen de referencia, ampliada por un factor entero para que cada píxel siga siendo un píxel.
     this.add.image(WORLD_LEFT * 0.15, VIEW_H - 136 + REST_SCROLL_Y * 0.15, `biome-${id}`).setOrigin(0, 1).setScale(art.scale).setScrollFactor(0.15);
+    this.addSkyFade(id, art.scale);
     this.add.image(WORLD_LEFT, GROUND_Y - GROUND_HEADROOM, `ground-${id}`).setOrigin(0, 0).setScale(2);
     camera.setBackgroundColor(art.sky);
     this.moteColor = art.particle;
@@ -367,22 +370,42 @@ export class ArenaScene extends Phaser.Scene {
 
     this.createFigure(view.you, looks.you, looks.youName);
     this.createFigure(view.opponent, looks.rival, looks.rivalName);
-    this.equip(view.you.playerId, this.weaponId);
-    this.equip(view.opponent.playerId, DEFAULT_WEAPON[looks.rival.character]);
 
-    this.grass = id === 'frostlands' ? null : this.add.graphics().setDepth(4);
+    this.grass = id === 'frozen_bridge' ? null : this.add.graphics().setDepth(4);
     this.blades = Array.from({ length: 110 }, () => ({ x: WORLD_LEFT + Math.random() * WORLD_WIDTH, height: 8 + Math.floor(Math.random() * 7) * 2, phase: Math.random() * 6 }));
-    this.birds = id === 'frostlands' ? [] : Array.from({ length: 5 }, (_, index) => ({ x: Math.random() * VIEW_W, y: 90 + index * 26 + Math.random() * 40, speed: 0.25 + Math.random() * 0.2, phase: Math.random() * 6 }));
+    this.birds = id === 'frozen_bridge' ? [] : Array.from({ length: 5 }, (_, index) => ({ x: Math.random() * VIEW_W, y: 90 + index * 26 + Math.random() * 40, speed: 0.25 + Math.random() * 0.2, phase: Math.random() * 6 }));
 
     this.guide = this.add.graphics().setDepth(5);
     this.band = this.add.graphics().setScrollFactor(0).setDepth(10);
     this.anchor = null;
-    this.projectile = this.add.image(0, 0, 'fx-arrow').setDepth(6).setVisible(false);
+    this.projectile = this.add.image(0, 0, 'proj-dagger').setDepth(6).setVisible(false);
     for (let i = 0; i < TRAIL_POOL; i += 1) this.trail.push(this.add.rectangle(0, 0, 7, 7, 0xf2963c).setDepth(5).setVisible(false).setBlendMode(Phaser.BlendModes.ADD));
 
     this.motes = this.add.graphics().setScrollFactor(0).setDepth(9);
-    const count = id === 'frostlands' ? PARTICLES * 3 : PARTICLES;
+    const count = id === 'frozen_bridge' ? PARTICLES * 3 : PARTICLES;
     this.moteList = Array.from({ length: count }, () => ({ x: Math.random() * VIEW_W, y: Math.random() * VIEW_H, speed: 0.4 + Math.random(), size: 1 + Math.random() * 2.4, phase: Math.random() * 6, depth: 0.4 + Math.random() * 0.8 }));
+  }
+
+  /** Degradado del color del cielo sobre la imagen de fondo: así no se ve un corte donde termina. */
+  private addSkyFade(id: PlayerMatchView['arenaId'], scale: number): void {
+    const key = `skyfade-${id}`;
+    if (!this.textures.exists(key)) {
+      const canvas = document.createElement('canvas');
+      canvas.width = 4;
+      canvas.height = 128;
+      const ctx = canvas.getContext('2d');
+      if (ctx !== null) {
+        const gradient = ctx.createLinearGradient(0, 0, 0, 128);
+        gradient.addColorStop(0, BIOME_ART[id].sky);
+        gradient.addColorStop(1, `${BIOME_ART[id].sky}00`);
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, 4, 128);
+      }
+      this.textures.addCanvas(key, canvas);
+    }
+    const source = this.textures.get(`biome-${id}`).getSourceImage();
+    const top = VIEW_H - 136 + REST_SCROLL_Y * 0.15 - Number(source.height) * scale;
+    this.add.image(WORLD_LEFT * 0.15, top - 64, key).setOrigin(0, 0).setDisplaySize(Number(source.width) * scale + 400, 128 + 64).setScrollFactor(0.15);
   }
 
   private createFigure(side: PlayerMatchView['you'], look: Look, name: string): void {
@@ -391,7 +414,7 @@ export class ArenaScene extends Phaser.Scene {
     const hipY = -BODY_HEIGHT[look.character] * HIP;
     const lower = this.add.image(0, 0, key, 'lower').setOrigin(0.5, 1);
     const upper = this.add.image(0, 8, key, 'upper').setOrigin(0.5, 1);
-    const weapon = this.add.image(16, -BODY_HEIGHT[look.character] * 0.14, 'weapon-bow').setOrigin(0.5, 0.5);
+    const weapon = this.add.image(16, -BODY_HEIGHT[look.character] * 0.14, 'proj-dagger').setOrigin(0.5, 0.5).setVisible(false);
     const children: Phaser.GameObjects.GameObject[] = [upper, weapon];
     if (look.helm) children.push(this.add.image(2, -BODY_HEIGHT[look.character] * 0.4, 'helm').setDisplaySize(34, 34));
     const torso = this.add.container(0, hipY, children);
@@ -417,18 +440,6 @@ export class ArenaScene extends Phaser.Scene {
     for (const part of figure.rigParts) part.setVisible(!available);
     if (available) figure.frame.setTexture(`pose-${figure.look.character}-${pose}`);
     return available;
-  }
-
-  private equip(playerId: string, id: WeaponId): void {
-    const figure = this.figures.get(playerId);
-    if (figure === undefined) return;
-    const art = WEAPON_ART[id];
-    // Cada sprite ya lleva dibujada su arma: solo se superpone si elige otra.
-    const image = figure.weapon.setTexture(`weapon-${id}`).clearTint().setVisible(id !== DEFAULT_WEAPON[figure.look.character]);
-    image.setOrigin(art.originX, 0.5);
-    image.setScale(1);
-    if (id === 'axe' && figure.look.bronzeAxe) image.setTint(0xe6a860);
-    if (id === 'bow' && figure.look.boneBow) image.setTint(0xfff0d0);
   }
 
   /** Respiración, balanceo y la pose que dejan los tweens. Sin texturas nuevas: solo transformar. */
@@ -477,7 +488,7 @@ export class ArenaScene extends Phaser.Scene {
   }
 
   private dust(x: number, y: number, count: number): void {
-    const colour = { whispering_forest: 0x6a6048, frostlands: 0xeef3fb, ashen_desert: 0xc79a68 }[this.arenaId];
+    const colour = { hamlet_ruins: 0x6a6048, graveyard: 0x4a4a5c, ember_desert: 0xc79a68, misty_pines: 0x5c6458, frozen_bridge: 0xeef3fb, blood_keep: 0x6a4650, fog_ruins: 0x7a7e8c }[this.arenaId];
     for (let i = 0; i < count; i += 1) {
       const size = 2 + Math.floor(Math.random() * 3) * 2;
       const puff = this.add.rectangle(x + (Math.random() - 0.5) * 24, y, size, size, colour, 0.7).setDepth(4);
@@ -566,7 +577,7 @@ export class ArenaScene extends Phaser.Scene {
     const wind = view.windAccel * 0.012;
     const id = this.arenaId;
     for (const mote of this.moteList) {
-      if (id === 'whispering_forest') {
+      if (FIREFLY_ARENAS.has(id)) {
         // Luciérnagas: vagan despacio y laten.
         mote.x = (mote.x + (Math.sin(time / 900 + mote.phase) * 0.5 + wind * 0.2) * step + VIEW_W) % VIEW_W;
         mote.y += Math.cos(time / 700 + mote.phase) * 0.35 * step;
@@ -575,7 +586,7 @@ export class ArenaScene extends Phaser.Scene {
         motes.fillRect(Math.round(mote.x) - 3, 300 + Math.round(mote.y % 300) - 3, 8, 8);
         motes.fillStyle(this.moteColor, pulse);
         motes.fillRect(Math.round(mote.x), 300 + Math.round(mote.y % 300), 2, 2);
-      } else if (id === 'frostlands') {
+      } else if (id === 'frozen_bridge') {
         // Nieve con profundidad: los copos cercanos caen más rápido.
         mote.x = (mote.x + (wind * mote.depth * 1.6 + Math.sin(time / 800 + mote.phase) * 0.4) * step + VIEW_W) % VIEW_W;
         mote.y = (mote.y + 1.1 * mote.depth * step) % VIEW_H;
@@ -587,6 +598,15 @@ export class ArenaScene extends Phaser.Scene {
         mote.y = (mote.y - 0.45 * mote.depth * step + VIEW_H) % VIEW_H;
         motes.fillStyle(mote.phase > 4 ? 0xff9a3c : this.moteColor, 0.4 + 0.5 * Math.abs(Math.sin(time / 400 + mote.phase)));
         motes.fillRect(Math.round(mote.x), Math.round(mote.y), 2, 2);
+      }
+    }
+    if (FOG_ARENAS.has(id)) {
+      // Bancos de niebla que se desplazan despacio con el viento.
+      for (let band = 0; band < 3; band += 1) {
+        const drift = ((time / (60 + band * 25) + band * 420) % (VIEW_W + 520)) - 260;
+        motes.fillStyle(0xdfe6f0, 0.05 + band * 0.012);
+        motes.fillRect(drift - 260, 430 + band * 52, 640, 36);
+        motes.fillRect(VIEW_W - drift - 380, 470 + band * 40, 520, 28);
       }
     }
     motes.lineStyle(1.6, 0x0c0a10, 0.75);
@@ -602,7 +622,7 @@ export class ArenaScene extends Phaser.Scene {
     const { grass } = this;
     if (grass !== null) {
       grass.clear();
-      grass.lineStyle(1.6, this.arenaId === 'ashen_desert' ? 0x3a2418 : 0x233a18, 1);
+      grass.lineStyle(1.6, this.arenaId === 'ember_desert' ? 0x3a2418 : 0x233a18, 1);
       const left = this.cameras.main.scrollX - 20;
       for (const blade of this.blades) {
         if (blade.x < left || blade.x > left + VIEW_W + 40) continue;
@@ -616,7 +636,7 @@ export class ArenaScene extends Phaser.Scene {
     const spark = this.trail[this.trailIndex];
     if (spark === undefined) return;
     this.trailIndex = (this.trailIndex + 1) % this.trail.length;
-    spark.setPosition(x + (Math.random() - 0.5) * 8, y + (Math.random() - 0.5) * 8).setVisible(true).setAlpha(1).setFillStyle(Math.random() < 0.5 ? 0xf2963c : 0xfbe58a);
+    spark.setPosition(x + (Math.random() - 0.5) * 8, y + (Math.random() - 0.5) * 8).setVisible(true).setAlpha(1).setFillStyle(this.trailColors[Math.random() < 0.5 ? 0 : 1]);
     this.tweens.add({ targets: spark, alpha: 0, y: y + 14, duration: 420, onComplete: () => spark.setVisible(false) });
   }
 
@@ -726,17 +746,16 @@ export class ArenaScene extends Phaser.Scene {
       return;
     }
     this.guide?.clear();
-    this.equip(shot.shooterId, shot.weaponId);
     // La trayectoria es pública; de su inicio se deduce a dónde apuntar el arma.
     const aim = second === undefined ? 30 : Phaser.Math.RadToDeg(Math.atan2(start.y - second.y, Math.abs(second.x - start.x)));
     await this.animateShot(shooter, aim, shot.weaponId);
-    audio.sfx(shot.weaponId);
+    audio.sfx(WEAPONS[shot.weaponId].family);
 
-    const spin = shot.weaponId === 'axe';
-    const arrow = shot.weaponId === 'bow';
-    projectile.setTexture(arrow ? 'fx-arrow' : `weapon-${shot.weaponId}`).setPosition(start.x, start.y).setVisible(true).clearTint();
-    projectile.setScale(arrow ? 1 : 0.5).setOrigin(arrow ? 0.8 : 0.5, 0.5);
-    this.trailOn = shooter.look.embers;
+    const family = WEAPONS[shot.weaponId].family;
+    const spin = SPINNING.has(family);
+    projectile.setTexture(`proj-${family}`).setPosition(start.x, start.y).setVisible(true).clearTint().setScale(1).setOrigin(0.5, 0.5);
+    this.trailColors = shot.effect === null ? [0xf2963c, 0xfbe58a] : EFFECT_COLORS[shot.effect.kind];
+    this.trailOn = shooter.look.embers || shot.effect !== null;
     const camera = this.cameras.main;
     camera.stopFollow();
     camera.startFollow(projectile, true, 0.12, 0.12);
@@ -809,14 +828,46 @@ export class ArenaScene extends Phaser.Scene {
         onComplete: () => piece.destroy(),
       });
     }
-    audio.sfx(hit ? (shot.zone === 'head' ? 'hit_head' : shot.zone === 'legs' ? 'hit_legs' : 'hit_body') : shot.impactKind === 'obstacle' ? 'hit_obstacle' : shot.impactKind === 'ground' ? 'hit_ground' : 'miss');
+    audio.sfx(hit ? 'hit_body' : shot.impactKind === 'obstacle' ? 'hit_obstacle' : shot.impactKind === 'ground' ? 'hit_ground' : 'miss');
     if (hit) this.cameras.main.shake(180, 0.007);
-    const zone = shot.zone === 'head' ? '¡Cabeza! ' : shot.zone === 'legs' ? 'Piernas ' : '';
-    const text = hit ? `${zone}-${String(shot.damage)}` : shot.impactKind === 'out_of_bounds' ? 'Fuera' : 'Fallo';
+    const text = hit ? `-${String(shot.damage)}` : shot.impactKind === 'out_of_bounds' ? 'Fuera' : 'Fallo';
     const label = this.add
       .text(x, y - 40, text, { fontFamily: 'Palatino, Georgia, serif', fontStyle: 'bold', fontSize: hit ? '38px' : '26px', color: hit ? '#ff6a58' : '#e8d8b0', stroke: '#0d0a0e', strokeThickness: 6 })
       .setOrigin(0.5)
       .setDepth(8);
     this.tweens.add({ targets: label, y: y - 110, alpha: 0, duration: 1000, onComplete: () => label.destroy() });
+    if (hit && shot.effect !== null) this.showEffect(shot, shot.effect);
+  }
+
+  /** Veneno o fuego: cada segundo aparece su daño sobre el rival y salen chispas del color del efecto. */
+  private showEffect(shot: ShotView, effect: WeaponEffect): void {
+    const { view } = this;
+    if (view === null) return;
+    const target = this.figures.get(shot.shooterId === view.you.playerId ? view.opponent.playerId : view.you.playerId);
+    if (target === undefined) return;
+    const [dark, light] = EFFECT_COLORS[effect.kind];
+    const height = BODY_HEIGHT[target.look.character];
+    this.time.addEvent({
+      delay: 250,
+      repeat: effect.seconds * 4 - 1,
+      callback: () => {
+        const x = target.homeX + (Math.random() - 0.5) * 36;
+        const spark = this.add.rectangle(x, target.homeY - 10 - Math.random() * height * 0.6, 4, 4, Math.random() < 0.5 ? dark : light).setDepth(7);
+        this.tweens.add({ targets: spark, y: spark.y - 26 - Math.random() * 20, alpha: 0, duration: 520, onComplete: () => spark.destroy() });
+      },
+    });
+    this.time.addEvent({
+      delay: 1000,
+      repeat: effect.seconds - 1,
+      callback: () => {
+        const text = this.add
+          .text(target.homeX, target.homeY - height - 8, `-${String(effect.perSecond)}`, {
+            fontFamily: 'Palatino, Georgia, serif', fontStyle: 'bold', fontSize: '26px', color: effect.kind === 'poison' ? '#9be07a' : '#ffa050', stroke: '#0d0a0e', strokeThickness: 5,
+          })
+          .setOrigin(0.5)
+          .setDepth(8);
+        this.tweens.add({ targets: text, y: text.y - 56, alpha: 0, duration: 900, onComplete: () => text.destroy() });
+      },
+    });
   }
 }

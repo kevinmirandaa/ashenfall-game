@@ -15,7 +15,7 @@ const CLOSE_CODES = [
 ];
 
 const clientExamples: Record<keyof typeof CLIENT_MESSAGES, unknown> = {
-  shoot: { v: 1, type: 'shoot', matchId: MATCH, actionId: ACTION, expectedVersion: 3, weaponId: 'bow', angleDeg: 42.5, power: 70 },
+  shoot: { v: 1, type: 'shoot', matchId: MATCH, actionId: ACTION, expectedVersion: 3, weaponId: 'dagger', angleDeg: 42.5, power: 70 },
   sync: { v: 1, type: 'sync', matchId: MATCH },
 };
 
@@ -29,14 +29,14 @@ const serverExamples: Record<keyof typeof serverMessages, unknown> = {
       status: 'in_progress',
       seq: 3,
       version: 3,
-      arenaId: 'frostlands',
+      arenaId: 'frozen_bridge',
       windAccel: -40,
       maxRounds: 12,
       round: 1,
       physicsVersion: 4,
       turn: { playerId: USER, round: 1, deadlineMs: 1793906164944 },
-      you: { playerId: USER, hp: 100, position: { x: 450, y: 0 }, facing: 1, connected: true, characterId: 'edrik', displayName: 'Edrik' },
-      opponent: { playerId: ACTION, hp: 78, position: { x: 1550, y: 0 }, facing: -1, connected: true, characterId: 'edrik', displayName: 'Edrik' },
+      you: { playerId: USER, hp: 100, position: { x: 450, y: 0 }, facing: 1, connected: true, characterId: 'edrik', displayName: 'Edrik', weaponId: 'dagger' },
+      opponent: { playerId: ACTION, hp: 78, position: { x: 1550, y: 0 }, facing: -1, connected: true, characterId: 'sylwen', displayName: 'Sylwen', weaponId: 'bow_3' },
       result: null,
     },
   },

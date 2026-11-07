@@ -162,7 +162,7 @@ describe('las respuestas reales cumplen el contrato', () => {
     await clientB.untilEvent('match_started');
     const shooter = started.view.turn?.playerId === a.id ? clientA : clientB;
     const rival = shooter === clientA ? clientB : clientA;
-    shooter.send({ type: 'shoot', matchId, actionId: randomUUID(), expectedVersion: 1, weaponId: 'bow', angleDeg: 45, power: 10 });
+    shooter.send({ type: 'shoot', matchId, actionId: randomUUID(), expectedVersion: 1, weaponId: 'dagger', angleDeg: 45, power: 10 });
     await rival.untilEvent('shot_resolved');
     await rival.untilEvent('turn_started');
     rival.send({ type: 'sync', matchId });

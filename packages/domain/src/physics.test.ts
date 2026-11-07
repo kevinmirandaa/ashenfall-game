@@ -14,9 +14,9 @@ import {
   STEP_SECONDS,
   type ShotInput,
 } from './physics.js';
-import { CHARACTER_WEAPON, computeDamage, powerTier, MAX_DAMAGE_PER_SHOT, WEAPONS, WEAPON_IDS } from './weapons.js';
+import { CHARACTER_FAMILY, CHARACTER_IDS, CHARACTER_PRICE, computeDamage, powerTier, MAX_DAMAGE_PER_SHOT, STARTER_CHARACTER, WEAPONS, WEAPON_FAMILIES, WEAPON_IDS } from './weapons.js';
 
-const emptyArena: ArenaDefinition = { id: 'ashen_desert', width: 2000, obstacles: [], spawnPairs: [], maxWind: 0 };
+const emptyArena: ArenaDefinition = { id: 'ember_desert', width: 2000, obstacles: [], spawnPairs: [], maxWind: 0 };
 
 function shot(overrides: Partial<ShotInput> = {}): ShotInput {
   return {
@@ -87,26 +87,26 @@ describe('simulateShot', () => {
     expect(headwind.impact.x).toBeLessThan(still.impact.x);
   });
 
-  it('la lanza se ve menos afectada por el viento que el arco', () => {
+  it('la ballesta se ve menos afectada por el viento que el arco', () => {
     const drift = (weapon: ShotInput['weapon']) =>
       Math.abs(
         simulateShot(shot({ weapon, windAccel: 100 })).impact.x - simulateShot(shot({ weapon, windAccel: 0 })).impact.x,
       ) / simulateShot(shot({ weapon })).flightMs;
-    expect(drift(WEAPONS.spear)).toBeLessThan(drift(WEAPONS.bow));
+    expect(drift(WEAPONS.crossbow)).toBeLessThan(drift(WEAPONS.bow));
   });
 
   it('un proyectil rápido no atraviesa un objetivo entre dos pasos', () => {
     // A máxima velocidad el proyectil avanza más que el grosor del objetivo en cada paso.
-    const stepLength = WEAPONS.spear.maxSpeed * STEP_SECONDS;
+    const stepLength = WEAPONS.crossbow.maxSpeed * STEP_SECONDS;
     const thin = { x: 600, y: 0, width: 2, height: 400 };
-    expect(stepLength).toBeGreaterThan(thin.width + WEAPONS.spear.radius * 2);
-    const outcome = simulateShot(shot({ weapon: WEAPONS.spear, power: 100, angleDeg: 5, target: thin }));
+    expect(stepLength).toBeGreaterThan(thin.width + WEAPONS.crossbow.radius * 2);
+    const outcome = simulateShot(shot({ weapon: WEAPONS.crossbow, power: 100, angleDeg: 5, target: thin }));
     expect(outcome.impactKind).toBe('player');
     expect(outcome.impact.x).toBeLessThanOrEqual(thin.x);
   });
 
   it('un obstáculo antes del objetivo detiene el proyectil', () => {
-    const arena = { ...emptyArena, obstacles: [{ x: 300, y: 0, width: 40, height: 500 }] };
+    const arena = { ...emptyArena, obstacles: [{ kind: 'column' as const, x: 300, y: 0, width: 40, height: 500 }] };
     const outcome = simulateShot(
       shot({ arena, power: 100, angleDeg: 10, target: { x: 800, y: 0, width: 48, height: 400 } }),
     );
@@ -114,7 +114,7 @@ describe('simulateShot', () => {
   });
 
   it('un disparo fuera de la arena termina como out_of_bounds', () => {
-    const outcome = simulateShot(shot({ origin: { x: 1950, y: 72 }, power: 100, weapon: WEAPONS.spear }));
+    const outcome = simulateShot(shot({ origin: { x: 1950, y: 72 }, power: 100, weapon: WEAPONS.crossbow }));
     expect(outcome.impactKind).toBe('out_of_bounds');
   });
 
@@ -215,14 +215,46 @@ describe('daño por zona y potencia', () => {
     expect(hitZone({ x: 0, y: 50 }, box)).toBe('body');
     expect(hitZone({ x: 0, y: 10 }, box)).toBe('legs');
   });
-  it('aplica niveles de potencia y zona, con el mismo daño para todas las armas', () => {
+  it('aplica niveles de potencia y zona sobre el daño base del arma, con tope', () => {
     expect([powerTier(39), powerTier(40), powerTier(75)]).toEqual(['weak', 'medium', 'strong']);
     for (const id of WEAPON_IDS) {
-      expect(computeDamage(WEAPONS[id], 50, 'body')).toBe(26);
-      expect(computeDamage(WEAPONS[id], 100, 'head')).toBe(MAX_DAMAGE_PER_SHOT);
-      expect(computeDamage(WEAPONS[id], 10, 'legs')).toBe(13);
+      const weapon = WEAPONS[id];
+      expect(computeDamage(weapon, 50, 'body')).toBe(weapon.baseDamage);
+      expect(computeDamage(weapon, 100, 'head')).toBeLessThanOrEqual(MAX_DAMAGE_PER_SHOT);
+      expect(computeDamage(weapon, 10, 'legs')).toBeLessThan(weapon.baseDamage);
+      expect(computeDamage(weapon, 10, 'legs')).toBeGreaterThanOrEqual(1);
     }
-    expect(CHARACTER_WEAPON.borgrim).toBe('axe');
+  });
+
+  it('las armas mejores pegan más y solo las especiales dejan veneno o fuego', () => {
+    for (const family of WEAPON_FAMILIES) {
+      const [common, better, special] = [WEAPONS[family], WEAPONS[`${family}_2`], WEAPONS[`${family}_3`]];
+      expect(better.baseDamage).toBeGreaterThan(common.baseDamage);
+      expect(special.baseDamage).toBeGreaterThan(better.baseDamage);
+      expect(common.effect).toBeUndefined();
+      expect(better.effect).toBeUndefined();
+      expect(special.effect).toBeDefined();
+      expect(special.effect?.perSecond).toBeGreaterThanOrEqual(2);
+      expect(special.effect?.perSecond).toBeLessThanOrEqual(5);
+      expect(special.effect?.seconds).toBe(3);
+      expect(special.price).toBeGreaterThanOrEqual(1500);
+      expect(special.price).toBeLessThanOrEqual(2000);
+      expect(common.price).toBe(0);
+    }
+  });
+
+  it('cada personaje pertenece a una familia y el inicial es gratis', () => {
+    expect(CHARACTER_FAMILY.borgrim).toBe('axe');
+    expect(CHARACTER_PRICE[STARTER_CHARACTER]).toBe(0);
+    for (const id of CHARACTER_IDS) {
+      expect(WEAPON_FAMILIES).toContain(CHARACTER_FAMILY[id]);
+      if (id !== STARTER_CHARACTER) expect(CHARACTER_PRICE[id]).toBeGreaterThan(0);
+    }
+  });
+
+  it('el peso cambia el vuelo: lo pesado cae más y pide más potencia que lo ligero', () => {
+    expect(WEAPONS.mace.gravityScale).toBeGreaterThan(WEAPONS.dagger.gravityScale);
+    expect(WEAPONS.axe.weight).toBeGreaterThan(WEAPONS.staff.weight);
   });
 });
 
@@ -250,21 +282,21 @@ describe('applyKnockback', () => {
   });
 
   it('no atraviesa un obstáculo alto', () => {
-    const arena: ArenaDefinition = { ...emptyArena, obstacles: [{ x: 900, y: 0, width: 50, height: 90 }] };
+    const arena: ArenaDefinition = { ...emptyArena, obstacles: [{ kind: 'column', x: 900, y: 0, width: 50, height: 90 }] };
     const result = applyKnockback(start, 1, 40, arena);
     expect(result.x - 24).toBeGreaterThanOrEqual(950);
     expect(result.y).toBe(0);
   });
 
   it('cae al suelo si retrocede fuera de una repisa', () => {
-    const arena: ArenaDefinition = { ...emptyArena, obstacles: [{ x: 960, y: 0, width: 60, height: 110 }] };
+    const arena: ArenaDefinition = { ...emptyArena, obstacles: [{ kind: 'column', x: 960, y: 0, width: 60, height: 110 }] };
     const result = applyKnockback({ x: 990, y: 110 }, 1, 20, arena);
     expect(result.y).toBe(0);
     expect(result.x).toBeLessThan(990);
   });
 
   it('es determinista', () => {
-    expect(applyKnockback(start, 1, 17, ARENAS.frostlands)).toEqual(applyKnockback(start, 1, 17, ARENAS.frostlands));
+    expect(applyKnockback(start, 1, 17, ARENAS.frozen_bridge)).toEqual(applyKnockback(start, 1, 17, ARENAS.frozen_bridge));
   });
 });
 
