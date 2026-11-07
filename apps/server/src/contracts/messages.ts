@@ -68,6 +68,7 @@ const eventPayloads = [
       damage: Type.Integer(),
       zone: Type.Union([literalUnion(['head', 'body', 'legs']), Type.Null()]),
       targetHpAfter: Type.Integer(),
+      targetPosition: Point,
       own: Type.Optional(
         Type.Object({ actionId: Id, angleDeg: Type.Number(), power: Type.Number() }, { ...strict, description: 'Solo lo recibe quien disparó' }),
       ),

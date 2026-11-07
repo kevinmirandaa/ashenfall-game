@@ -197,13 +197,93 @@ const shop = (title: string, subtitle: string, kinds: readonly string[]) => (): 
 const HOTSPOTS: readonly Hotspot[] = [
   { id: 'arsenal', label: 'Arsenal: armas y yelmos', area: [342, 258, 192, 224], open: shop('Arsenal', 'Armas y armaduras', ['weapon_skin', 'helmet']) },
   { id: 'alchemist', label: 'Alquimista: efectos', area: [770, 276, 172, 214], open: shop('Alquimista', 'Efectos cosméticos', ['projectile_effect']) },
-  { id: 'tavern', label: 'Taberna: partidas', area: [1008, 264, 164, 216], open: () => { showTavern(); } },
-  { id: 'characters', label: 'Personajes', area: [385, 600, 172, 84], open: () => void guarded(() => openArsenal(shopActions)) },
-  { id: 'play', label: 'Jugar', area: [566, 592, 148, 94], open: () => { showTavern(); } },
-  { id: 'guild', label: 'Gremio', area: [722, 600, 170, 84], open: () => void guarded(() => openBrotherhood(shopActions)) },
   { id: 'profile', label: 'Perfil', area: [28, 498, 76, 84], open: () => void guarded(() => openBrotherhood(shopActions, 'Perfil', false)) },
   { id: 'history', label: 'Historial', area: [28, 584, 76, 84], open: () => void guarded(() => openBrotherhood(shopActions, 'Historial', false)) },
 ];
+
+/** La barra inferior es una pieza aparte del fondo para poder arrastrarla; sus botones van relativos a ella. */
+const DOCK_SIZE = { width: 575, height: 120 } as const;
+const DOCK_HOME = { x: 355, y: 575 } as const;
+const DOCK_SPOTS: readonly Hotspot[] = [
+  { id: 'characters', label: 'Personajes', area: [30, 25, 172, 84], open: () => void guarded(() => openArsenal(shopActions)) },
+  { id: 'play', label: 'Jugar', area: [211, 17, 148, 94], open: () => { showPlay(); } },
+  { id: 'guild', label: 'Gremio', area: [367, 25, 170, 84], open: () => void guarded(() => openBrotherhood(shopActions)) },
+];
+let dockPos: { x: number; y: number } = loadDock();
+
+function clampDock(point: { x: number; y: number }): { x: number; y: number } {
+  return {
+    x: Math.round(Math.min(Math.max(point.x, 0), STAGE_W - DOCK_SIZE.width)),
+    y: Math.round(Math.min(Math.max(point.y, 0), STAGE_H - DOCK_SIZE.height)),
+  };
+}
+
+function loadDock(): { x: number; y: number } {
+  try {
+    const saved = JSON.parse(window.sessionStorage.getItem('ashenfall.dock') ?? 'null') as { x?: unknown; y?: unknown } | null;
+    if (saved !== null && typeof saved.x === 'number' && typeof saved.y === 'number') return clampDock({ x: saved.x, y: saved.y });
+  } catch {
+    // sin almacenamiento disponible: se usa la posición original
+  }
+  return { ...DOCK_HOME };
+}
+
+function saveDock(): void {
+  try {
+    window.sessionStorage.setItem('ashenfall.dock', JSON.stringify(dockPos));
+  } catch {
+    // no es imprescindible recordar la posición
+  }
+}
+
+/** Arrastrar mueve la barra; un clic sin desplazamiento sigue activando sus botones. */
+function enableDockDrag(dock: HTMLElement): void {
+  let drag: { px: number; py: number; x: number; y: number; moved: boolean } | null = null;
+  let suppressClick = false;
+  dock.addEventListener('pointerdown', (event) => {
+    if (event.button !== 0) return;
+    drag = { px: event.clientX, py: event.clientY, x: dockPos.x, y: dockPos.y, moved: false };
+  });
+  dock.addEventListener('pointermove', (event) => {
+    if (drag === null) return;
+    const scale = ui.getBoundingClientRect().width / STAGE_W || 1;
+    const dx = (event.clientX - drag.px) / scale;
+    const dy = (event.clientY - drag.py) / scale;
+    if (!drag.moved) {
+      if (Math.hypot(dx, dy) < 6) return;
+      drag.moved = true;
+      dock.setPointerCapture(event.pointerId);
+      dock.classList.add('dragging');
+    }
+    dockPos = clampDock({ x: drag.x + dx, y: drag.y + dy });
+    dock.style.left = `${String(dockPos.x)}px`;
+    dock.style.top = `${String(dockPos.y)}px`;
+  });
+  const end = (): void => {
+    if (drag?.moved === true) {
+      // El clic que sigue a un arrastre se descarta; si no llega ninguno, la marca caduca sola.
+      suppressClick = true;
+      window.setTimeout(() => {
+        suppressClick = false;
+      }, 0);
+      saveDock();
+    }
+    drag = null;
+    dock.classList.remove('dragging');
+  };
+  dock.addEventListener('pointerup', end);
+  dock.addEventListener('pointercancel', end);
+  dock.addEventListener(
+    'click',
+    (event) => {
+      if (!suppressClick) return;
+      suppressClick = false;
+      event.stopPropagation();
+      event.preventDefault();
+    },
+    true,
+  );
+}
 
 function paintPlayerCard(): void {
   const card = document.getElementById('player-card');
@@ -244,16 +324,22 @@ function showTown(): void {
     <img class="town-hero" id="town-hero" alt="" />
     ${HOTSPOTS.map((spot) => `<button class="hotspot" data-spot="${spot.id}" title="${spot.label}" aria-label="${spot.label}"
         style="left:${String(spot.area[0])}px;top:${String(spot.area[1])}px;width:${String(spot.area[2])}px;height:${String(spot.area[3])}px"></button>`).join('')}
+    <div class="dock" id="dock" style="left:${String(dockPos.x)}px;top:${String(dockPos.y)}px;width:${String(DOCK_SIZE.width)}px;height:${String(DOCK_SIZE.height)}px" title="Arrastra la barra para moverla">
+      <img src="/art/dock.webp" alt="" draggable="false" />
+      ${DOCK_SPOTS.map((spot) => `<button class="hotspot" data-spot="${spot.id}" title="${spot.label}" aria-label="${spot.label}"
+        style="left:${String(spot.area[0])}px;top:${String(spot.area[1])}px;width:${String(spot.area[2])}px;height:${String(spot.area[3])}px"></button>`).join('')}
+    </div>
     <div id="player-card"></div>
     <div id="town-level"></div>
     <b class="purse" id="purse-value"></b>
     <button class="hotspot" id="settings" aria-label="Ajustes" title="Ajustes" style="left:1160px;top:22px;width:46px;height:44px"></button>
     <button class="hotspot" id="exit" aria-label="Cerrar sesión" title="Cerrar sesión" style="left:1214px;top:22px;width:46px;height:44px"></button>
     <button class="hotspot" id="earn" aria-label="Cómo ganar Marcas" title="Cómo ganar Marcas" style="left:1108px;top:28px;width:32px;height:32px"></button>`;
+  enableDockDrag(el('dock'));
   paintPlayerCard();
   void paintLevel().catch(() => undefined);
   for (const node of screen.querySelectorAll<HTMLElement>('[data-spot]')) {
-    const spot = HOTSPOTS.find((candidate) => candidate.id === node.dataset.spot);
+    const spot = [...HOTSPOTS, ...DOCK_SPOTS].find((candidate) => candidate.id === node.dataset.spot);
     if (spot !== undefined) node.addEventListener('click', spot.open);
   }
   const logout = (): void => {
@@ -273,9 +359,9 @@ function showTown(): void {
   });
 }
 
-// ---------- Taberna ----------
-function showTavern(): void {
-  openModal('Taberna', 'Busca rival o reúne a un amigo', `
+// ---------- Jugar ----------
+function showPlay(): void {
+  openModal('Jugar', 'Busca rival o reúne a un amigo', `
     <div class="stack tavern">
       <button class="primary" id="quick">${icon('swords', 24)} Buscar partida</button>
       <button id="create">Crear sala privada</button>
@@ -337,7 +423,7 @@ function showRoom(room: Room): void {
     void guarded(async () => {
       stopRoomPoll();
       await session.call('POST', `/v1/rooms/${room.id}/leave`);
-      showTavern();
+      showPlay();
     });
   });
   el('modal-close').addEventListener('click', () => {
@@ -356,7 +442,7 @@ async function searchMatch(): Promise<void> {
     void guarded(async () => {
       await cancel();
       notify('No se encontró rival. Inténtalo de nuevo.');
-      showTavern();
+      showPlay();
     });
   }, 60_000);
   const leave = (): void => {
@@ -365,7 +451,7 @@ async function searchMatch(): Promise<void> {
   };
   el('cancel').addEventListener('click', () => {
     leave();
-    showTavern();
+    showPlay();
   });
   el('modal-close').addEventListener('click', leave);
 }
@@ -448,7 +534,7 @@ function applyToView(current: PlayerMatchView, seq: number, payload: PlayerEvent
   switch (payload.type) {
     case 'shot_resolved': {
       const target = payload.shooterId === current.you.playerId ? 'opponent' : 'you';
-      return { ...base, version: current.version + 1, [target]: { ...current[target], hp: payload.targetHpAfter } };
+      return { ...base, version: current.version + 1, [target]: { ...current[target], hp: payload.targetHpAfter, position: payload.targetPosition } };
     }
     case 'turn_timed_out':
       return { ...base, version: current.version + 1 };
@@ -521,7 +607,7 @@ function refreshHud(): void {
   arena.drawGuide();
   if (document.getElementById('controls') === null) return;
   el('controls').classList.toggle('idle', !canShoot);
-  setText('hint', canShoot ? 'Mueve el ratón para apuntar · mantén pulsado para cargar · suelta para disparar' : 'Esperando…');
+  setText('hint', canShoot ? 'Mantén pulsado y arrastra hacia atrás: la distancia es la potencia y subir o bajar el cursor, el ángulo · suelta para disparar · Esc cancela' : 'Esperando…');
   setText('turn', view.status === 'finished' ? 'Fin del duelo' : mine ? 'Tu turno' : 'Turno del rival');
   if (view.status === 'finished') setText('timer', '—');
   const wind = Math.round(view.windAccel);

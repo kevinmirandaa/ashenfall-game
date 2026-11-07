@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { ARENAS, ARENA_IDS, type ArenaDefinition } from './arenas.js';
 import {
+  applyKnockback,
   muzzlePosition,
   playerHitbox,
   segmentEntryFraction,
   simulateShot,
+  KNOCKBACK_PER_DAMAGE,
   MAX_FLIGHT_STEPS,
+  MAX_KNOCKBACK,
   STEP_SECONDS,
   type ShotInput,
 } from './physics.js';
@@ -218,5 +221,47 @@ describe('daño por zona y potencia', () => {
       expect(computeDamage(WEAPONS[id], 10, 'legs')).toBe(13);
     }
     expect(CHARACTER_WEAPON.borgrim).toBe('axe');
+  });
+});
+
+describe('applyKnockback', () => {
+  const start = { x: 1000, y: 0 };
+
+  it('retrocede alejándose del tirador, más cuanto más daño', () => {
+    const light = applyKnockback(start, 1, 10, emptyArena);
+    const heavy = applyKnockback(start, 1, 25, emptyArena);
+    expect(light.x).toBe(1000 - 10 * KNOCKBACK_PER_DAMAGE);
+    expect(heavy.x).toBeLessThan(light.x);
+    expect(applyKnockback(start, -1, 10, emptyArena).x).toBe(1000 + 10 * KNOCKBACK_PER_DAMAGE);
+  });
+
+  it('sin daño no se mueve y con mucho daño tiene un tope', () => {
+    expect(applyKnockback(start, 1, 0, emptyArena)).toEqual(start);
+    expect(applyKnockback(start, 1, 1000, emptyArena).x).toBe(1000 - MAX_KNOCKBACK);
+  });
+
+  it('se detiene en el borde de la arena', () => {
+    const nearEdge = applyKnockback({ x: 100, y: 0 }, 1, 50, emptyArena);
+    expect(nearEdge.x).toBeGreaterThanOrEqual(40 + 24);
+    expect(nearEdge.x).toBeLessThan(100);
+    expect(applyKnockback({ x: 1900, y: 0 }, -1, 50, emptyArena).x).toBeLessThanOrEqual(2000 - 64);
+  });
+
+  it('no atraviesa un obstáculo alto', () => {
+    const arena: ArenaDefinition = { ...emptyArena, obstacles: [{ x: 900, y: 0, width: 50, height: 90 }] };
+    const result = applyKnockback(start, 1, 40, arena);
+    expect(result.x - 24).toBeGreaterThanOrEqual(950);
+    expect(result.y).toBe(0);
+  });
+
+  it('cae al suelo si retrocede fuera de una repisa', () => {
+    const arena: ArenaDefinition = { ...emptyArena, obstacles: [{ x: 960, y: 0, width: 60, height: 110 }] };
+    const result = applyKnockback({ x: 990, y: 110 }, 1, 20, arena);
+    expect(result.y).toBe(0);
+    expect(result.x).toBeLessThan(990);
+  });
+
+  it('es determinista', () => {
+    expect(applyKnockback(start, 1, 17, ARENAS.frostlands)).toEqual(applyKnockback(start, 1, 17, ARENAS.frostlands));
   });
 });

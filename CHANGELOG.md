@@ -1,6 +1,7 @@
 # Changelog
 
 ## Sin publicar
+- SCRUM-56, SCRUM-57, SCRUM-58: retroceso permanente por impacto (dominio, vista, contratos y cliente), disparo tipo tirachinas con el ratón y barra inferior del pueblo movible, sin Taberna.
 - SCRUM-55: arma única por personaje validada en el servidor, daño por zona y nivel de potencia, apuntado solo con ratón y obstáculos variados.
 - SCRUM-40, SCRUM-41: cliente web mínimo con login, sala, emparejamiento y arena con cámara de seguimiento, servido por el propio servidor.
 - SCRUM-44: corrige la autenticación con token en PostgreSQL, que pg sobrescribía al procesar la URL.

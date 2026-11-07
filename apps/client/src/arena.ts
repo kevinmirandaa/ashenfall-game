@@ -30,7 +30,9 @@ const PARTICLES = 28;
 const TRAIL_POOL = 14;
 const HIP = 0.5;
 const POWER_MIN = 10;
-const CHARGE_MS = 1500;
+/** Tirachinas: píxeles arrastrados hacia atrás para la potencia máxima y mínimo para que cuente como disparo. */
+const MAX_PULL = 240;
+const MIN_PULL = 28;
 /** Fotogramas que existen en las hojas de referencia; lo demás se anima con el muñeco. */
 const POSES: Readonly<Partial<Record<CharacterId, readonly ('hit' | 'down' | 'win' | 'shoot')[]>>> = {};
 const BODY_HEIGHT: Readonly<Record<CharacterId, number>> = { edrik: 146, sylwen: 144, borgrim: 128 };
@@ -63,6 +65,9 @@ interface Figure {
   frame: Phaser.GameObjects.Image;
   weapon: Phaser.GameObjects.Image;
   shadow: Phaser.GameObjects.Ellipse;
+  label: Phaser.GameObjects.Text;
+  /** Distancia del nombre sobre el suelo, para que lo siga al retroceder. */
+  labelOffset: number;
   look: Look;
   facing: 1 | -1;
   homeX: number;
@@ -107,8 +112,10 @@ export class ArenaScene extends Phaser.Scene {
   private figures = new Map<string, Figure>();
   private queue: (() => Promise<void>)[] = [];
   private playing = false;
-  private charging = false;
-  private chargeMs = 0;
+  /** Punto de pantalla donde se pulsó: el tirachinas se tensa desde ahí. */
+  private anchor: { x: number; y: number } | null = null;
+  private pullReady = false;
+  private band: Phaser.GameObjects.Graphics | null = null;
   private moteList: Mote[] = [];
   private moteColor = 0xffffff;
   private arenaId: PlayerMatchView['arenaId'] = 'whispering_forest';
@@ -156,43 +163,41 @@ export class ArenaScene extends Phaser.Scene {
       softCtx.fillRect(0, 0, 128, 128);
     }
     this.textures.addCanvas('soft-glow', soft);
-    // Solo ratón: su posición da el ángulo; mantener pulsado carga la potencia; soltar dispara.
-    this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
-      this.aimAt(pointer);
-    });
+    // Tirachinas: pulsar fija el ancla, arrastrar hacia atrás tensa (la distancia es la potencia y la
+    // dirección el ángulo) y soltar dispara. Esc o clic derecho cancelan.
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
-      if (!this.canAim) return;
-      this.aimAt(pointer);
-      this.charging = true;
-      this.chargeMs = performance.now();
+      if (!this.canAim || pointer.rightButtonDown()) return;
+      this.anchor = { x: pointer.x, y: pointer.y };
+      this.pullReady = false;
       this.power = POWER_MIN;
+      this.drawBand(pointer);
       this.hooks.onAim();
     });
+    this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
+      if (this.anchor === null) return;
+      if (!this.canAim) {
+        this.cancelPull();
+        return;
+      }
+      this.pullTo(pointer);
+    });
     const release = (): void => {
-      if (!this.charging) return;
-      this.charging = false;
-      this.hooks.onRelease();
+      if (this.anchor === null) return;
+      const fire = this.pullReady && this.canAim;
+      this.cancelPull();
+      if (fire) this.hooks.onRelease();
     };
     this.input.on('pointerup', release);
     this.input.on('pointerupoutside', release);
+    this.input.keyboard?.on('keydown-ESC', () => {
+      this.cancelPull();
+    });
     this.onReady();
   }
 
   override update(time: number, delta: number): void {
     this.animateFigures(time);
-    if (this.charging) {
-      if (!this.canAim) {
-        this.charging = false;
-      } else {
-        // Sube y baja: quien se pasa de fuerza puede esperar a que vuelva.
-        // Tiempo real, no fotogramas: la misma pulsación da la misma potencia en cualquier equipo.
-        const phase = ((performance.now() - this.chargeMs) % (CHARGE_MS * 2)) / CHARGE_MS;
-        const level = phase <= 1 ? phase : 2 - phase;
-        this.power = Math.round(POWER_MIN + (100 - POWER_MIN) * level);
-        this.drawGuide();
-        this.hooks.onAim();
-      }
-    }
+    if (this.anchor !== null && !this.canAim) this.cancelPull();
     this.animateBiome(time, delta);
     if (this.trailOn && time > this.trailAt && this.projectile !== null) {
       this.trailAt = time + 28;
@@ -316,6 +321,8 @@ export class ArenaScene extends Phaser.Scene {
     this.birds = id === 'frostlands' ? [] : Array.from({ length: 5 }, (_, index) => ({ x: Math.random() * VIEW_W, y: 90 + index * 26 + Math.random() * 40, speed: 0.25 + Math.random() * 0.2, phase: Math.random() * 6 }));
 
     this.guide = this.add.graphics().setDepth(5);
+    this.band = this.add.graphics().setScrollFactor(0).setDepth(10);
+    this.anchor = null;
     this.projectile = this.add.image(0, 0, 'fx-arrow').setDepth(6).setVisible(false);
     for (let i = 0; i < TRAIL_POOL; i += 1) this.trail.push(this.add.rectangle(0, 0, 7, 7, 0xf2963c).setDepth(5).setVisible(false).setBlendMode(Phaser.BlendModes.ADD));
 
@@ -339,12 +346,12 @@ export class ArenaScene extends Phaser.Scene {
     const parts = [lower, upper, frame];
     const tint = bodyTint(look);
     if (tint !== 0xffffff) for (const part of parts) part.setTint(tint);
-    this.add
+    const label = this.add
       .text(x, y - BODY_HEIGHT[look.character] - 22, name, { fontFamily: 'Palatino, Georgia, serif', fontSize: '17px', color: '#e8d8b0', stroke: '#0d0a0e', strokeThickness: 4 })
       .setOrigin(0.5)
       .setDepth(4);
     const shadow = this.add.ellipse(x, y + 4, 76, 13, 0x000000, 0.45).setDepth(2);
-    const figure: Figure = { rigParts: [lower, torso], frame, root, torso, parts, weapon, shadow, look, facing: side.facing, homeX: x, homeY: y + 3, phase: Math.random() * 6, pose: { dx: 0, dy: 0, lean: 0, fall: 0, aim: 25, recoil: 0 }, down: false };
+    const figure: Figure = { rigParts: [lower, torso], frame, root, torso, parts, weapon, shadow, label, labelOffset: BODY_HEIGHT[look.character] + 22, look, facing: side.facing, homeX: x, homeY: y + 3, phase: Math.random() * 6, pose: { dx: 0, dy: 0, lean: 0, fall: 0, aim: 25, recoil: 0 }, down: false };
     this.figures.set(side.playerId, figure);
     if (side.hp <= 0) this.knockDown(figure, false);
   }
@@ -424,31 +431,55 @@ export class ArenaScene extends Phaser.Scene {
     }
   }
 
-  /** Retroceso realista: el golpe lo levanta y arquea, tropieza dos pasos atrás y vuelve a su sitio. La posición lógica no cambia. */
-  private async knockBack(figure: Figure, damage: number): Promise<void> {
-    const back = -figure.facing;
+  /** Retroceso: el golpe lo levanta, lo arquea y lo desplaza a su nueva posición, donde se queda para siempre. */
+  private async knockBack(figure: Figure, to: Vec2): Promise<void> {
     const { pose } = figure;
-    const shove = 34 + damage * 1.5;
+    const target = toScreen(to);
+    const slide = target.x - figure.homeX;
     this.flash(figure);
     this.showPose(figure, 'hit');
     this.time.delayedCall(560, () => { if (!figure.down) this.showPose(figure, null); });
     this.dust(figure.homeX, figure.homeY, 7);
     pose.recoil = 6;
     void this.play(pose, { dy: -16 }, 90, 'Quad.easeOut').then(() => this.play(pose, { dy: 0 }, 90, 'Quad.easeIn'));
-    await this.play(pose, { dx: back * shove, lean: -0.42, aim: 60 }, 180, 'Cubic.easeOut');
-    this.dust(figure.homeX + back * shove, figure.homeY, 5);
-    await this.play(pose, { dx: back * (shove + 12), dy: -5, lean: -0.2 }, 110, 'Sine.easeOut');
-    await this.play(pose, { dx: back * (shove + 18), dy: 0, lean: 0.14, aim: 10 }, 120, 'Sine.easeIn');
-    this.dust(figure.homeX + back * (shove + 18), figure.homeY, 3);
-    await this.wait(120);
-    // Regresa recuperando el equilibrio, con pasos visibles.
-    const steps = 3;
-    const each = 230;
-    for (let step = 1; step <= steps; step += 1) {
-      void this.play(pose, { dy: -5 }, each / 2, 'Sine.easeOut').then(() => this.play(pose, { dy: 0 }, each / 2, 'Sine.easeIn'));
-      await this.play(pose, { dx: back * (shove + 18) * (1 - step / steps), lean: step === steps ? 0 : 0.08 }, each, 'Sine.easeInOut');
-    }
+    void this.play(pose, { lean: -0.42, aim: 60 }, 180, 'Cubic.easeOut');
+    await this.relocate(figure, to, 380 + Math.min(520, Math.abs(slide) * 2.2));
+    if (Math.abs(slide) > 1) this.dust(figure.homeX, figure.homeY, 5);
+    await this.play(pose, { lean: 0.14, aim: 10 }, 120, 'Sine.easeIn');
+    await this.wait(80);
+    await this.play(pose, { lean: 0 }, 240, 'Sine.easeInOut');
     pose.recoil = 0;
+  }
+
+  /** Mueve para siempre el punto de apoyo de la figura, su sombra y su nombre. */
+  private relocate(figure: Figure, to: Vec2, duration: number): Promise<void> {
+    const target = toScreen(to);
+    if (document.hidden || duration <= 0) {
+      this.settle(figure, target.x, target.y + 3);
+      return Promise.resolve();
+    }
+    return new Promise((resolve) => {
+      this.tweens.add({
+        targets: figure,
+        homeX: target.x,
+        homeY: target.y + 3,
+        duration,
+        ease: 'Cubic.easeOut',
+        onUpdate: () => {
+          figure.label.setPosition(figure.homeX, figure.homeY - 3 - figure.labelOffset);
+        },
+        onComplete: () => {
+          this.settle(figure, target.x, target.y + 3);
+          resolve();
+        },
+      });
+    });
+  }
+
+  private settle(figure: Figure, x: number, y: number): void {
+    figure.homeX = x;
+    figure.homeY = y;
+    figure.label.setPosition(x, y - 3 - figure.labelOffset);
   }
 
   /** Cae de espaldas con rebote; el arma sale despedida. */
@@ -535,17 +566,48 @@ export class ArenaScene extends Phaser.Scene {
     this.tweens.add({ targets: spark, alpha: 0, y: y + 14, duration: 420, onComplete: () => spark.setVisible(false) });
   }
 
-  private aimAt(pointer: Phaser.Input.Pointer): void {
-    const { view } = this;
-    if (view === null || !this.canAim) return;
-    const origin = toScreen(muzzlePosition(view.you.position, view.you.facing));
-    const dx = (pointer.worldX - origin.x) * view.you.facing;
-    const dy = origin.y - pointer.worldY;
-    const angle = Phaser.Math.RadToDeg(Math.atan2(dy, dx));
-    const clamped = dx < 0 ? (dy > 0 ? 90 : 0) : Phaser.Math.Clamp(angle, 0, 90);
-    this.angleDeg = Math.round(clamped);
+  /** El vector arrastrado apunta al revés que el tiro: tirar hacia atrás y abajo lanza hacia delante y arriba. */
+  private pullTo(pointer: Phaser.Input.Pointer): void {
+    const { view, anchor } = this;
+    if (view === null || anchor === null) return;
+    const dragX = pointer.x - anchor.x;
+    const dragY = pointer.y - anchor.y;
+    const back = -dragX * view.you.facing;
+    const length = Math.hypot(dragX, dragY);
+    this.pullReady = back > 0 && length >= MIN_PULL;
+    const angle = back <= 0 ? (dragY > 0 ? 90 : 0) : Phaser.Math.RadToDeg(Math.atan2(dragY, back));
+    this.angleDeg = Math.round(Phaser.Math.Clamp(angle, 0, 90));
+    this.power = Math.round(Phaser.Math.Clamp(POWER_MIN + (Math.min(length, MAX_PULL) / MAX_PULL) * (100 - POWER_MIN), POWER_MIN, 100));
+    this.drawBand(pointer);
     this.drawGuide();
     this.hooks.onAim();
+  }
+
+  private cancelPull(): void {
+    this.anchor = null;
+    this.pullReady = false;
+    this.band?.clear();
+    this.drawGuide();
+    this.hooks.onAim();
+  }
+
+  /** Banda elástica en pantalla: del ancla al cursor, más gruesa y más roja cuanto más tensa. */
+  private drawBand(pointer: Phaser.Input.Pointer): void {
+    const { band, anchor } = this;
+    if (band === null || anchor === null) return;
+    band.clear();
+    const length = Math.min(Math.hypot(pointer.x - anchor.x, pointer.y - anchor.y), MAX_PULL);
+    const tension = length / MAX_PULL;
+    const colour = Phaser.Display.Color.Interpolate.ColorWithColor(new Phaser.Display.Color(244, 239, 223), new Phaser.Display.Color(214, 78, 56), 100, Math.round(tension * 100));
+    const rgb = Phaser.Display.Color.GetColor(colour.r, colour.g, colour.b);
+    const reach = Math.hypot(pointer.x - anchor.x, pointer.y - anchor.y);
+    const scale = reach === 0 ? 0 : length / reach;
+    const end = { x: anchor.x + (pointer.x - anchor.x) * scale, y: anchor.y + (pointer.y - anchor.y) * scale };
+    band.lineStyle(3 + tension * 5, rgb, this.pullReady ? 0.95 : 0.5);
+    band.lineBetween(anchor.x, anchor.y, end.x, end.y);
+    band.fillStyle(rgb, 0.9);
+    band.fillCircle(anchor.x, anchor.y, 7);
+    band.fillCircle(end.x, end.y, 5);
   }
 
   private enqueue(step: () => Promise<void>): void {
@@ -652,15 +714,17 @@ export class ArenaScene extends Phaser.Scene {
     const target = this.figures.get(targetId);
     if (target === undefined) return;
     if (document.hidden) {
+      this.settle(target, toScreen(shot.targetPosition).x, toScreen(shot.targetPosition).y + 3);
       if (shot.targetHpAfter <= 0) this.knockDown(target, false);
       return;
     }
     if (shot.targetHpAfter <= 0) {
+      void this.relocate(target, shot.targetPosition, 700);
       this.knockDown(target, true);
       const winner = this.figures.get(shot.shooterId);
       if (winner !== undefined) this.showPose(winner, 'win');
     }
-    else void this.knockBack(target, shot.damage);
+    else void this.knockBack(target, shot.targetPosition);
   }
 
   private showImpact(shot: ShotView): void {
