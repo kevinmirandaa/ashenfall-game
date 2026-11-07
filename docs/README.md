@@ -4,8 +4,11 @@ Toda la documentación del proyecto vive en esta carpeta. En la raíz del reposi
 
 Si dos documentos se contradicen, manda este orden: el enunciado del curso (`Proyecto3.pdf`, no versionado), luego [DECISIONS.md](DECISIONS.md) y por último el brief de diseño.
 
+## Cumplimiento
+- [cumplimiento-enunciado.md](cumplimiento-enunciado.md): matriz de cada requisito del enunciado con su evidencia (código, prueba, documento, workflow o Bicep), su estado y lo que queda pendiente.
+
 ## Arquitectura y decisiones
-- [DECISIONS.md](DECISIONS.md): decisiones de arquitectura y de juego (D1 a D14) y cambios de diseño por ticket. SCRUM-66 reemplaza lo anterior sobre armas, pociones, viento y cosméticos.
+- [DECISIONS.md](DECISIONS.md): decisiones de arquitectura y de juego (D1 a D15) y cambios de diseño por ticket. SCRUM-66 reemplaza lo anterior sobre armas, pociones, viento y cosméticos.
 - [ASHENFALL_MASTER_BRIEF.md](ASHENFALL_MASTER_BRIEF.md): brief original de diseño, arte y arquitectura. Es histórico: describe edificios, pociones, cosméticos y viento que ya no existen; para el estado actual vale DECISIONS.md.
 
 ## Contratos

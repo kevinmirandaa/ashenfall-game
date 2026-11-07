@@ -34,7 +34,7 @@ Requiere Node 22 (`.nvmrc`; `package.json` admite 20 o superior).
 npm ci
 docker compose up -d --wait postgres redis
 ```
-Las pruebas de integración usan ese PostgreSQL y ese Redis (`DATABASE_URL` y `REDIS_URL` por defecto: ver `.env.example`).
+Las pruebas de integración usan ese PostgreSQL y ese Redis (`DATABASE_URL` y `REDIS_URL` por defecto: ver `.env.example`). La espera máxima de la cola rápida y el periodo de gracia para reconectar se configuran con `MATCHMAKING_MAX_WAIT_MS` y `RECONNECT_GRACE_MS` (60 s por defecto).
 
 | Comando | Qué hace |
 |---|---|
@@ -46,7 +46,7 @@ Las pruebas de integración usan ese PostgreSQL y ese Redis (`DATABASE_URL` y `R
 | `UPDATE_CONTRACTS=1 npx vitest run` | Regenera `contracts/openapi.json` y `contracts/asyncapi.json` tras cambiar rutas o mensajes. |
 | `npm run dev -w @ashenfall/client` | Cliente con recarga en caliente en http://localhost:5173, contra el servidor de `docker compose`. |
 
-Resultado al 7 nov 2026 en local: 23 archivos y 287 pruebas en verde; `tsc` y ESLint sin errores. CI ejecuta lo mismo en cada PR ([ci.yml](.github/workflows/ci.yml)).
+Resultado al 7 nov 2026 en local: 24 archivos y 294 pruebas en verde; `tsc` y ESLint sin errores. CI ejecuta lo mismo en cada PR ([ci.yml](.github/workflows/ci.yml)).
 
 La prueba de carga con el bot (`apps/bot`) y cómo reproducirla están en [docs/load-report.md](docs/load-report.md).
 
@@ -67,4 +67,6 @@ docs/              Toda la documentación: ver docs/README.md.
 TypeScript estricto (sin `any`) sobre Node 22, Fastify 5, WebSocket (`ws`) con ticket de un solo uso, PostgreSQL 16, Redis 7, Argon2id y JWT, OpenTelemetry hacia Application Insights. Imagen Docker que corre como usuario no root. Azure Container Apps con identidad administrada y Key Vault, desplegado con Bicep y GitHub Actions.
 
 ## Documentación
+Cómo cumple el servidor cada requisito del enunciado, con su evidencia y lo pendiente: [docs/cumplimiento-enunciado.md](docs/cumplimiento-enunciado.md).
+
 El índice está en [docs/README.md](docs/README.md): decisiones de arquitectura ([docs/DECISIONS.md](docs/DECISIONS.md)), modelo de amenazas, reporte de carga, observabilidad, guía y costo de Azure. Los cambios por ticket están en [CHANGELOG.md](CHANGELOG.md).
