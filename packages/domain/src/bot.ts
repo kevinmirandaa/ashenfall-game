@@ -1,4 +1,4 @@
-import { ARENAS } from './arenas.js';
+import { arenaFor } from './arenas.js';
 import { ANGLE_RANGE, POWER_RANGE, type MatchState } from './match.js';
 import { muzzlePosition, playerHitbox, simulateShot, type ShotOutcome } from './physics.js';
 import type { PlayerId, RandomSource } from './types.js';
@@ -28,7 +28,7 @@ export function chooseBotShot(state: MatchState, botId: PlayerId, skill: BotSkil
   const me = state.players.find((player) => player.playerId === botId);
   if (foe === undefined || me === undefined) throw new Error('Estado corrupto: partida sin los dos jugadores');
   const weapon = WEAPONS[botSetup.weaponId ?? (botSetup.characterId === undefined ? 'bow' : defaultWeapon(botSetup.characterId))];
-  const arena = ARENAS[state.setup.arenaId];
+  const arena = arenaFor(state.setup);
   const target = playerHitbox(foe.position);
   const wind = state.setup.windAccel;
   const targetX = foe.position.x;

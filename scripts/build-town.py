@@ -1,95 +1,82 @@
 #!/usr/bin/env python3
 """
-Construye el pueblo del cliente a partir de la imagen de referencia del menú (references/ashenfall_town_menu.webp).
+Construye el pueblo del cliente a partir de la imagen de referencia del menú (references/ashenfall_town_menu.webp, 1556×1011).
 
-La imagen conserva todo lo de la referencia salvo lo que el juego ya no tiene: se borran el mensaje de bienvenida, el «+» de las
-monedas, el botón de salir, los rótulos de la Taberna y del Alquimista y el bloque «Perfil» de la izquierda (queda «Historial»).
-La barra inferior sale como pieza aparte (dock.webp) para poder arrastrarla; su tercer botón pasa de «Gremio» a «Perfil».
+La referencia no es 16:9, así que se amplía a los lados con un degradado oscuro de sus bordes (sin tocar ningún elemento) y
+se reduce a 1280×720 con la misma escala en los dos ejes. Se conserva todo lo de la referencia salvo lo que cambia con la
+cuenta: se borran el nombre, el nivel con su barra y el número de monedas, que el cliente escribe encima con los datos reales.
+La barra inferior sale como pieza aparte (dock.webp) para poder arrastrarla; el suelo que deja se rellena con adoquines del propio pueblo.
 
 Uso: python3 scripts/build-town.py   (requiere Pillow)
+Imprime las posiciones finales (a 1280×720) que usa main.ts.
 """
 import random
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageOps
+from PIL import Image, ImageDraw, ImageFilter, ImageOps
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / 'apps' / 'client' / 'public' / 'art'
-base = Image.open(ROOT / 'references' / 'ashenfall_town_menu.webp').convert('RGB').resize((1280, 720), Image.LANCZOS)
-canvas = base.copy()
+ref = Image.open(ROOT / 'references' / 'ashenfall_town_menu.webp').convert('RGB')
+RW, RH = ref.size
 random.seed(11)
 
+# --- 16:9 sin deformar: se añade a cada lado el degradado de los bordes, oscurecido hacia fuera ---
+TARGET_W = round(RH * 16 / 9)
+PAD = (TARGET_W - RW) // 2
+canvas = Image.new('RGB', (RW + 2 * PAD, RH))
+canvas.paste(ref, (PAD, 0))
+for side in ('left', 'right'):
+    # Se estira la columna del borde (sin elementos de interfaz), se difumina y se oscurece hacia fuera.
+    edge = ref.crop((0, 0, 6, RH)) if side == 'left' else ref.crop((RW - 6, 0, RW, RH))
+    strip = edge.resize((PAD, RH), Image.BICUBIC).filter(ImageFilter.GaussianBlur(5))
+    ramp = Image.linear_gradient('L').rotate(90 if side == 'left' else -90).resize(strip.size)  # 0 en el borde exterior
+    shade = Image.composite(strip, Image.new('RGB', strip.size, (4, 3, 8)), ramp.point(lambda v: int(70 + v * 0.72)))
+    canvas.paste(shade, (0 if side == 'left' else RW + PAD, 0))
+SCALE = 1280 / canvas.width
 
-def feather_mask(size, inset, blur):
+
+def p(x: float, y: float) -> tuple[int, int]:
+    """Posición de la referencia en la imagen ya ampliada."""
+    return round(x + PAD), round(y)
+
+
+def feather(size, inset, blur):
     mask = Image.new('L', size, 0)
     ImageDraw.Draw(mask).rectangle((inset, inset, size[0] - inset - 1, size[1] - inset - 1), fill=255)
     return mask.filter(ImageFilter.GaussianBlur(blur))
 
 
-def paste_patch(dst, src, inset=3, blur=2):
-    w, h = dst[2] - dst[0], dst[3] - dst[1]
-    patch = canvas.crop(src).resize((w, h))
-    canvas.paste(patch, (dst[0], dst[1]), feather_mask((w, h), inset, blur))
+def patch(dst, src, inset=6, blur=5):
+    """Tapa `dst` con un trozo de `src` de la misma imagen (coordenadas de la referencia)."""
+    (dx0, dy0), (dx1, dy1) = p(dst[0], dst[1]), p(dst[2], dst[3])
+    (sx0, sy0), (sx1, sy1) = p(src[0], src[1]), p(src[2], src[3])
+    piece = canvas.crop((sx0, sy0, sx1, sy1)).resize((dx1 - dx0, dy1 - dy0))
+    canvas.paste(piece, (dx0, dy0), feather(piece.size, inset, blur))
 
 
 def mean(box):
-    px = list(canvas.crop(box).get_flattened_data()) if hasattr(Image.Image, 'get_flattened_data') else list(canvas.crop(box).getdata())
-    return tuple(sum(c[i] for c in px) / len(px) for i in range(3))
+    (x0, y0), (x1, y1) = p(box[0], box[1]), p(box[2], box[3])
+    px = list(canvas.crop((x0, y0, x1, y1)).getdata())
+    return tuple(int(sum(c[i] for c in px) / len(px)) for i in range(3))
 
 
-def gradient_fill(box, top, bottom, noise=2, inset=5, blur=3):
-    """Rellena con un degradado vertical entre dos colores y un poco de ruido: sirve para cielo o fondo oscuro."""
-    w, h = box[2] - box[0], box[3] - box[1]
-    flat = Image.new('RGB', (w, h))
-    fp = flat.load()
-    for y in range(h):
-        t = y / max(1, h - 1)
-        row = [top[i] * (1 - t) + bottom[i] * t for i in range(3)]
-        for x in range(w):
-            n = random.randint(-noise, noise)
-            fp[x, y] = tuple(int(max(0, min(255, row[i] + n))) for i in range(3))
-    canvas.paste(flat, (box[0], box[1]), feather_mask((w, h), inset, blur))
-
-
-def side_fill(box, left_x, right_x):
-    """Rellena una franja interpolando, fila a fila, entre los colores a su izquierda y a su derecha."""
-    x0, y0, x1, y1 = box
-    px = canvas.load()
-    out = Image.new('RGB', (x1 - x0, y1 - y0))
-    op = out.load()
-    for y in range(y0, y1):
-        a = [sum(px[x, y][i] for x in range(left_x - 3, left_x)) / 3 for i in range(3)]
-        b = [sum(px[x, y][i] for x in range(right_x, right_x + 3)) / 3 for i in range(3)]
-        for x in range(x0, x1):
-            t = (x - x0) / max(1, x1 - x0 - 1)
-            op[x - x0, y - y0] = tuple(int(max(0, min(255, a[i] * (1 - t) + b[i] * t + random.randint(-3, 3)))) for i in range(3))
-    # Un desenfoque quita las rayas horizontales que deja interpolar fila a fila.
-    out = out.filter(ImageFilter.GaussianBlur(3))
-    canvas.paste(out, (x0, y0), feather_mask(out.size, 4, 3))
-
+# --- nombre, nivel y barra de experiencia (a la izquierda del avatar) y número de monedas ---
+patch((212, 40, 470, 126), (300, 0, 558, 86))
+ImageDraw.Draw(canvas).rectangle((*p(1331, 56), *p(1405, 94)), fill=mean((1296, 66, 1326, 86)))
 
 # --- barra inferior: se saca como pieza aparte y el suelo se rellena con adoquines del propio pueblo ---
-BAR = (355, 575, 930, 695)
+BAR = (452, 846, 1128, 968)
+bx0, by0 = p(BAR[0], BAR[1])
+bx1, by1 = p(BAR[2], BAR[3])
+dock_full = canvas.crop((bx0, by0, bx1, by1)).convert('RGBA')
+dock_mask = Image.new('L', dock_full.size, 0)
+ImageDraw.Draw(dock_mask).rounded_rectangle((4, 4, dock_full.width - 5, dock_full.height - 5), radius=18, fill=255)
+dock_full.putalpha(dock_mask.filter(ImageFilter.GaussianBlur(4)))
 
-# El tercer botón pasa de «Gremio» a «Perfil»: se borra su icono y su rótulo sobre la propia imagen y se pone el trofeo y el texto nuevos.
-side_fill((762, 597, 846, 680), 748, 862)
-trophy = base.crop((46, 511, 86, 551)).convert('RGBA')
-alpha = trophy.convert('L').point(lambda v: 0 if v < 46 else 255).filter(ImageFilter.GaussianBlur(0.8))
-trophy.putalpha(alpha)
-canvas.paste(trophy, (783, 603), trophy)
-font = ImageFont.truetype('/System/Library/Fonts/Palatino.ttc', 21)
-draw = ImageDraw.Draw(canvas)
-label = 'Perfil'
-draw.text((803 - draw.textlength(label, font=font) / 2, 653), label, font=font, fill=(236, 226, 204))
-dock = canvas.crop(BAR).convert('RGBA')
-dock_mask = Image.new('L', dock.size, 0)
-ImageDraw.Draw(dock_mask).rounded_rectangle((6, 6, dock.width - 7, dock.height - 7), radius=18, fill=255)
-dock.putalpha(dock_mask.filter(ImageFilter.GaussianBlur(5)))
-dock.save(OUT / 'dock.webp', lossless=True)
-
-ground = canvas.crop((770, 530, 880, 558))
+ground = canvas.crop((*p(560, 700), *p(690, 740)))
 gw, gh = ground.size
-fx0, fy0, fx1, fy1 = BAR[0] - 12, BAR[1] - 18, BAR[2] + 12, BAR[3] + 8
+fx0, fy0, fx1, fy1 = bx0 - 14, by0 - 16, bx1 + 14, by1 + 10
 fill = Image.new('RGB', (fx1 - fx0, fy1 - fy0))
 row = 0
 for ty in range(0, fill.height, gh):
@@ -97,36 +84,28 @@ for ty in range(0, fill.height, gh):
     for tx in range(shift, fill.width, gw):
         fill.paste(ground if row % 2 == 0 else ImageOps.mirror(ground), (tx, ty))
     row += 1
-ramp = Image.linear_gradient('L').resize(fill.size)
-fill = Image.composite(Image.new('RGB', fill.size, (8, 8, 14)), fill, ramp.point(lambda v: int(v * 0.35)))
+fill = Image.composite(Image.new('RGB', fill.size, (8, 8, 14)), fill, Image.linear_gradient('L').resize(fill.size).point(lambda v: int(v * 0.35)))
 mask = Image.new('L', fill.size, 0)
-ImageDraw.Draw(mask).rounded_rectangle((10, 10, fill.width - 11, fill.height - 11), radius=22, fill=255)
-canvas.paste(fill, (fx0, fy0), mask.filter(ImageFilter.GaussianBlur(9)))
+ImageDraw.Draw(mask).rounded_rectangle((12, 12, fill.width - 13, fill.height - 13), radius=24, fill=255)
+canvas.paste(fill, (fx0, fy0), mask.filter(ImageFilter.GaussianBlur(10)))
 
-# --- carteles: solo se conserva el del Arsenal ---
-def clone(region, source):
-    w, h = region[2] - region[0], region[3] - region[1]
-    patch = canvas.crop(source).resize((w, h))
-    canvas.paste(patch, (region[0], region[1]), feather_mask((w, h), 4, 3))
+final = canvas.resize((1280, 720), Image.LANCZOS)
+final.save(OUT / 'town.webp', quality=92, method=6)
+dock = dock_full.resize((round(dock_full.width * SCALE), round(dock_full.height * SCALE)), Image.LANCZOS)
+dock.save(OUT / 'dock.webp', lossless=True)
 
 
-clone((1030, 316, 1160, 356), (1030, 372, 1160, 412))   # Taberna: placa
-clone((1058, 260, 1132, 322), (1130, 222, 1204, 284))   # Taberna: icono
-clone((792, 326, 912, 364), (792, 384, 912, 422))       # Alquimista: placa
-clone((810, 270, 886, 334), (900, 236, 976, 300))       # Alquimista: icono
+def f(x: float, y: float) -> tuple[int, int]:
+    """De la referencia a la imagen final de 1280×720."""
+    return round((x + PAD) * SCALE), round(y * SCALE)
 
-# --- esquina superior derecha: sin «+», sin salir y sin mensaje de bienvenida ---
-# El saldo y el nombre se dibujan encima con los datos reales: se borran los de la imagen.
-pill = tuple(int(c) for c in mean((1032, 33, 1046, 55)))
-ImageDraw.Draw(canvas).rectangle((1048, 32, 1137, 57), fill=pill)
-paste_patch((148, 24, 360, 100), (150, 0, 362, 28), 6, 4)
-gradient_fill((1206, 11, 1270, 73), mean((1215, 3, 1262, 11)), mean((1215, 72, 1262, 80)))
-side_fill((976, 102, 1276, 176), 968, 1277)
 
-# --- izquierda: sin «Perfil»; «Historial» queda con su propio borde superior ---
-border = canvas.crop((25, 493, 108, 503))
-side_fill((20, 488, 114, 583), 14, 116)
-canvas.paste(border, (25, 575))
-
-canvas.save(OUT / 'town.webp', quality=92, method=6)
-print('pueblo listo')
+print('escala', round(SCALE, 5), 'relleno lateral', PAD)
+print('dock', dock.size, 'posición', f(BAR[0], BAR[1]))
+for name, (x0, y0, x1, y1) in {
+    'personajes': (473, 858, 680, 958), 'jugar': (693, 855, 880, 958), 'perfil': (893, 855, 1100, 958),
+    'arsenal': (165, 240, 665, 650), 'historial': (36, 833, 134, 944), 'ajustes': (1460, 44, 1526, 106),
+    'anillo': (35, 22, 195, 178), 'moneda': (1245, 50, 1435, 100),
+}.items():
+    a, b = f(x0, y0), f(x1, y1)
+    print(f'{name}: [{a[0]}, {a[1]}, {b[0] - a[0]}, {b[1] - a[1]}]')

@@ -1,4 +1,4 @@
-import { ARENA_IDS, CHARACTER_IDS, MONSTER_IDS, WEAPON_IDS } from '@ashenfall/domain';
+import { ARENA_IDS, CHARACTER_IDS, MONSTER_IDS, OBSTACLE_IDS, WEAPON_IDS } from '@ashenfall/domain';
 import { Type, type TSchema } from '@sinclair/typebox';
 
 const strict = { additionalProperties: false } as const;
@@ -35,6 +35,18 @@ const Side = Type.Object(
   strict,
 );
 
+const ObstacleSchema = Type.Object(
+  {
+    kind: literalUnion([...OBSTACLE_IDS, 'terrain']),
+    x: Type.Number(),
+    y: Type.Number(),
+    width: Type.Number(),
+    height: Type.Number(),
+    flip: Type.Optional(Type.Boolean({ description: 'Copia especular del lado derecho; solo cambia el dibujo' })),
+  },
+  { ...strict, description: 'Rectángulo de colisión de un objeto o bloque de terreno; (x, y) es su esquina inferior izquierda' },
+);
+
 const Turn = Type.Object({ playerId: Id, round: Type.Integer(), deadlineMs: Type.Number() }, strict);
 
 export const PlayerMatchViewSchema = Type.Object(
@@ -44,6 +56,7 @@ export const PlayerMatchViewSchema = Type.Object(
     seq: Type.Integer(),
     version: Type.Integer(),
     arenaId: literalUnion(ARENA_IDS),
+    obstacles: Type.Array(ObstacleSchema, { description: 'Terreno y objetos sorteados para esta partida; públicos para ambos jugadores' }),
     windAccel: Type.Number(),
     maxRounds: Type.Integer(),
     round: Type.Integer(),

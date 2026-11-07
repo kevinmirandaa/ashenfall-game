@@ -1,6 +1,7 @@
 # Changelog
 
 ## Sin publicar
+- SCRUM-67: obstáculos y terreno aleatorios por partida (97 objetos de la hoja de referencia, plataformas, gradas y colinas simétricas) decididos por el servidor; guía corta de puntos con porcentajes de potencia y ángulo; menú del pueblo fiel a la referencia nueva con animaciones y el Arsenal que se ilumina.
 - SCRUM-66: versión estable. Solo se compran personajes, con nivel y dinero; nivel, victorias, derrotas y empates calculados en el servidor; perfil e historial de 10 partidas; menú igual que la referencia con barra de Personajes, Jugar y Perfil; Jugar con buscar partida, modo historia y sala privada; guía de puntería sin ángulo; sin viento. Se retiran pociones, armas comprables y cosméticos.
 - SCRUM-64, SCRUM-65: diez monstruos como rivales (partida rápida y modo historia de diez niveles), bot decidido por el servidor a través del barrido de plazos, cuatro pociones de un solo uso con alquimista y selección de equipaje, armas de cuatro niveles con arte propio, `use_potion` en AsyncAPI y OpenAPI al día.
 - SCRUM-62, SCRUM-63: familias de armas con tres niveles, veneno y fuego, peso que cambia el vuelo, daño reducido, diez personajes comprables (se empieza con uno), pantalla de personajes y armas, siete arenas nuevas con obstáculos por bioma y arte recortado de las referencias.

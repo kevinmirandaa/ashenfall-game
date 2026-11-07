@@ -196,16 +196,16 @@ interface Hotspot {
 
 // Los rótulos y botones forman parte de la imagen; aquí se les da su función.
 const HOTSPOTS: readonly Hotspot[] = [
-  { id: 'arsenal', label: 'Arsenal: comprar personajes', area: [342, 258, 192, 224], open: () => void guarded(() => openStore(shopActions)) },
-  { id: 'history', label: 'Historial', area: [25, 575, 83, 97], open: () => void guarded(() => openHistory(shopActions)) },
+  { id: 'arsenal', label: 'Arsenal: comprar personajes', area: [203, 171, 356, 292], open: () => void guarded(() => openStore(shopActions)) },
+  { id: 'history', label: 'Historial', area: [111, 594, 70, 79], open: () => void guarded(() => openHistory(shopActions)) },
 ];
 
 /**
  * La barra inferior es la de la referencia, pero como pieza aparte para poder arrastrarla. Sus tres botones se
- * iluminan al pasar el ratón igual que el central; las zonas son relativas a la imagen de la barra (575×120).
+ * iluminan al pasar el ratón igual que el central; las zonas son relativas a la imagen de la barra (482×87).
  */
-const DOCK_SIZE = { width: 575, height: 120 } as const;
-const DOCK_HOME = { x: 355, y: 575 } as const;
+const DOCK_SIZE = { width: 482, height: 87 } as const;
+const DOCK_HOME = { x: 408, y: 603 } as const;
 interface DockItem {
   id: string;
   label: string;
@@ -214,9 +214,9 @@ interface DockItem {
   open(): void;
 }
 const DOCK_ITEMS: readonly DockItem[] = [
-  { id: 'characters', label: 'Personajes', area: [27, 22, 173, 90], open: () => void guarded(() => openCharacters(shopActions)) },
-  { id: 'play', label: 'Jugar', area: [211, 17, 148, 94], open: () => { showPlay(); } },
-  { id: 'profile', label: 'Perfil', area: [367, 22, 178, 90], open: () => void guarded(() => openProfile(shopActions)) },
+  { id: 'characters', label: 'Personajes', area: [15, 8, 147, 72], open: () => void guarded(() => openCharacters(shopActions)) },
+  { id: 'play', label: 'Jugar', area: [171, 6, 134, 74], open: () => { showPlay(); } },
+  { id: 'profile', label: 'Perfil', area: [314, 6, 147, 74], open: () => void guarded(() => openProfile(shopActions)) },
 ];
 let dockPos: { x: number; y: number } = loadDock();
 
@@ -229,7 +229,7 @@ function clampDock(point: { x: number; y: number }): { x: number; y: number } {
 
 function loadDock(): { x: number; y: number } {
   try {
-    const saved = JSON.parse(window.sessionStorage.getItem('ashenfall.dock.v2') ?? 'null') as { x?: unknown; y?: unknown } | null;
+    const saved = JSON.parse(window.sessionStorage.getItem('ashenfall.dock.v3') ?? 'null') as { x?: unknown; y?: unknown } | null;
     if (saved !== null && typeof saved.x === 'number' && typeof saved.y === 'number') return clampDock({ x: saved.x, y: saved.y });
   } catch {
     // sin almacenamiento disponible: se usa la posición original
@@ -239,7 +239,7 @@ function loadDock(): { x: number; y: number } {
 
 function saveDock(): void {
   try {
-    window.sessionStorage.setItem('ashenfall.dock.v2', JSON.stringify(dockPos));
+    window.sessionStorage.setItem('ashenfall.dock.v3', JSON.stringify(dockPos));
   } catch {
     // no es imprescindible recordar la posición
   }
@@ -322,15 +322,25 @@ function showTown(): void {
   closeModal();
   audio.setScene('town');
   screen.className = 'town';
-  const lanterns = [[126, 262, 60], [250, 306, 70], [430, 440, 110], [830, 432, 80], [1096, 440, 90], [790, 182, 90]] as const;
+  // Luces de las ventanas y farolas de la imagen (x, y, radio), cada una con su propio parpadeo.
+  const lanterns = [[195, 248, 64], [413, 381, 60], [470, 425, 96], [305, 296, 52], [865, 408, 110], [1010, 400, 70], [1070, 395, 92], [1120, 385, 50], [780, 178, 70], [1132, 565, 56]] as const;
+  // Chimeneas que echan humo.
+  const chimneys = [[443, 200], [1125, 206], [842, 258]] as const;
   screen.innerHTML = `
     <img class="backdrop" src="/art/town.webp" alt="Pueblo de Ashenfall" />
     <i class="moon-glow"></i>
+    ${[0, 1, 2, 3].map((index) => `<i class="cloud c${String(index)}"></i>`).join('')}
     ${lanterns.map(([x, y, size], index) => `<i class="glow" style="left:${String(x - size)}px;top:${String(y - size)}px;width:${String(size * 2)}px;height:${String(size * 2)}px;animation-delay:-${String(index * 0.7)}s"></i>`).join('')}
-    ${Array.from({ length: 14 }, (_, index) => `<i class="ember" style="left:${String(60 + ((index * 97) % 1160))}px;top:${String(360 + ((index * 53) % 240))}px;animation-delay:-${String(index * 1.3)}s"></i>`).join('')}
+    ${chimneys.flatMap(([x, y], chimney) => [0, 1, 2].map((puff) => `<i class="smoke" style="left:${String(x)}px;top:${String(y)}px;animation-delay:-${String(chimney * 1.7 + puff * 2.2)}s"></i>`)).join('')}
+    <i class="mist m1"></i><i class="mist m2"></i>
+    ${[0, 1, 2].map((index) => `<i class="bat b${String(index)}"></i>`).join('')}
+    ${Array.from({ length: 18 }, (_, index) => `<i class="ember" style="left:${String(160 + ((index * 97) % 980))}px;top:${String(380 + ((index * 53) % 230))}px;animation-delay:-${String(index * 1.3)}s"></i>`).join('')}
+    <i class="hero-shadow"></i>
     <img class="town-hero" id="town-hero" alt="" />
-    ${HOTSPOTS.map((spot) => `<button class="hotspot" data-spot="${spot.id}" title="${spot.label}" aria-label="${spot.label}"
-        style="left:${String(spot.area[0])}px;top:${String(spot.area[1])}px;width:${String(spot.area[2])}px;height:${String(spot.area[3])}px"></button>`).join('')}
+    ${HOTSPOTS.map((spot) => `<button class="hotspot ${spot.id}" data-spot="${spot.id}" title="${spot.label}" aria-label="${spot.label}"
+        style="left:${String(spot.area[0])}px;top:${String(spot.area[1])}px;width:${String(spot.area[2])}px;height:${String(spot.area[3])}px">${
+          spot.id === 'arsenal' ? '<i class="lit"></i><i class="lit-glow"></i><i class="spark s1"></i><i class="spark s2"></i><i class="spark s3"></i>' : ''
+        }</button>`).join('')}
     <nav class="dock" id="dock" style="left:${String(dockPos.x)}px;top:${String(dockPos.y)}px;width:${String(DOCK_SIZE.width)}px;height:${String(DOCK_SIZE.height)}px" title="Arrastra la barra para moverla">
       <img src="/art/dock.webp" alt="" draggable="false" />
       ${DOCK_ITEMS.map((item) => `<button class="dock-hot" data-dock="${item.id}" title="${item.label}" aria-label="${item.label}"
@@ -339,7 +349,7 @@ function showTown(): void {
     <div id="player-card"></div>
     <div id="town-level"></div>
     <b class="purse" id="purse-value"></b>
-    <button class="hotspot" id="settings" aria-label="Ajustes" title="Ajustes" style="left:1160px;top:22px;width:46px;height:44px"></button>
+    <button class="hotspot" id="settings" aria-label="Ajustes" title="Ajustes" style="left:1126px;top:31px;width:47px;height:45px"></button>
 `;
   for (const node of screen.querySelectorAll<HTMLElement>('[data-dock]')) {
     const item = DOCK_ITEMS.find((candidate) => candidate.id === node.dataset.dock);

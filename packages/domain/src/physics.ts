@@ -3,7 +3,7 @@ import type { Rect, Vec2 } from './types.js';
 import type { HitZone, WeaponProfile } from './weapons.js';
 
 /** Sube si cambia cualquier constante: el cliente la compara para saber si su guía sigue siendo válida. */
-export const PHYSICS_VERSION = 4;
+export const PHYSICS_VERSION = 5;
 
 export const GRAVITY = 900;
 export const STEP_SECONDS = 1 / 60;

@@ -1,5 +1,5 @@
-/** Fondos de arena recortados de las referencias; suelo y obstáculos, en píxeles con la paleta de cada bioma. */
-import { ARENAS, type ArenaId, type Obstacle } from '@ashenfall/domain';
+/** Fondos de arena recortados de las referencias y suelo en píxeles con la paleta de cada bioma; los obstáculos son sprites de la hoja. */
+import type { ArenaId } from '@ashenfall/domain';
 
 export const WORLD_LEFT = -300;
 export const WORLD_WIDTH = 2600;
@@ -41,116 +41,61 @@ export const BIOME_ART: Readonly<Record<ArenaId, BiomeArt>> = {
 
 const PX = 2;
 
-type Painter = (box: (color: string, x: number, y: number, w?: number, h?: number) => void, rect: Obstacle, art: BiomeArt, geometry: { x: number; y: number; w: number; h: number; line: number }, random: () => number) => void;
+/** Cómo se arma un bloque de terreno de cualquier tamaño con el sprite de la hoja, sin deformar los píxeles. */
+interface TerrainSlices {
+  /** Anchos de los bordes izquierdo y derecho que se conservan. */
+  capL: number;
+  capR: number;
+  /** Alto de la franja superior (borde con hierba, arena o nieve). */
+  top: number;
+  /** Filas del cuerpo de roca que se repiten hacia abajo, y columnas del centro que se repiten a lo ancho. */
+  body: readonly [number, number];
+  mid: readonly [number, number];
+  /** Relleno oscuro bajo las rebanadas, para que el cuerpo sea macizo. */
+  fill: string;
+}
 
-/** Cada forma ocupa exactamente su rectángulo de colisión; cambia el dibujo, no el tamaño lógico. */
-const PAINTERS: Readonly<Record<Obstacle['kind'], Painter>> = {
-  boulder: (box, _rect, art, { x, w, h, line }) => {
-    const [light, mid, dark] = art.stone;
-    for (let c = 0; c < w; c += 1) {
-      const t = (c / Math.max(1, w - 1)) * 2 - 1;
-      const rise = Math.round((1 - t * t) * h * 0.4 + h * 0.6);
-      box(mid, x + c, line - rise, 1, rise);
-      box(light, x + c, line - rise, 1, 2);
-      if (t > 0.35) box(dark, x + c, line - rise + 2, 1, rise - 2);
-      if (c % 7 === 3) box(dark, x + c, line - rise + 5, 1, Math.max(1, Math.floor(rise / 3)));
-    }
-    box(art.cap, x + 2, line - h - 1, Math.max(2, w - 4), 2);
-  },
-  stump: (box, _rect, _art, { x, w, h, line }) => {
-    for (let c = 0; c < w; c += 1) {
-      const rise = Math.round(h * 0.82 + (c % 5 === 0 ? 2 : 0) + Math.sin(c / 3) * 1.5);
-      box('#4a3324', x + c, line - rise, 1, rise);
-      box('#7a5a3c', x + c, line - rise, 1, 2);
-      if (c > w * 0.65) box('#2c1d14', x + c, line - rise + 2, 1, rise - 2);
-    }
-    for (let r = 0; r < h; r += 5) box('#2c1d14', x + 2, line - h + r + 3, w - 4, 1);
-    box('#a08060', x + 3, line - h + 1, w - 6, 2);
-  },
-  deadtree: (box, _rect, art, { x, y, w, h }) => {
-    box('#3a281c', x, y, w, h);
-    for (let c = 0; c < w; c += 3) box(c % 6 === 0 ? '#22160f' : '#54392a', x + c, y, 1, h);
-    box('#22160f', x + w / 2 - 4, y + h * 0.45, 8, 12);
-    box('#54392a', x - 8, y + 8, 10, 5);
-    box('#54392a', x - 14, y + 4, 6, 3);
-    box('#54392a', x + w - 2, y + 18, 10, 5);
-    box('#54392a', x + w + 6, y + 14, 6, 3);
-    box(art.cap, x - 2, y - 2, w + 4, 4);
-  },
-  column: (box, _rect, art, { x, y, w, h, line }) => {
-    const [light, mid, dark] = art.stone;
-    box(mid, x, y, w, h);
-    for (let c = 2; c < w; c += 5) box(dark, x + c, y, 1, h);
-    box(light, x - 2, line - 6, w + 4, 6);
-    box(light, x - 1, y, w + 2, 4);
-    for (let c = 0; c < w; c += 4) box(dark, x + c, y, 2, 1 + (c % 3));
-    box(dark, x + w - 3, y + 6, 3, h - 12);
-  },
-  ice: (box, _rect, _art, { x, y, w, h }) => {
-    box('#7fb4d8', x, y, w, h);
-    for (let c = 0; c < w; c += 1) box('#c8e8fa', x + c, y + ((c * 13) % 9), 1, 2 + ((c * 7) % 22));
-    box('#4d84ad', x + w - 5, y, 5, h);
-    box('#eef3fb', x - 1, y - 1, w + 2, 3);
-    box('#e2f4ff', x + 4, y + 8, 2, h - 18);
-  },
-  tombstone: (box, _rect, art, { x, y, w, h }) => {
-    const [light, mid, dark] = art.stone;
-    // Lápida de cabecera redondeada, con una cruz grabada y musgo en la base.
-    box(mid, x, y + 6, w, h - 6);
-    box(mid, x + 3, y + 2, w - 6, 4);
-    box(mid, x + 6, y, w - 12, 2);
-    box(light, x + 6, y, w - 12, 1);
-    box(light, x, y + 6, 2, h - 6);
-    box(dark, x + w - 3, y + 6, 3, h - 6);
-    const mx = x + w / 2;
-    box(dark, mx - 1, y + 10, 3, Math.min(20, h * 0.4));
-    box(dark, mx - 5, y + 14, 11, 3);
-    box('#3f5a30', x, y + h - 5, w, 5);
-    for (let c = 1; c < w; c += 4) box('#4f7033', x + c, y + h - 7, 2, 3);
-    box(light, x - 3, y + h - 2, w + 6, 2);
-  },
-  cactus: (box, _rect, _art, { x, y, w, h }) => {
-    const trunk = Math.max(8, Math.round(w * 0.45));
-    const tx = x + (w - trunk) / 2;
-    box('#3f6a3a', tx, y, trunk, h);
-    box('#5a8a4a', tx, y, 2, h);
-    box('#274a28', tx + trunk - 3, y, 3, h);
-    // Brazos con codo.
-    box('#3f6a3a', x, y + h * 0.35, tx - x + 2, 7);
-    box('#3f6a3a', x, y + h * 0.35 - 14, 7, 21);
-    box('#3f6a3a', tx + trunk - 2, y + h * 0.5, x + w - tx - trunk + 2, 7);
-    box('#3f6a3a', x + w - 7, y + h * 0.5 - 12, 7, 19);
-    for (let r = 4; r < h; r += 8) box('#e8e0b8', tx + 2, y + r, 1, 2);
-    box('#e8e0b8', tx + trunk - 5, y + 10, 1, 2);
-  },
-  ruinwall: (box, rect, art, { x, y, w, h }, random) => {
-    const [light, mid, dark] = art.stone;
-    // Muro de sillares con la corona desigual: parece derrumbado.
-    box(mid, x, y, w, h);
-    for (let row = 0; row * 7 < h; row += 1) {
-      box(dark, x, y + row * 7, w, 1);
-      for (let c = row % 2 === 0 ? 0 : 6; c < w; c += 12) {
-        box(dark, x + c, y + row * 7, 1, 7);
-        if (random() < 0.4 && c + 8 < w) box(light, x + c + 2, y + row * 7 + 1, 7, 1);
-      }
-    }
-    for (let c = 0; c < w; c += 6) box('#000000', x + c, y - 1, 6, 4 + Math.floor(random() * 6));
-    box(light, x, y, 2, h);
-    box(dark, x + w - 3, y, 3, h);
-    box(art.cap, x - 1, y - 1, w + 2, 3);
-    if (rect.height > 150) box(dark, x + w / 2 - 4, y + h * 0.3, 8, 12);
-  },
-  crate: (box, _rect, _art, { x, y, w, h }) => {
-    box('#6b4a2c', x, y, w, h);
-    box('#8a6238', x, y, w, 3);
-    box('#3c2616', x, y + h - 3, w, 3);
-    box('#3c2616', x, y, 3, h);
-    box('#3c2616', x + w - 3, y, 3, h);
-    for (let d = 0; d < Math.min(w, h) - 6; d += 1) box('#4c3320', x + 3 + d, y + 3 + Math.floor((d * (h - 6)) / Math.max(1, w - 6)), 2, 2);
-    box('#c9a05a', x + 4, y + 4, 2, 2);
-    box('#c9a05a', x + w - 6, y + h - 6, 2, 2);
-  },
+export const TERRAIN_SLICES: Readonly<Record<'grass' | 'desert' | 'snow' | 'dark', TerrainSlices>> = {
+  grass: { capL: 36, capR: 36, top: 34, body: [44, 88], mid: [70, 155], fill: '#2a2030' },
+  desert: { capL: 14, capR: 14, top: 24, body: [30, 76], mid: [30, 100], fill: '#5a3626' },
+  snow: { capL: 14, capR: 14, top: 48, body: [52, 80], mid: [30, 110], fill: '#2a2438' },
+  dark: { capL: 14, capR: 14, top: 24, body: [26, 48], mid: [24, 92], fill: '#241c2c' },
 };
+
+/** Unidades de mundo por píxel del sprite de terreno. */
+export const TERRAIN_SCALE = 1.2;
+
+/** Un bloque de `cols × rows` píxeles de sprite: franja superior arriba y cuerpo de roca repetido hacia abajo. */
+export function drawTerrainBlock(source: CanvasImageSource, name: keyof typeof TERRAIN_SLICES, cols: number, rows: number): HTMLCanvasElement {
+  const slices = TERRAIN_SLICES[name];
+  const element = document.createElement('canvas');
+  element.width = cols;
+  element.height = rows;
+  const ctx = element.getContext('2d');
+  if (ctx === null) throw new Error('Canvas 2D no disponible');
+  ctx.imageSmoothingEnabled = false;
+  const sourceWidth = Number((source as { width: number }).width);
+  const capL = Math.min(slices.capL, Math.floor(cols / 2));
+  const capR = Math.min(slices.capR, Math.floor(cols / 2));
+  ctx.fillStyle = slices.fill;
+  ctx.fillRect(0, Math.min(rows, slices.top - 6), cols, rows);
+  /** Una banda horizontal del sprite [from, to) repetida a lo ancho entre los bordes. */
+  const band = (fromRow: number, toRow: number, y: number, height: number): void => {
+    const rowsToDraw = Math.min(toRow - fromRow, height);
+    if (rowsToDraw <= 0) return;
+    ctx.drawImage(source, 0, fromRow, capL, rowsToDraw, 0, y, capL, rowsToDraw);
+    ctx.drawImage(source, sourceWidth - capR, fromRow, capR, rowsToDraw, cols - capR, y, capR, rowsToDraw);
+    const [midFrom, midTo] = slices.mid;
+    for (let x = capL; x < cols - capR; x += midTo - midFrom) {
+      const w = Math.min(midTo - midFrom, cols - capR - x);
+      ctx.drawImage(source, midFrom, fromRow, w, rowsToDraw, x, y, w, rowsToDraw);
+    }
+  };
+  band(0, slices.top, 0, rows);
+  const [bodyFrom, bodyTo] = slices.body;
+  for (let y = slices.top; y < rows; y += bodyTo - bodyFrom) band(bodyFrom, bodyTo, y, rows - y);
+  return element;
+}
 
 export function drawGround(id: ArenaId): HTMLCanvasElement {
   const art = BIOME_ART[id];
@@ -216,12 +161,5 @@ export function drawGround(id: ArenaId): HTMLCanvasElement {
         else { box(stoneMid, x, line - 5, 8, 5); box(stoneLight, x + 1, line - 5, 3, 1); } // piedra
     }
   }
-  ARENAS[id].obstacles.forEach((rect) => {
-    const x = (rect.x - WORLD_LEFT) / PX;
-    const w = rect.width / PX;
-    const h = rect.height / PX;
-    const y = line - (rect.y + rect.height) / PX;
-    PAINTERS[rect.kind](box, rect, art, { x, y, w, h, line }, random);
-  });
   return element;
 }

@@ -1,4 +1,4 @@
-import type { ArenaId } from './arenas.js';
+import { arenaFor, type ArenaId, type Obstacle } from './arenas.js';
 import type { EventPayload, MatchEvent, MatchResult, MatchState, PlayerSetup, TurnState } from './match.js';
 import type { ImpactKind } from './physics.js';
 import type { ActionId, MatchId, PlayerId, Vec2 } from './types.js';
@@ -23,6 +23,8 @@ export interface PlayerMatchView {
   readonly seq: number;
   readonly version: number;
   readonly arenaId: ArenaId;
+  /** Terreno y objetos de esta partida: públicos para los dos jugadores, igual que las posiciones. */
+  readonly obstacles: readonly Obstacle[];
   readonly windAccel: number;
   readonly maxRounds: number;
   readonly round: number;
@@ -101,6 +103,7 @@ export function toPlayerView(state: MatchState, viewerId: PlayerId): PlayerMatch
     seq: state.seq,
     version: state.version,
     arenaId: state.setup.arenaId,
+    obstacles: arenaFor(state.setup).obstacles,
     windAccel: state.setup.windAccel,
     maxRounds: state.setup.config.maxRounds,
     round: state.lastRound,

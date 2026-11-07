@@ -107,3 +107,18 @@ Decisión del usuario (7 nov 2026) para simplificar y dejar una versión estable
 **Guía de puntería.** Línea continua y suave que se afina y se desvanece y llega al 72 % de la trayectoria; sin transportador ni ángulo en pantalla. Sin viento, la línea es la trayectoria real.
 
 **Datos.** Las migraciones 007 y 008 se rehicieron en su forma final porque aún no se habían fusionado ni desplegado; la base de datos local se reinició.
+
+## Obstáculos y terreno aleatorios por partida, guía de puntos y menú fiel (SCRUM-67)
+Petición del usuario (7 nov 2026). **Reemplaza** los obstáculos fijos por arena de SCRUM-63 y la guía continua de SCRUM-66.
+
+**Quién decide.** El servidor sortea la disposición al crear la partida (`generateLayout`, dominio puro con el `RandomSource` de siempre) y la guarda en `match_started.setup.obstacles`. Reproducir la partida nunca vuelve a sortear: sale del log. La vista (`PlayerMatchView.obstacles`) la publica a ambos jugadores, como las posiciones. Una partida anterior sin `obstacles` se reproduce en arena llana (`arenaFor`). `PHYSICS_VERSION` pasa a 5.
+
+**Qué sale.** Solo objetos del bioma (`PROPS[...].biomes`), tomados uno por uno de `references/ashenfall_obstacles_board.webp` con `scripts/build-obstacles.py`, que también genera el catálogo (`obstacle-catalog.ts`: 97 objetos, colisión y dibujo derivados del sprite real) y el atlas del cliente. Tres formas de terreno: llano, **plataformas** elevadas bajo cada jugador (60, 90 o 120) con gradas hacia el centro, y **colina** central con escalones. Las plataformas y gradas son bloques `terrain` armados por rebanadas con el sprite de cada bioma. Todo es simétrico respecto al centro (el lado derecho es el espejo del izquierdo): el azar cambia la partida, nunca da ventaja. Los árboles colisionan solo con el tronco.
+
+**Garantías probadas.** Simetría, determinismo y variedad por semilla; solo objetos del bioma; todos los objetos de la hoja aparecen con semillas suficientes; los jugadores nacen apoyados y fuera de cualquier obstáculo y el retroceso no los hace caer; desde cualquier aparición se puede impactar al rival con cada familia de arma.
+
+**Guía.** Hilera corta (250 px) de puntos cuadrados que se achican, sin la banda elástica del tirachinas, y encima los porcentajes «Potencia n % · Ángulo n %» (el ángulo es 0–90° como porcentaje, sin grados).
+
+**Menú del pueblo.** La referencia nueva (1556×1011) no es 16:9: se amplía a los lados con un degradado oscuro de sus bordes, sin deformar ni mover nada, y se reduce a 1280×720. El nombre, el nivel con su barra y las monedas se escriben encima con datos reales. El Arsenal se ilumina al pasar el ratón (copia luminosa de su fachada con parpadeo de velas y chispas) y el pueblo tiene nubes, niebla, humo de chimeneas, murciélagos y luces que parpadean. El personaje elegido sigue de pie en el centro.
+
+**Carga de texturas.** Una partida que llega antes de terminar `preload` (al reanudar al abrir la página) espera a que acabe en lugar de dibujarse sin sprites.
