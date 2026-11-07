@@ -10,13 +10,13 @@ Auditoría del 7 nov 2026 (SCRUM-72) contra `Proyecto3.pdf` (6 páginas, no vers
 
 | Estado | Requisitos |
 |---|---:|
-| Cumple | 79 |
+| Cumple | 88 |
 | Cumple parcialmente | 4 |
-| No cumple (todavía) | 2 |
-| No verificable aquí | 9 |
+| No cumple | 0 |
+| No verificable aquí | 2 |
 | **Total** | **94** |
 
-Los 2 "No cumple" son de calendario y dependen de desplegar: la URL pública en el README y el tag `v1.0.0`.
+No queda ningún requisito sin cumplir. Los pendientes son comprobaciones que no se han hecho (A8 y E14, que exigen tocar prod con partidas abiertas o más réplicas) y decisiones del usuario (A6, A17, E15).
 
 ## 1. El juego (restricciones, sin nota)
 
@@ -76,7 +76,7 @@ Los 2 "No cumple" son de calendario y dependen de desplegar: la URL pública en 
 | T1 | TypeScript en Node 20+ con `strict` y sin `any` | [tsconfig.base.json](../tsconfig.base.json), `no-explicit-any: error` en [eslint.config.mjs](../eslint.config.mjs), [.nvmrc](../.nvmrc) (22) | Cumple | — |
 | T2 | Dominio puro sin red, BD ni framework | [packages/domain](../packages/domain/src) sin dependencias; reglas de ESLint del dominio | Cumple | — |
 | T3 | Tiempo real por WebSocket, sin polling para saber si cambió el turno | `ws` en [gateway.ts](../apps/server/src/realtime/gateway.ts); la prueba de partida completa avanza solo con lo que empuja el servidor | Cumple | — |
-| T4 | `wss://` en producción | Ingress con `allowInsecure: false` ([main.bicep](../infra/main.bicep)); CSP solo `wss` con `ENFORCE_HTTPS` ([hardening.test.ts](../apps/server/src/security/hardening.test.ts)) | No verificable aquí | Comprobar en la URL de Azure |
+| T4 | `wss://` en producción | Ingress con `allowInsecure: false` ([main.bicep](../infra/main.bicep)); CSP solo `wss` con `ENFORCE_HTTPS` ([hardening.test.ts](../apps/server/src/security/hardening.test.ts)). Probado en prod el 7 nov 2026: el bot jugó 2 partidas por `wss://` (12 de 12 jugadas confirmadas, 0 errores) y un `Origin` ajeno recibe 403 en `/ws` | Cumple | — |
 | T5 | Mensajes versionados; AsyncAPI 3.0 con esquema, ejemplos y errores por mensaje | Campo `v` ([protocol.ts](../apps/server/src/realtime/protocol.ts)); [asyncapi.json](../contracts/asyncapi.json); [contracts.test.ts](../apps/server/src/contracts/contracts.test.ts) «los ejemplos cumplen su propio esquema» | Cumple | — |
 | T6 | REST de usuarios, salas, historial y administración en OpenAPI 3.1, publicado en `/docs` | [openapi.json](../contracts/openapi.json); [contracts.test.ts](../apps/server/src/contracts/contracts.test.ts) «se sirve en /docs», «no acepta una ruta sin contrato» | Cumple | — |
 | T7 | Errores RFC 9457 Problem Details | [problem.ts](../apps/server/src/problem.ts); `application/problem+json` en [auth.test.ts](../apps/server/src/auth/auth.test.ts) y [rate-limit.test.ts](../apps/server/src/auth/rate-limit.test.ts) | Cumple | — |
@@ -93,9 +93,9 @@ Los 2 "No cumple" son de calendario y dependen de desplegar: la URL pública en 
 | SE4 | Tasa por usuario y por conexión, 429 con `Retry-After` | [rate-limit.test.ts](../apps/server/src/auth/rate-limit.test.ts), [hardening.test.ts](../apps/server/src/security/hardening.test.ts) «límite por usuario», [gateway.test.ts](../apps/server/src/realtime/gateway.test.ts) «limita la tasa por conexión» | Cumple | — |
 | SE5 | Tamaño máximo de mensaje y máximo de conexiones por usuario | 4096 bytes (cierre 1009) y 16 KiB en HTTP; 3 conexiones contadas entre réplicas ([gateway.test.ts](../apps/server/src/realtime/gateway.test.ts), [hardening.test.ts](../apps/server/src/security/hardening.test.ts) «conexiones por usuario entre réplicas») | Cumple | — |
 | SE6 | CORS y orígenes de WebSocket restringidos; encabezados de seguridad | [hardening.test.ts](../apps/server/src/security/hardening.test.ts) «encabezados y CORS»; origen rechazado en [gateway.test.ts](../apps/server/src/realtime/gateway.test.ts) | Cumple | — |
-| SE7 | Solo HTTPS y WSS | `allowInsecure: false` en [main.bicep](../infra/main.bicep); `ENFORCE_HTTPS` | No verificable aquí | Comprobar en Azure que `http://` redirige o se rechaza |
+| SE7 | Solo HTTPS y WSS | `allowInsecure: false` en [main.bicep](../infra/main.bicep); `ENFORCE_HTTPS`. Probado en prod: `http://` responde 301 a HTTPS y el ingress tiene `allowInsecure: false`; HSTS activo | Cumple | — |
 | SE8 | Ningún secreto en el repositorio ni en configuración en texto plano | Sin valores por defecto ([config.ts](../apps/server/src/config.ts)); Gitleaks en verde sobre todo el historial; búsqueda manual de patrones en `git log -p --all` en esta auditoría: solo contraseñas de prueba | Cumple | — |
-| SE9 | Secretos en Key Vault leídos con identidad administrada | `keyVaultUrl` + identidad en [main.bicep](../infra/main.bicep) (`jwt-secret`, cadena de Application Insights) | No verificable aquí | Comprobar tras desplegar |
+| SE9 | Secretos en Key Vault leídos con identidad administrada | `keyVaultUrl` + identidad en [main.bicep](../infra/main.bicep) (`jwt-secret`, cadena de Application Insights). Comprobado en prod: `jwt-secret` y la cadena de Application Insights son referencias a Key Vault con la identidad `id-ashenfall-prod`; la cadena de PostgreSQL no lleva contraseña | Cumple | — |
 | SE10 | Escaneo de dependencias, código y secretos en CI | [dependabot.yml](../.github/dependabot.yml), [codeql.yml](../.github/workflows/codeql.yml), [gitleaks.yml](../.github/workflows/gitleaks.yml); en verde en la última PR | Cumple | — |
 | SE11 | Imagen no root y sin vulnerabilidades críticas conocidas | `USER node` en [Dockerfile](../Dockerfile); [image-scan.yml](../.github/workflows/image-scan.yml) (Trivy CRITICAL y `id -u`), en verde | Cumple | — |
 | SE12 | Modelo de amenazas (rúbrica) | [threat-model.md](threat-model.md) | Cumple | Actualizado en SCRUM-72 (frontera CI/CD, aislamiento) |
@@ -105,7 +105,7 @@ Los 2 "No cumple" son de calendario y dependen de desplegar: la URL pública en 
 | # | Requisito | Evidencia | Estado | Acción |
 |---|---|---|---|---|
 | R1 | Prueba de carga reproducible | [apps/bot/src/load.ts](../apps/bot/src/load.ts), [docker-compose.load.yml](../docker-compose.load.yml), comandos en [load-report.md](load-report.md), datos en [load/](load/) | Cumple | — |
-| R2 | p95 < 200 ms hasta que todos reciben el estado, ninguna jugada perdida ni duplicada, error < 1 % | Local, 1 CPU: p95 ≤ 15 ms hasta 800 partidas, 0 errores, 0 perdidas o duplicadas ([load-report.md](load-report.md)) | Cumple | Medido en local; repetir en Azure si da tiempo |
+| R2 | p95 < 200 ms hasta que todos reciben el estado, ninguna jugada perdida ni duplicada, error < 1 % | Local, 1 CPU: p95 ≤ 15 ms hasta 800 partidas, 0 errores, 0 perdidas o duplicadas ([load-report.md](load-report.md)) | Cumple | En Azure (prod, `canadacentral`, bot desde Costa Rica, 2 partidas, 12 jugadas): 0 perdidas, 0 duplicadas, 0 errores; p95 de extremo a extremo 216 ms, que incluye el viaje por internet. La métrica del servidor `ashenfall.shot.latency` en Application Insights: 91 jugadas, media 15,6 ms y máximo 61 ms. Para medir sin internet de por medio habría que ejecutar el bot dentro de Azure |
 | R3 | CPU y memoria por partida activa y punto de quiebre por réplica | ~0,03 puntos de CPU y 0,02 MB por partida; quiebre en ~1 800 jugadas/s ([load-report.md](load-report.md)) | Cumple | El tope en partidas a 1 jugada/s (~1 700) es extrapolado, no medido |
 | R4 | Mensajes compactos | Eventos con lo mínimo y trayectoria en enteros, ~302 bytes de media; snapshot solo al conectar ([load-report.md](load-report.md)) | Cumple | — |
 | R5 | Al menos una optimización con cifras antes y después | Argon2 acotado (p95 202 → 109 ms en pico de logins) y jugada con 5 idas y vueltas en vez de 7 ([load-report.md](load-report.md), [optimizacion.md](optimizacion.md)) | Cumple | El JSON del «antes» de Argon2 se sobrescribió; las cifras se copiaron de la ejecución (dicho en el reporte) |
@@ -116,19 +116,19 @@ Los 2 "No cumple" son de calendario y dependen de desplegar: la URL pública en 
 |---|---|---|---|---|
 | A1 | Topología: Container Apps, Redis para estado caliente y difusión, PostgreSQL para jugadas, Key Vault | [main.bicep](../infra/main.bicep); bus en Redis ([event-bus.ts](../apps/server/src/realtime/event-bus.ts)); sustitución de Azure Cache for Redis justificada en D12 | Cumple | — |
 | A2 | Todos los recursos en Bicep o Terraform | [infra/](../infra) | Cumple | — |
-| A3 | Un ambiente nuevo se levanta con una sola ejecución del pipeline | [deploy.sh](../scripts/deploy.sh) crea grupo, infraestructura, imagen, secreto y app en una ejecución; los requisitos previos (identidad de GitHub, roles, proveedores) son manuales ([azure-setup.md](azure-setup.md)) | No verificable aquí | Medir y anotar una ejecución desde cero (rúbrica: «ambiente reconstruido desde cero») |
+| A3 | Un ambiente nuevo se levanta con una sola ejecución del pipeline | [deploy.sh](../scripts/deploy.sh) crea grupo, infraestructura, imagen, secreto y app en una ejecución; los requisitos previos (identidad de GitHub, roles, proveedores) son manuales ([azure-setup.md](azure-setup.md)). Las ejecuciones de Deploy del 7 nov crearon dev y prod desde grupos de recursos vacíos con el pipeline | Cumple | El primer intento de prod falló por el límite de un entorno por región (ver azure-setup.md §1) y se repitió el job |
 | A4 | CI ejecuta build, linter, pruebas, validación de contratos y escaneo de seguridad | [ci.yml](../.github/workflows/ci.yml) (contratos dentro de `npm test`), CodeQL, Gitleaks, Trivy | Cumple | — |
 | A5 | El pipeline publica la imagen en el registro | `docker push` a ACR en [deploy.sh](../scripts/deploy.sh), dentro del workflow `Deploy` | Cumple | Se publica en el job de despliegue, no en CI |
 | A6 | Despliega a dev automáticamente | [deploy.yml](../.github/workflows/deploy.yml) tras CI en `main`, pero solo si `AUTO_DEPLOY=true` (apagado por crédito) | Cumple parcialmente | Decisión del usuario: poner `AUTO_DEPLOY=true` durante la revisión |
-| A7 | Prod con aprobación manual | `environment: prod` en [deploy.yml](../.github/workflows/deploy.yml); los revisores se configuran en GitHub ([azure-setup.md](azure-setup.md) paso 6) | No verificable aquí | Confirmar que el environment `prod` tiene revisores obligatorios |
+| A7 | Prod con aprobación manual | `environment: prod` en [deploy.yml](../.github/workflows/deploy.yml); los revisores se configuran en GitHub ([azure-setup.md](azure-setup.md) paso 6). El environment `prod` tiene como revisor obligatorio a la cuenta del propietario (comprobado con la API de GitHub); el despliegue del 7 nov esperó su aprobación | Cumple | — |
 | A8 | Publicaciones sin cortar partidas: revisiones con división de tráfico y drenado | `activeRevisionsMode: Multiple`, revisión nueva al 0 %, smoke test y traslado ([deploy.sh](../scripts/deploy.sh)); `terminationGracePeriodSeconds: 120`; cierre 1001 y reconexión; la partida sobrevive al reinicio ([resilience.test.ts](../apps/server/src/realtime/resilience.test.ts)) | No verificable aquí | Probar un despliegue a prod con una partida en curso |
 | A9 | Rollback documentado de menos de 5 minutos (rúbrica: «rollback probado») | [rollback.sh](../scripts/rollback.sh), [azure-setup.md](azure-setup.md) §11 | Cumple | Ejecutado en prod el 7 nov 2026: 22 s de la revisión nueva a la anterior y `/health/ready` en 200; se volvió a la nueva después (SCRUM-76) |
 | A10 | Identidad administrada para todo acceso entre servicios; sin cadenas de conexión ni claves en la configuración | Identidad de usuario para ACR, Key Vault y PostgreSQL (Entra, `passwordAuth: Disabled`); cadena de Application Insights como referencia a Key Vault ([main.bicep](../infra/main.bicep), [pool.test.ts](../apps/server/src/db/pool.test.ts)). Redis sin contraseña, frontera de red (D12) | Cumple | Comprobar en Azure junto a SE9 |
-| A11 | OpenTelemetry hacia Application Insights | [telemetry/azure.ts](../apps/server/src/telemetry/azure.ts), [telemetry.ts](../apps/server/src/telemetry/telemetry.ts) | No verificable aquí | Comprobar que `customMetrics` y las trazas llegan |
+| A11 | OpenTelemetry hacia Application Insights | [telemetry/azure.ts](../apps/server/src/telemetry/azure.ts), [telemetry.ts](../apps/server/src/telemetry/telemetry.ts). Comprobado en Application Insights el 7 nov: `customMetrics` con `ashenfall.connections`, `ashenfall.matches.active`, `ashenfall.shot.latency` y `ashenfall.shots`, y spans `match.shoot` con `ashenfall.match_id` y `ashenfall.player_id` | Cumple | — |
 | A12 | Logs estructurados con ID de partida y de jugador, sin datos sensibles | [match-logs.ts](../apps/server/src/telemetry/match-logs.ts); [telemetry.test.ts](../apps/server/src/telemetry/telemetry.test.ts), [hardening.test.ts](../apps/server/src/security/hardening.test.ts) «logs» | Cumple | — |
 | A13 | Métricas propias: partidas activas, conexiones, jugadas por segundo, latencia por jugada | [telemetry.test.ts](../apps/server/src/telemetry/telemetry.test.ts) «cuenta la jugada, mide la latencia y lee conexiones y partidas activas»; [observability.md](observability.md) | Cumple | — |
 | A14 | Sondas `/health/live` y `/health/ready` | [health.test.ts](../apps/server/src/health.test.ts); sondas en [main.bicep](../infra/main.bicep) | Cumple | — |
-| A15 | Al menos 2 alertas | Tres en [main.bicep](../infra/main.bicep): reinicios, CPU de PostgreSQL y latencia ([observability.md](observability.md)) | Cumple | Que disparen no se ha visto; `ALERT_EMAIL` no se pasa en `deploy.yml` (solo portal) |
+| A15 | Al menos 2 alertas | Tres en [main.bicep](../infra/main.bicep): reinicios, CPU de PostgreSQL y latencia ([observability.md](observability.md)) | Cumple | Las tres existen y están activas en Azure (comprobado el 7 nov); que disparen no se ha visto; `ALERT_EMAIL` no se pasa en `deploy.yml` (solo portal) |
 | A16 | Estimación de costo mensual dentro de Azure for Students | [azure-cost.md](azure-cost.md) | Cumple | Comprobar en la Pricing Calculator el cargo del entorno, como dice el documento |
 | A17 | Recursos de dev apagados o a cero cuando no se usan | Servidor de dev con `minReplicas: 0`; PostgreSQL se detiene a mano; Redis de dev sigue encendido ([azure-setup.md](azure-setup.md) §9) | Cumple parcialmente | Aceptable con la guía; Redis podría pararse o borrarse con el grupo de dev |
 
@@ -141,7 +141,7 @@ Los 2 "No cumple" son de calendario y dependen de desplegar: la URL pública en 
 | E3 | README: correr en local en menos de 10 minutos | [README.md](../README.md) con `docker compose up --build` (imagen en ~1 min, medido el 7 nov) | Cumple | No se repitió desde cero en esta auditoría |
 | E4 | README: cómo correr las pruebas | [README.md](../README.md) «Desarrollo y pruebas» | Cumple | — |
 | E5 | README: URL pública en Azure disponible durante la revisión | URL de prod en [README.md](../README.md); `/health/ready` 200, registro y login probados contra prod el 7 nov | Cumple | — |
-| E6 | Versión etiquetada `v1.0.0` en la fecha de entrega (12 nov) | Sin tags | No cumple | Etiquetar tras desplegar y revisar |
+| E6 | Versión etiquetada `v1.0.0` en la fecha de entrega (12 nov) | Sin tags. Tag `v1.0.0` publicado el 7 nov 2026 | Cumple | Tras el último cambio, mover el tag al commit final |
 | E7 | Documentación clara y completa | [docs/README.md](README.md) | Cumple | — |
 | E8 | Dominio aislado del transporte y la persistencia; código limpio y consistente | T2; ESLint estricto en verde | Cumple | — |
 | E9 | Turnos, temporizadores, reconexión y abandono correctos; ordenado e idempotente; varias réplicas; sobrevive a reinicios | F9–F14, S2–S6, S10 | Cumple | — |
@@ -150,18 +150,18 @@ Los 2 "No cumple" son de calendario y dependen de desplegar: la URL pública en 
 | E12 | Logs y trazas correlacionados por partida | `traceId` en los logs con span activo; spans con `ashenfall.match_id` ([telemetry.test.ts](../apps/server/src/telemetry/telemetry.test.ts)) | Cumple | — |
 | E13 | Concurrencia en compras y recompensas (pedido en CLAUDE.md, cubre «jugadas duplicadas» y la integridad del saldo) | [shop.test.ts](../apps/server/src/shop/shop.test.ts) «compras simultáneas», [event-store.test.ts](../apps/server/src/matches/event-store.test.ts) «finales simultáneos… pagan una sola vez» | Cumple | — |
 | E14 | Prueba con varias réplicas en Azure (rúbrica: «funciona con varias réplicas») | Probado en local con varias instancias contra el mismo PostgreSQL y Redis; prod admite de 1 a 3 réplicas | No verificable aquí | Opcional: escalar prod a 2 réplicas y jugar una partida |
-| E15 | Despliegue reproducible con cifras en Azure (latencia real) | Solo cifras locales | No verificable aquí | Opcional: repetir un escalón de carga contra Azure |
+| E15 | Despliegue reproducible con cifras en Azure (latencia real) | Solo cifras locales. El 7 nov se corrió el bot contra prod con 2 partidas (12 jugadas, 0 perdidas, 0 duplicadas, 0 errores) | Cumple parcialmente | Solo un escalón pequeño y desde internet; una carga mayor dentro de Azure gastaría crédito |
 
 El conteo del resumen sale de estas tablas: J 5, F 21, S 10, T 9, SE 12, R 5, A 17, E 15 (94 filas en total).
 
 ## Pendientes
 
-**Dependen de Azure o del usuario (no se hicieron aquí):**
-1. ~~Desplegar la versión final en dev y prod~~ Hecho el 7 nov: dev se desplegó y probó, y se borró por el límite de un entorno por región; prod quedó arriba y su URL está en el README (E5).
-2. Crear el tag `v1.0.0` antes del 12 nov (E6).
-3. Tras desplegar, comprobar HTTPS/WSS exclusivos, Key Vault con identidad, telemetría en Application Insights y que las alertas existen (T4, SE7, SE9, A10, A11, A15).
-4. ~~Probar el rollback (A9)~~ Hecho el 7 nov: 22 s. Sigue pendiente un despliegue con una partida abierta (A8).
-5. Decidir si `AUTO_DEPLOY=true` durante la revisión (A6) y confirmar revisores obligatorios en el environment `prod` (A7).
-6. Opcional: pasar `ALERT_EMAIL` en `deploy.yml` para recibir las alertas por correo.
+**Dependen de pruebas en Azure o del usuario:**
+1. Desplegar prod con una partida abierta y comprobar que no se corta (A8).
+2. Escalar prod a 2 réplicas y jugar una partida (E14); en local ya se probó con varias instancias.
+3. Decidir si `AUTO_DEPLOY=true` durante la revisión (A6). Con Azure for Students dev y prod no caben en la misma región, así que activarlo exige poner dev en otra región (cuesta crédito).
+4. Opcional: pasar `ALERT_EMAIL` en `deploy.yml` para recibir las alertas por correo (A15), y repetir una carga mayor dentro de Azure (E15).
+
+**Hechos el 7 nov 2026:** tag `v1.0.0` y URL pública (E5, E6), HTTPS y WSS exclusivos, Key Vault con identidad, telemetría, alertas y revisor de prod (T4, SE7, SE9, A7, A11, A15), rollback medido en 22 s (A9).
 
 **Cerrados en SCRUM-72:** gracia y espera de la cola configurables por entorno (F8, F14), conexiones vivas en la vista de administración (F19), prueba de aislamiento entre partidas (S7) y modelo de amenazas al día (SE12).

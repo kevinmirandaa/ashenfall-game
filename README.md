@@ -58,6 +58,8 @@ Tras entrar, llegas a Ashenfall. Todo se maneja desde ahí:
 - **Partida privada**: crea una sala, comparte el código con un amigo y empiecen cuando ambos estén listos.
 - **Modo historia**: diez monstruos en orden, movidos por el servidor. Cada victoria desbloquea al siguiente y el premio crece de 50 a 350 Marcas de Ceniza.
 
+En el móvil se juega **en horizontal**: en vertical aparece un aviso para girar el dispositivo. El apuntado es el mismo, con el dedo en vez del ratón.
+
 Para probar un duelo entre humanos tú solo, abre el juego en dos navegadores (o en una ventana normal y otra privada) y entra con una cuenta distinta en cada uno.
 
 ### Progreso
