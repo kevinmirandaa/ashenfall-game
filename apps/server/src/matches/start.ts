@@ -1,5 +1,5 @@
 import { randomInt, randomUUID } from 'node:crypto';
-import { CHARACTER_IDS, createMatchSetup, isCharacterId, startMatch, type CharacterId, type MatchConfig, type RandomSource } from '@ashenfall/domain';
+import { CHARACTER_FAMILY, CHARACTER_IDS, createMatchSetup, isCharacterId, isWeaponId, startMatch, WEAPONS, type CharacterId, type MatchConfig, type RandomSource, type WeaponId } from '@ashenfall/domain';
 import type pg from 'pg';
 import { isUniqueViolation } from '../db/transaction.js';
 import { ProblemError } from '../problem.js';
@@ -22,9 +22,22 @@ export async function createMatchInTransaction(
     'SELECT id, display_name, character_id FROM users WHERE id = ANY($1::uuid[])',
     [[...playerIds]],
   );
-  const profiles: Record<string, { characterId: CharacterId; displayName: string }> = {};
+  // Arma equipada de cada jugador; solo cuenta si es de la familia de su personaje.
+  const equipped = await client.query<{ user_id: string; cosmetic_id: string }>(
+    `SELECT p.user_id, p.cosmetic_id FROM player_cosmetics p JOIN cosmetic_catalog c ON c.id = p.cosmetic_id
+     WHERE p.user_id = ANY($1::uuid[]) AND p.equipped AND c.kind LIKE 'weapon\\_%'`,
+    [[...playerIds]],
+  );
+  const profiles: Record<string, { characterId: CharacterId; displayName: string; weaponId?: WeaponId }> = {};
   for (const row of rows) {
-    profiles[row.id] = { characterId: isCharacterId(row.character_id) ? row.character_id : CHARACTER_IDS[0], displayName: row.display_name };
+    const characterId = isCharacterId(row.character_id) ? row.character_id : CHARACTER_IDS[0];
+    const weapons = equipped.rows
+      .filter((entry) => entry.user_id === row.id)
+      .map((entry) => entry.cosmetic_id.replace(/^wpn-/, '').replace('-', '_'))
+      .filter(isWeaponId)
+      .filter((id) => WEAPONS[id].family === CHARACTER_FAMILY[characterId]);
+    const weaponId = weapons[0];
+    profiles[row.id] = { characterId, displayName: row.display_name, ...(weaponId === undefined ? {} : { weaponId }) };
   }
   const setup = createMatchSetup({ matchId, playerIds, profiles, ...(config === undefined ? {} : { config }) }, cryptoRandom);
   const first = startMatch(setup, nowMs);

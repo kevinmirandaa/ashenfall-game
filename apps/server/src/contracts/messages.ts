@@ -1,3 +1,4 @@
+import { ARENA_IDS, CHARACTER_IDS, WEAPON_IDS } from '@ashenfall/domain';
 import { Type, type TSchema } from '@sinclair/typebox';
 
 const strict = { additionalProperties: false } as const;
@@ -27,7 +28,8 @@ const Side = Type.Object(
     position: Point,
     facing: Type.Union([Type.Literal(1), Type.Literal(-1)]),
     connected: Type.Boolean(),
-    characterId: literalUnion(['edrik', 'sylwen', 'borgrim']),
+    characterId: literalUnion(CHARACTER_IDS),
+    weaponId: literalUnion(WEAPON_IDS),
     displayName: Type.String(),
   },
   strict,
@@ -41,7 +43,7 @@ export const PlayerMatchViewSchema = Type.Object(
     status: literalUnion(['in_progress', 'finished']),
     seq: Type.Integer(),
     version: Type.Integer(),
-    arenaId: literalUnion(['whispering_forest', 'frostlands', 'ashen_desert']),
+    arenaId: literalUnion(ARENA_IDS),
     windAccel: Type.Number(),
     maxRounds: Type.Integer(),
     round: Type.Integer(),
@@ -60,7 +62,7 @@ const eventPayloads = [
     {
       type: Type.Literal('shot_resolved'),
       shooterId: Id,
-      weaponId: literalUnion(['bow', 'spear', 'axe']),
+      weaponId: literalUnion(WEAPON_IDS),
       impactKind: literalUnion(['player', 'obstacle', 'ground', 'out_of_bounds']),
       impact: Point,
       flightMs: Type.Integer(),
@@ -68,6 +70,10 @@ const eventPayloads = [
       damage: Type.Integer(),
       zone: Type.Union([literalUnion(['head', 'body', 'legs']), Type.Null()]),
       targetHpAfter: Type.Integer(),
+      effect: Type.Union([
+        Type.Object({ kind: literalUnion(['poison', 'burn']), perSecond: Type.Integer(), seconds: Type.Integer() }, { ...strict, description: 'Veneno o fuego del arma; ya descontado de targetHpAfter' }),
+        Type.Null(),
+      ]),
       targetPosition: Point,
       own: Type.Optional(
         Type.Object({ actionId: Id, angleDeg: Type.Number(), power: Type.Number() }, { ...strict, description: 'Solo lo recibe quien disparó' }),

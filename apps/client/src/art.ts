@@ -1,33 +1,48 @@
 /** Datos de personajes y acceso al arte recortado de las hojas de referencia (public/art). */
-import { CHARACTER_WEAPON, type CharacterId } from '@ashenfall/domain';
+import { CHARACTER_FAMILY, type CharacterId, type WeaponFamily } from '@ashenfall/domain';
 
 export type { CharacterId } from '@ashenfall/domain';
-export const CHARACTERS: readonly { id: CharacterId; name: string; race: string; weapon: string; lore: string }[] = [
-  { id: 'edrik', name: 'Edrik', race: 'El Errante', weapon: 'Arco', lore: 'Un mercenario veterano que busca un nuevo propósito.' },
-  { id: 'sylwen', name: 'Sylwen', race: 'La Última Elfa', weapon: 'Lanza', lore: 'Una arquera experta, silenciosa y precisa.' },
-  { id: 'borgrim', name: 'Borgrim', race: 'El Forjador', weapon: 'Hacha', lore: 'Un enano orgulloso con un gran corazón.' },
+export const FAMILY_LABEL: Readonly<Record<WeaponFamily, string>> = {
+  dagger: 'Dagas',
+  bow: 'Arco',
+  crossbow: 'Ballesta',
+  axe: 'Hacha',
+  sword: 'Espada',
+  staff: 'Bastón',
+  flask: 'Frascos',
+  mace: 'Maza',
+};
+export const CHARACTERS: readonly { id: CharacterId; name: string; race: string; lore: string }[] = [
+  { id: 'edrik', name: 'Edrik', race: 'El Errante', lore: 'Un mercenario encapuchado que prefiere una oportunidad a la suerte.' },
+  { id: 'sylwen', name: 'Sylwen', race: 'La Última del Robledal', lore: 'Una arquera de raíz: el viento siempre le deja una pista.' },
+  { id: 'borgrim', name: 'Borgrim', race: 'El Forjador', lore: 'Un enano de veta que responde con acero.' },
+  { id: 'aldric', name: 'Aldric', race: 'Guardia del Alba', lore: 'Un caballero de armadura pesada que ya perdió su estandarte.' },
+  { id: 'vaela', name: 'Vaela', race: 'Bruja de Hollín', lore: 'Lee presagios en las cenizas y los lanza contra quien se atreve.' },
+  { id: 'corvus', name: 'Corvus', race: 'Médico de la Peste', lore: 'Cura a quien puede pagar y envenena a quien no.' },
+  { id: 'anselmo', name: 'Anselmo', race: 'Hermano de Ceniza', lore: 'Un clérigo errante con una maza bendecida y poca paciencia.' },
+  { id: 'mirelle', name: 'Mirelle', race: 'Espada de Vardem', lore: 'Una guerrera joven que juró no volver a bajar la guardia.' },
+  { id: 'morveth', name: 'Morveth', race: 'El Hechicero Errante', lore: 'Dicen que murió hace siglos; él discute el detalle.' },
+  { id: 'rurik', name: 'Rurik', race: 'Cazador de Maldiciones', lore: 'Rastrea monstruos con una ballesta y mucha costumbre.' },
 ];
-export const DEFAULT_WEAPON = CHARACTER_WEAPON;
+/** Familia del arma de cada personaje: también es el nombre de su icono. */
+export const DEFAULT_WEAPON: Readonly<Record<CharacterId, WeaponFamily>> = CHARACTER_FAMILY;
 
 /** Apariencia equipada. Es solo visual: nada de esto llega a la física ni al daño. */
 export interface Look {
   character: CharacterId;
   cloak: boolean;
   helm: boolean;
-  veteran: boolean;
-  boneBow: boolean;
-  bronzeAxe: boolean;
   embers: boolean;
   frame: boolean;
   emblem: boolean;
 }
-export const baseLook = (character: CharacterId): Look => ({ character, cloak: false, helm: false, veteran: false, boneBow: false, bronzeAxe: false, embers: false, frame: false, emblem: false });
+export const baseLook = (character: CharacterId): Look => ({ character, cloak: false, helm: false, embers: false, frame: false, emblem: false });
 
 /** Tinte del personaje según lo equipado; 0xffffff es sin tinte. */
-export const bodyTint = (look: Look): number => (look.cloak ? 0xc4dcff : look.veteran ? 0xffd4b8 : 0xffffff);
-export const bodyFilter = (look: Look): string => (look.cloak ? 'saturate(.7) hue-rotate(190deg) brightness(1.1)' : look.veteran ? 'sepia(.35) saturate(1.4)' : 'none');
+export const bodyTint = (look: Look): number => (look.cloak ? 0xc4dcff : 0xffffff);
+export const bodyFilter = (look: Look): string => (look.cloak ? 'saturate(.7) hue-rotate(190deg) brightness(1.1)' : 'none');
 
-export type IconName = 'bow' | 'spear' | 'axe' | 'coin' | 'gear' | 'heart' | 'cloak' | 'helm' | 'hood' | 'emblem' | 'star' | 'potion' | 'trophy' | 'swords' | 'check' | 'cross' | 'shield' | 'crown' | 'pouch' | 'scroll';
+export type IconName = WeaponFamily | 'coin' | 'gear' | 'heart' | 'cloak' | 'helm' | 'hood' | 'emblem' | 'star' | 'potion' | 'trophy' | 'swords' | 'check' | 'cross' | 'shield' | 'crown' | 'pouch' | 'scroll';
 
 export const iconUrl = (name: IconName): string => `/art/icon-${name}.webp`;
 export const icon = (name: IconName, size = 24): string => `<img class="ico" src="${iconUrl(name)}" style="height:${String(size)}px" alt="" />`;

@@ -14,7 +14,7 @@ import { WsTestClient } from '../test-support/ws-client.js';
 import { RedisEventBus } from './event-bus.js';
 
 const JWT = 'clave-de-prueba-solo-para-este-test-0123456789';
-const MISS = { weaponId: 'bow', angleDeg: 45, power: 10 };
+const MISS = { weaponId: 'dagger', angleDeg: 45, power: 10 };
 let db: TestDatabase;
 let redis: Redis;
 const apps: FastifyInstance[] = [];

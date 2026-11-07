@@ -1,10 +1,10 @@
-import { powerTier, type PlayerEventPayload, type PlayerMatchView, type ShotView, type WeaponId } from '@ashenfall/domain';
+import { powerTier, WEAPONS, type PlayerEventPayload, type PlayerMatchView, type ShotView } from '@ashenfall/domain';
 import Phaser from 'phaser';
 import { ArenaScene } from './arena.js';
 import { audio } from './audio.js';
-import { baseLook, bodyFilter, DEFAULT_WEAPON, frameUrl, icon, type Look } from './art.js';
+import { baseLook, bodyFilter, frameUrl, icon, type Look } from './art.js';
 import { ApiError, GameSocket, Session, type ServerMessage } from './net.js';
-import { biomeCard, closeModal, el, END_REASON, escapeHtml, lookFrom, openArsenal, openBrotherhood, openModal, openShop, portrait, type Profile, type Room, type ShopActions } from './screens.js';
+import { biomeCard, closeModal, el, END_REASON, escapeHtml, lookFrom, openBrotherhood, openModal, openRoster, openShop, portrait, type Profile, type Room, type ShopActions } from './screens.js';
 
 const STAGE_W = 1280;
 const STAGE_H = 720;
@@ -204,7 +204,7 @@ const shop = (title: string, subtitle: string, kinds: readonly string[]) => (): 
 
 // Los rótulos y botones forman parte de la imagen; aquí se les da su función.
 const HOTSPOTS: readonly Hotspot[] = [
-  { id: 'arsenal', label: 'Arsenal: armas y yelmos', area: [342, 258, 192, 224], open: shop('Arsenal', 'Armas y armaduras', ['weapon_skin', 'helmet']) },
+  { id: 'arsenal', label: 'Arsenal: yelmos y capas', area: [342, 258, 192, 224], open: shop('Arsenal', 'Yelmos y capas', ['helmet', 'cloak']) },
   { id: 'alchemist', label: 'Alquimista: efectos', area: [770, 276, 172, 214], open: shop('Alquimista', 'Efectos cosméticos', ['projectile_effect']) },
   { id: 'profile', label: 'Perfil', area: [28, 498, 76, 84], open: () => void guarded(() => openBrotherhood(shopActions, 'Perfil', false)) },
   { id: 'history', label: 'Historial', area: [28, 584, 76, 84], open: () => void guarded(() => openBrotherhood(shopActions, 'Historial', false)) },
@@ -221,7 +221,7 @@ interface DockItem {
   open(): void;
 }
 const DOCK_ITEMS: readonly DockItem[] = [
-  { id: 'characters', label: 'Personajes', icon: 'helm', open: () => void guarded(() => openArsenal(shopActions)) },
+  { id: 'characters', label: 'Personajes', icon: 'helm', open: () => void guarded(() => openRoster(shopActions)) },
   { id: 'play', label: 'Jugar', icon: 'swords', primary: true, open: () => { showPlay(); } },
 ];
 let dockPos: { x: number; y: number } = loadDock();
@@ -522,7 +522,7 @@ function beginMatch(next: PlayerMatchView, intro: boolean): void {
     window.clearTimeout(searchTimeout);
     closeModal();
     syncLoop();
-    arena.weaponId = DEFAULT_WEAPON[next.you.characterId];
+    arena.weaponId = next.you.weaponId;
     showHud(next);
     arena.loadMatch(next, intro, {
       you: { ...look, character: next.you.characterId },
@@ -608,14 +608,13 @@ function showHud(match: PlayerMatchView): void {
     </header>
     <div id="intro" hidden>${biomeCard(match.arenaId)}</div>
     <footer class="controls" id="controls">
-      <div class="own-weapon"><img class="wpn" src="/art/icon-${DEFAULT_WEAPON[match.you.characterId]}.webp" alt="" /><small>${WEAPON_LABEL[DEFAULT_WEAPON[match.you.characterId]]}</small></div>
+      <div class="own-weapon"><img class="wpn" src="/art/icon-${WEAPONS[match.you.weaponId].family}.webp" alt="" /><small>${escapeHtml(WEAPONS[match.you.weaponId].name)}</small></div>
       <div class="readout"><span>Ángulo</span><b id="angle-text"></b></div>
       <div class="charge"><span>Potencia: <b id="power-text"></b> <em id="tier"></em></span><i class="meter"><u id="power-bar"></u></i></div>
       <p class="hint" id="hint"></p>
     </footer>`;
 }
 
-const WEAPON_LABEL: Readonly<Record<WeaponId, string>> = { bow: 'Arco', spear: 'Lanza', axe: 'Hacha' };
 const TIER_LABEL = { weak: 'Débil', medium: 'Media', strong: 'Fuerte' } as const;
 
 function setText(id: string, text: string): void {
@@ -718,8 +717,21 @@ arena.setHooks({
       void (node as HTMLElement | null)?.offsetWidth;
       node?.classList.add('struck');
     }
-    if (shot.shooterId === view.you.playerId) shownHp = { ...shownHp, rival: shot.targetHpAfter };
-    else shownHp = { ...shownHp, you: shot.targetHpAfter };
+    const side = shot.shooterId === view.you.playerId ? 'rival' : 'you';
+    const { effect } = shot;
+    // El servidor ya descontó el veneno o el fuego: la barra baja primero el golpe y luego un tramo por segundo.
+    const afterHit = Math.min(shownHp[side], shot.targetHpAfter + (effect === null ? 0 : effect.perSecond * effect.seconds));
+    shownHp = { ...shownHp, [side]: afterHit };
+    if (effect !== null) {
+      const matchId = view.matchId;
+      for (let tick = 1; tick <= effect.seconds; tick += 1) {
+        window.setTimeout(() => {
+          if (view?.matchId !== matchId) return;
+          shownHp = { ...shownHp, [side]: Math.max(shot.targetHpAfter, afterHit - tick * effect.perSecond) };
+          refreshHud();
+        }, tick * 1000);
+      }
+    }
     refreshHud();
   },
   onIntro: (active) => {

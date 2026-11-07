@@ -1,6 +1,7 @@
 # Changelog
 
 ## Sin publicar
+- SCRUM-62, SCRUM-63: familias de armas con tres niveles, veneno y fuego, peso que cambia el vuelo, daño reducido, diez personajes comprables (se empieza con uno), pantalla de personajes y armas, siete arenas nuevas con obstáculos por bioma y arte recortado de las referencias.
 - SCRUM-59, SCRUM-60, SCRUM-61: zonas de impacto ajustadas al dibujo, guía de puntería con transportador, barra del pueblo nueva sin Gremio ni «+» ni cerrar sesión, y música y efectos de sonido generados por código.
 - SCRUM-56, SCRUM-57, SCRUM-58: retroceso permanente por impacto (dominio, vista, contratos y cliente), disparo tipo tirachinas con el ratón y barra inferior del pueblo movible, sin Taberna.
 - SCRUM-55: arma única por personaje validada en el servidor, daño por zona y nivel de potencia, apuntado solo con ratón y obstáculos variados.

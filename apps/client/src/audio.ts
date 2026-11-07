@@ -14,8 +14,13 @@ export type SoundName =
   | 'stretch'
   | 'turn'
   | 'bow'
-  | 'spear'
+  | 'dagger'
+  | 'crossbow'
   | 'axe'
+  | 'sword'
+  | 'staff'
+  | 'flask'
+  | 'mace'
   | 'hit_body'
   | 'hit_head'
   | 'hit_legs'
@@ -37,8 +42,8 @@ const DEFAULT_VOLUMES: Volumes = { music: 0.5, sfx: 0.8 };
 const LOOKAHEAD_S = 0.45;
 const TICK_MS = 120;
 
-/** Modo dórico sobre re: suena a taberna y camino medieval sin caer en lo alegre. */
-const DORIAN = [0, 2, 3, 5, 7, 9, 10] as const;
+/** Menor natural sobre re: oscuro y sereno, de fantasía sombría. */
+const DORIAN = [0, 2, 3, 5, 7, 8, 10] as const;
 const ROOT = 50; // re3
 
 const midiToHz = (midi: number): number => 440 * 2 ** ((midi - 69) / 12);
@@ -96,6 +101,19 @@ class AudioEngine {
       const sfxBus = ctx.createGain();
       musicBus.connect(master);
       sfxBus.connect(master);
+      // Eco largo y apagado: da amplitud de sala vacía a la música sin ruido añadido.
+      const echo = ctx.createDelay(1.5);
+      echo.delayTime.value = 0.46;
+      const feedback = ctx.createGain();
+      feedback.gain.value = 0.42;
+      const tone = ctx.createBiquadFilter();
+      tone.type = 'lowpass';
+      tone.frequency.value = 1500;
+      const wet = ctx.createGain();
+      wet.gain.value = 0.55;
+      musicBus.connect(echo);
+      echo.connect(tone).connect(feedback).connect(echo);
+      tone.connect(wet).connect(master);
       this.ctx = ctx;
       this.master = master;
       this.musicBus = musicBus;
@@ -165,9 +183,33 @@ class AudioEngine {
         this.sweep(t, 260, 120, 0.18, 'triangle', 0.35, 1800);
         this.noiseBurst(t + 0.05, 0.28, 3000, 'bandpass', 0.12);
         break;
-      case 'spear':
-        this.noiseSweep(t, 0.4, 600, 3200, 0.3);
-        this.sweep(t, 180, 90, 0.2, 'triangle', 0.2, 1200);
+      case 'dagger':
+        this.noiseSweep(t, 0.3, 1200, 4200, 0.26);
+        this.sweep(t, 220, 120, 0.14, 'triangle', 0.18, 1600);
+        break;
+      case 'sword':
+        this.noiseSweep(t, 0.45, 700, 3000, 0.32);
+        this.sweep(t, 160, 90, 0.2, 'sawtooth', 0.12, 1000);
+        this.blip(t + 0.02, 1760, 0.12, 'triangle', 0.05);
+        break;
+      case 'crossbow':
+        this.blip(t, 150, 0.05, 'square', 0.3);
+        this.noiseBurst(t, 0.08, 2200, 'highpass', 0.35);
+        this.sweep(t + 0.02, 320, 140, 0.16, 'triangle', 0.3, 1400);
+        break;
+      case 'staff':
+        this.sweep(t, 220, 880, 0.35, 'sine', 0.22, 2400);
+        this.sweep(t + 0.04, 330, 1320, 0.3, 'triangle', 0.1, 3000);
+        this.noiseSweep(t, 0.3, 800, 4000, 0.1);
+        break;
+      case 'flask':
+        this.blip(t, 900, 0.06, 'sine', 0.2);
+        this.noiseSweep(t + 0.02, 0.35, 500, 1800, 0.2);
+        this.sweep(t, 400, 200, 0.2, 'sine', 0.14, 1200);
+        break;
+      case 'mace':
+        this.noiseSweep(t, 0.6, 250, 1100, 0.4);
+        this.sweep(t, 100, 60, 0.45, 'sawtooth', 0.14, 400);
         break;
       case 'axe':
         this.noiseSweep(t, 0.55, 300, 1400, 0.38);
@@ -252,7 +294,7 @@ class AudioEngine {
       return;
     }
     if (this.volumes.music === 0 || this.scene === 'off') return;
-    const bpm = this.scene === 'town' ? 74 : 112;
+    const bpm = this.scene === 'town' ? 52 : 76;
     const stepLength = 60 / bpm / 4;
     while (this.nextStep < ctx.currentTime + LOOKAHEAD_S) {
       if (this.scene === 'town') this.townStep(this.nextStep, this.step, stepLength);
@@ -264,43 +306,64 @@ class AudioEngine {
 
   // ---------- música ----------
 
-  /** Pueblo: laúd arpegiado sobre un bordón, con una flauta que aparece de vez en cuando. */
+  /** Pueblo: pad grave, laúd suave y alguna nota de flauta lejana. Lento y sin prisa. */
   private townStep(t: number, step: number, length: number): void {
     const bar = Math.floor(step / 16) % 8;
     const inBar = step % 16;
-    const roots = [0, 0, -2, -2, -4, -4, -2, 0] as const; // re, re, do, do, si b, si b, do, re
+    const roots = [0, 0, -4, -4, -2, -2, -4, 0] as const; // re, re, si b, si b, do, do, si b, re
     const root = roots[bar] ?? 0;
-    const arp = [0, 2, 4, 2, 4, 2, 4, 2] as const;
-    if (inBar % 2 === 0) {
-      const index = arp[(inBar / 2) % arp.length] ?? 0;
-      this.pluck(t, degree(root + index, 1), 0.2, length * 5);
-    }
     if (inBar === 0) {
-      this.pluck(t, degree(root, 0), 0.34, length * 12);
-      this.drone(t, degree(0, -1), length * 16, 0.045);
+      this.pad(t, [degree(root, -1), degree(root + 2, 0), degree(root + 4, 0)], length * 16, 0.07);
+      this.drone(t, degree(0, -2), length * 16, 0.05);
     }
-    if (inBar === 8) this.pluck(t, degree(root + 4, 0), 0.22, length * 8);
-    if (bar % 2 === 1 && inBar % 4 === 0 && Math.random() < 0.55) {
-      const notes = [4, 5, 6, 4, 2, 3] as const;
+    const arp = [0, 4, 2, 4] as const;
+    if (inBar % 4 === 0 && (inBar !== 12 || bar % 2 === 0)) {
+      const index = arp[(inBar / 4) % arp.length] ?? 0;
+      this.pluck(t, degree(root + index, 1), 0.14, length * 7);
+    }
+    if (inBar === 0) this.pluck(t, degree(root, 0), 0.24, length * 14);
+    if (bar % 2 === 1 && inBar === 8 && Math.random() < 0.6) {
+      const notes = [4, 6, 5, 2, 3] as const;
       const pick = notes[Math.floor(Math.random() * notes.length)] ?? 4;
-      this.flute(t, degree(root + pick, 1), length * (Math.random() < 0.5 ? 4 : 6), 0.12);
+      this.flute(t, degree(root + pick, 1), length * 8, 0.09);
     }
-    if (inBar === 0 && bar % 4 === 0) this.drum(t, 'frame');
+    if (inBar === 0 && bar % 4 === 2) this.bell(t, degree(root + 4, 1));
   }
 
-  /** Combate: tambores de guerra, bajo insistente y una línea de laúd tensa. */
+  /** Combate: pulso grave de tambor de marco, bordón y una línea de laúd escasa. Tensión sin estridencia. */
   private battleStep(t: number, step: number, length: number): void {
     const bar = Math.floor(step / 16) % 4;
     const inBar = step % 16;
-    const roots = [0, 0, -2, -4] as const;
+    const roots = [0, 0, -4, -2] as const;
     const root = roots[bar] ?? 0;
-    if (inBar === 0 || inBar === 6 || inBar === 10) this.drum(t, 'kick');
-    if (inBar === 4 || inBar === 12) this.drum(t, 'snare');
-    if (inBar % 2 === 0) this.pluck(t, degree(root, 0) + (inBar % 8 === 6 ? 7 : 0), 0.28, length * 2.5);
-    if (inBar === 0) this.drone(t, degree(root, -1), length * 16, 0.07);
-    const lead = [4, 4, 5, 4, 2, 4, 3, 2, 4, 4, 6, 5, 4, 2, 3, 1] as const;
-    if (inBar % 2 === 0 && (inBar < 8 || bar % 2 === 1)) this.pluck(t, degree(root + (lead[inBar] ?? 4), 1), 0.17, length * 3);
-    if (inBar === 8 && bar === 3) this.drum(t, 'tom');
+    if (inBar === 0 || inBar === 10) this.drum(t, inBar === 0 ? 'frame' : 'tom');
+    if (inBar === 0) {
+      this.pad(t, [degree(root, -1), degree(root + 4, -1)], length * 16, 0.07);
+      this.drone(t, degree(root, -2), length * 16, 0.07);
+    }
+    const walk = [0, 4, 3, 4] as const;
+    if (inBar % 4 === 0) this.pluck(t, degree(root + (walk[(inBar / 4) % 4] ?? 0), 0), 0.16, length * 5);
+    const lead = [4, 5, 4, 2, 3, 2, 1, 2] as const;
+    if (inBar % 2 === 0 && bar % 2 === 1 && inBar >= 8) this.pluck(t, degree(root + (lead[(inBar - 8) / 2] ?? 4), 1), 0.12, length * 4);
+  }
+
+  /** Acorde de cuerdas graves que entra y sale muy despacio. */
+  private pad(t: number, notes: readonly number[], duration: number, volume: number): void {
+    const { ctx } = this;
+    if (ctx === null) return;
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = 900;
+    for (const note of notes) {
+      for (const detune of [-6, 6]) {
+        const osc = ctx.createOscillator();
+        osc.type = 'triangle';
+        osc.frequency.value = midiToHz(note);
+        osc.detune.value = detune;
+        const gain = this.env(t, volume / notes.length, duration * 0.35, duration * 0.3, duration * 0.35);
+        this.play(osc, gain, this.musicBus, t, t + duration + 0.5, filter);
+      }
+    }
   }
 
   // ---------- instrumentos ----------

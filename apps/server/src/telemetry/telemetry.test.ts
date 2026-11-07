@@ -95,7 +95,7 @@ describe('observabilidad de una jugada real', () => {
     await clientB.untilEvent('match_started');
     const shooter = shooterId === a.id ? clientA : clientB;
     const rival = shooter === clientA ? clientB : clientA;
-    shooter.send({ type: 'shoot', matchId, actionId, expectedVersion: 1, weaponId: 'bow', angleDeg: ANGLE, power: POWER });
+    shooter.send({ type: 'shoot', matchId, actionId, expectedVersion: 1, weaponId: 'dagger', angleDeg: ANGLE, power: POWER });
     await shooter.until((messages) => messages.find((message) => message.type === 'ack' && message.actionId === actionId));
     await rival.untilEvent('shot_resolved');
     await reader.forceFlush();
