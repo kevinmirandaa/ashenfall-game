@@ -4,6 +4,7 @@ import { ArenaScene } from './arena.js';
 import { audio } from './audio.js';
 import { baseLook, frameUrl, icon, type Look } from './art.js';
 import { ApiError, GameSocket, Session, type ServerMessage } from './net.js';
+import { uuid } from './uuid.js';
 import { biomeCard, closeModal, el, END_REASON, escapeHtml, openCharacters, openHistory, openModal, openProfile, openStore, openStory, portrait, type Profile, type Room, type ShopActions, type Stats } from './screens.js';
 
 const STAGE_W = 1280;
@@ -719,7 +720,7 @@ function shoot(): void {
   socket?.send({
     type: 'shoot',
     matchId: view.matchId,
-    actionId: crypto.randomUUID(),
+    actionId: uuid(),
     expectedVersion: view.version,
     weaponId: arena.weaponId,
     angleDeg: arena.angleDeg,

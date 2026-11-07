@@ -14,11 +14,17 @@
 }
 * { box-sizing: border-box; }
 img { image-rendering: pixelated; }
-html, body { margin: 0; height: 100%; background: #000; color: var(--bone); font: 16px/1.35 var(--serif); overflow: hidden; }
+html, body { margin: 0; height: 100%; background: #000; color: var(--bone); font: 16px/1.35 var(--serif); overflow: hidden; overscroll-behavior: none; -webkit-tap-highlight-color: transparent; -webkit-text-size-adjust: 100%; }
 [hidden] { display: none !important; }
 .ico { display: block; width: auto; }
 #game { position: fixed; inset: 0; }
-#game canvas { display: block; image-rendering: pixelated; }
+#game canvas { display: block; image-rendering: pixelated; touch-action: none; -webkit-user-select: none; user-select: none; }
+/* En vertical en un móvil el lienzo 16:9 quedaría diminuto: se pide girar el dispositivo. */
+#rotate { display: none; position: fixed; inset: 0; z-index: 10; place-content: center; justify-items: center; gap: 10px; padding: 24px; text-align: center; background: var(--ink); }
+#rotate img { width: 120px; height: auto; }
+#rotate p { margin: 0; font-size: 22px; color: var(--gold-hi); }
+#rotate small { color: var(--dim); font-size: 15px; }
+@media (orientation: portrait) and (max-width: 900px) { #rotate { display: grid; } #game, #ui { visibility: hidden; } }
 /* Lienzo fijo de 1280×720 que se escala completo. */
 #ui { position: fixed; left: 50%; top: 50%; width: 1280px; height: 720px; transform-origin: center; overflow: hidden; pointer-events: none; }
 #screen, #modal { position: absolute; inset: 0; }

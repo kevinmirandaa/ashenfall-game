@@ -4,6 +4,7 @@ import { audio } from './audio.js';
 import { CHARACTERS, FAMILY_LABEL, icon, type CharacterId, type FighterId, type IconName } from './art.js';
 import { BIOME_NAMES } from './biomes.js';
 import type { Session } from './net.js';
+import { uuid } from './uuid.js';
 
 export function el<T extends HTMLElement>(id: string): T {
   const found = document.getElementById(id);
@@ -172,7 +173,7 @@ export async function openStore(actions: ShopActions): Promise<void> {
         const id = node.dataset.buy as CharacterId;
         void actions.guarded(async () => {
           // El mismo id hasta confirmar la compra: reintentar tras un fallo de red no cobra dos veces.
-          const purchaseId = purchaseIds.get(id) ?? crypto.randomUUID();
+          const purchaseId = purchaseIds.get(id) ?? uuid();
           purchaseIds.set(id, purchaseId);
           const result = await actions.session.call<{ balance: number }>('POST', '/v1/shop/purchases', { cosmeticId: `char-${id}`, purchaseId });
           purchaseIds.delete(id);
