@@ -36,13 +36,15 @@ export class MatchmakingService {
 
       await client.query('DELETE FROM matchmaking_queue WHERE expires_at <= now() AND user_id <> $1', [userId]);
       const rival = await client.query<{ user_id: string }>(
-        `SELECT user_id FROM matchmaking_queue
-         WHERE user_id <> $1 AND expires_at > now() ORDER BY enqueued_at, user_id LIMIT 1`,
+        `SELECT q.user_id FROM matchmaking_queue q
+         WHERE q.user_id <> $1 AND q.expires_at > now()
+           AND NOT EXISTS (SELECT 1 FROM match_players mp WHERE mp.user_id = q.user_id AND mp.active)
+         ORDER BY q.enqueued_at, q.user_id LIMIT 1`,
         [userId],
       );
       const rivalId = rival.rows[0]?.user_id;
       if (rivalId !== undefined) {
-        await client.query('DELETE FROM matchmaking_queue WHERE user_id = ANY($1::uuid[])', [[userId, rivalId]]);
+        // Crear la partida también los saca de la cola.
         const matchId = await createMatchInTransaction(client, [rivalId, userId], nowMs);
         return { status: { status: 'matched', matchId }, created: matchId };
       }

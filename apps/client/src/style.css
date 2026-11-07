@@ -123,7 +123,7 @@ button.primary:hover:not(:disabled) { background: linear-gradient(#37436a, #232b
 #modal { display: grid; place-items: center; background: #05040899; pointer-events: auto; }
 #modal .panel { width: 480px; max-height: 690px; overflow: auto; }
 #modal .panel.wide { width: 900px; }
-.tavern button, .play button { display: flex; justify-content: center; align-items: center; gap: 8px; }
+.play button { display: flex; justify-content: center; align-items: center; gap: 8px; }
 .code { margin: 0 0 12px; text-align: center; font-size: 38px; letter-spacing: 7px; color: var(--gold-hi); user-select: all; background: #0b0910; border: 2px solid #4a3a26; }
 .members { list-style: none; margin: 0 0 14px; padding: 0; display: grid; gap: 6px; }
 .members li { display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: #0b0910; }
@@ -132,10 +132,6 @@ button.primary:hover:not(:disabled) { background: linear-gradient(#37436a, #232b
 .dots::after { content: '...'; animation: flicker 1s steps(2) infinite; }
 
 /* Tiendas */
-.hero { height: 200px; width: auto; }
-.hero-item { height: 120px; width: auto; margin: 16px 0; }
-.price { display: flex; gap: 5px; align-items: center; color: var(--gold-hi); }
-.fair { color: var(--dim); font-size: 12px; }
 .wallet { display: flex; align-items: center; justify-content: flex-end; gap: 6px; margin: 8px 0 0; color: var(--dim); }
 .wallet b { color: var(--gold-hi); }
 .history { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; font-size: 14px; }
@@ -166,10 +162,6 @@ button.primary:hover:not(:disabled) { background: linear-gradient(#37436a, #232b
 .biome-card b { font-size: 22px; color: var(--gold); }
 .controls { position: absolute; left: 14px; right: 14px; bottom: 10px; display: grid; grid-template-columns: auto auto 1fr 1.3fr; gap: 18px; align-items: center; padding: 6px 12px; background: #120e16e6; border: 2px solid var(--bronze); box-shadow: 0 0 0 2px #000; transition: opacity 120ms; }
 .controls.idle { opacity: 0.72; }
-.weapons { display: flex; gap: 4px; }
-.weapon { display: grid; justify-items: center; width: 58px; padding: 3px 4px 1px; line-height: 1; background: #0b0910; border-color: #3a2c1c; }
-.weapon small { font-size: 12px; color: var(--dim); }
-.weapon.on { border-color: var(--gold-hi); background: var(--navy); }
 .weapon.on small { color: var(--gold-hi); }
 .slider { display: grid; gap: 3px; font-size: 17px; }
 .slider b { color: var(--gold-hi); font-weight: 600; }
@@ -191,8 +183,6 @@ input[type='range']:disabled { cursor: not-allowed; }
 #toast:empty { display: none; }
 .wpn { display: block; height: 42px; width: 46px; object-fit: contain; }
 .own-weapon { display: grid; justify-items: center; line-height: 1; color: var(--gold-hi); }
-.readout { display: grid; justify-items: center; font-size: 15px; color: var(--dim); }
-.readout b { font-size: 24px; color: var(--gold-hi); font-weight: 600; }
 .charge { display: grid; gap: 4px; font-size: 17px; }
 .charge b { color: var(--gold-hi); }
 .charge em { color: #ef8a7d; font-style: normal; }

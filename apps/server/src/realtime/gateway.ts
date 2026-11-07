@@ -202,8 +202,12 @@ export class RealtimeGateway {
     const { userId, id } = connection;
     if (await this.presence.removeAndCheck(userId, id)) return;
     const matchId = await activeMatchOf(this.pool, userId);
-    if (matchId !== null) {
-      await this.engineRef().execute(matchId, { type: 'player_disconnected', playerId: userId, nowMs: Date.now() });
+    if (matchId === null) return;
+    await this.engineRef().execute(matchId, { type: 'player_disconnected', playerId: userId, nowMs: Date.now() });
+    // Al recargar la página, la conexión nueva puede haber marcado la reconexión antes de que se procesara
+    // este cierre. Si sigue viva alguna, el jugador no se fue: sin esto perdería por abandono estando conectado.
+    if ((this.connections.get(userId)?.size ?? 0) > 0 || (await this.presence.count(userId)) > 0) {
+      await this.engineRef().execute(matchId, { type: 'player_reconnected', playerId: userId, nowMs: Date.now() });
     }
   }
 

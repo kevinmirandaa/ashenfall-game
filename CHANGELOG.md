@@ -1,6 +1,7 @@
 # Changelog
 
 ## Sin publicar
+- SCRUM-69: QA y limpieza. Corrige la cola rápida bloqueada por quien empezó una partida contra un monstruo, la desconexión fantasma al recargar la página y el contador de login que podía quedar sin caducar; valida los números de la configuración. Quita código, sonidos y estilos sin uso, y sustituye `crop-assets.py` por `scripts/build-ui.py`. Toda la documentación pasa a `docs/` con índice en `docs/README.md`; README reescrito.
 - SCRUM-68: corrige el relleno de las barras de volumen y el desfase de turnos entre pestañas (resincronización al volver a la pestaña o si la animación se atasca; no se apunta antes de procesar el resultado de la jugada).
 - SCRUM-67: obstáculos y terreno aleatorios por partida (97 objetos de la hoja de referencia, plataformas, gradas y colinas simétricas) decididos por el servidor; guía corta de puntos con porcentajes de potencia y ángulo; menú del pueblo fiel a la referencia nueva con animaciones y el Arsenal que se ilumina.
 - SCRUM-66: versión estable. Solo se compran personajes, con nivel y dinero; nivel, victorias, derrotas y empates calculados en el servidor; perfil e historial de 10 partidas; menú igual que la referencia con barra de Personajes, Jugar y Perfil; Jugar con buscar partida, modo historia y sala privada; guía de puntería sin ángulo; sin viento. Se retiran pociones, armas comprables y cosméticos.

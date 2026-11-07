@@ -1,4 +1,4 @@
-import { randomBytes, randomUUID } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { Redis } from 'ioredis';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
@@ -54,6 +54,18 @@ describe('límites de tasa', () => {
     expect((await login(app, '10.0.1.2', body.email.toUpperCase())).statusCode).toBe(401);
     expect((await login(app, '10.0.1.3')).statusCode).toBe(429);
     expect((await login(app, '10.0.1.3', 'otra@test.invalid')).statusCode).toBe(401);
+  });
+
+  it('con Redis, un contador por cuenta que quedó sin caducidad vuelve a caducar', async () => {
+    const namespace = `test-${randomUUID()}-`;
+    const app = await start({ ...OPEN, loginPerAccountPerMinute: 1, redis, namespace });
+    const key = `${namespace}login:${createHash('sha256').update(body.email).digest('hex')}`;
+    // Como si una réplica hubiera caído entre INCR y EXPIRE: el contador existe pero no caduca.
+    await redis.set(key, '5');
+    expect((await login(app, '10.0.4.1')).statusCode).toBe(429);
+    const ttl = await redis.ttl(key);
+    expect(ttl).toBeGreaterThan(0);
+    expect(ttl).toBeLessThanOrEqual(60);
   });
 
   it('el perfil usa el límite global', async () => {

@@ -22,6 +22,15 @@ function required(env: NodeJS.ProcessEnv, name: string): string {
   return value;
 }
 
+/** Entero positivo o el valor por defecto. Un valor mal escrito detiene el arranque en lugar de quedar en NaN. */
+function positiveInt(env: NodeJS.ProcessEnv, name: string, fallback: number): number {
+  const raw = env[name];
+  if (raw === undefined || raw === '') return fallback;
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value <= 0) throw new Error(`${name} debe ser un entero positivo`);
+  return value;
+}
+
 /**
  * Sin valores por defecto para secretos. Solo con ASHENFALL_DEV_SECRETS=1 (docker compose local) se genera
  * una clave aleatoria al arrancar; así no hay ninguna clave escrita en el repositorio.
@@ -31,7 +40,7 @@ export function loadConfig(env: NodeJS.ProcessEnv): ServerConfig {
   const jwtSecret = devSecrets && env['JWT_SECRET'] === undefined ? randomBytes(32).toString('hex') : required(env, 'JWT_SECRET');
   if (jwtSecret.length < MIN_SECRET_LENGTH) throw new Error(`JWT_SECRET debe tener al menos ${MIN_SECRET_LENGTH} caracteres`);
   return {
-    port: Number(env['PORT'] ?? 8080),
+    port: positiveInt(env, 'PORT', 8080),
     databaseUrl: required(env, 'DATABASE_URL'),
     redisUrl: required(env, 'REDIS_URL'),
     jwtSecret,
@@ -41,9 +50,9 @@ export function loadConfig(env: NodeJS.ProcessEnv): ServerConfig {
     logLevel: env['LOG_LEVEL'] ?? 'info',
     managedIdentityClientId: env['AZURE_CLIENT_ID'],
     rateLimit: {
-      globalPerMinute: Number(env['RATE_LIMIT_GLOBAL_PER_MINUTE'] ?? 600),
-      authPerMinute: Number(env['RATE_LIMIT_AUTH_PER_MINUTE'] ?? 20),
-      loginPerAccountPerMinute: Number(env['RATE_LIMIT_LOGIN_PER_MINUTE'] ?? 10),
+      globalPerMinute: positiveInt(env, 'RATE_LIMIT_GLOBAL_PER_MINUTE', 600),
+      authPerMinute: positiveInt(env, 'RATE_LIMIT_AUTH_PER_MINUTE', 20),
+      loginPerAccountPerMinute: positiveInt(env, 'RATE_LIMIT_LOGIN_PER_MINUTE', 10),
     },
   };
 }
