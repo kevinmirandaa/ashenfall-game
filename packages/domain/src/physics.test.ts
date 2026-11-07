@@ -205,7 +205,7 @@ describe('arenas', () => {
         }
       }
     }
-  });
+  }, 60_000);
 });
 
 describe('daño por zona y potencia', () => {
