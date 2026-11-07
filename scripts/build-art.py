@@ -112,162 +112,242 @@ def build_biomes() -> None:
         print('arena', name, panel.size)
 
 
-# ---------- proyectiles e iconos de armas ----------
+# ---------- armas ----------
 
-PALETTE = {
-    'steel': (200, 204, 212),
-    'dark': (118, 126, 140),
-    'edge': (240, 244, 250),
-    'wood': (122, 82, 51),
-    'darkwood': (74, 50, 32),
-    'leather': (91, 64, 48),
-    'gold': (201, 160, 90),
-    'red': (163, 62, 54),
-    'bone': (232, 221, 200),
-    'green': (111, 191, 74),
-    'darkgreen': (56, 110, 48),
-    'purple': (138, 90, 216),
-    'lilac': (200, 160, 255),
-    'glass': (159, 216, 232),
-    'fire': (242, 150, 60),
-    'ember': (251, 229, 138),
-    'ink': (21, 16, 26),
+# Recortes de la hoja de objetos (items_board) y del catálogo de armas: (hoja, caja, giro para que apunte a la derecha, espejo).
+# Los de la hoja de objetos son diagonales con la punta arriba a la derecha; los del catálogo son verticales con la punta arriba.
+ITEMS = 'ashenfall_items_board.webp'
+CATALOG = 'ashenfall_weapons_catalog.webp'
+
+# Por arma: (icono, proyectil). Cada uno es (hoja, caja, giro, espejo). El orden es el nivel 0, 1, 2 y 3 de la familia.
+UP, DIAG, NONE = -90, -45, 0
+AUTO = 'auto'
+WEAPON_ART = {
+    'dagger': [
+        ((ITEMS, (66, 45, 135, 177)), (ITEMS, (66, 45, 135, 177), AUTO, False)),
+        ((ITEMS, (432, 42, 514, 186)), (ITEMS, (432, 42, 514, 186), AUTO, False)),
+        ((ITEMS, (180, 40, 271, 183)), (ITEMS, (180, 40, 271, 183), AUTO, False)),
+        ((ITEMS, (303, 43, 409, 184)), (ITEMS, (303, 43, 409, 184), AUTO, False)),
+    ],
+    'bow': [
+        ((ITEMS, (1312, 198, 1490, 380)), (ITEMS, (30, 222, 152, 346), DIAG, False)),
+        ((CATALOG, (226, 272, 312, 444)), (ITEMS, (155, 222, 277, 346), DIAG, False)),
+        ((CATALOG, (318, 268, 399, 449)), (ITEMS, (278, 218, 406, 348), DIAG, False)),
+        ((CATALOG, (50, 288, 124, 447)), (ITEMS, (407, 216, 520, 350), DIAG, False)),
+    ],
+    'crossbow': [
+        ((ITEMS, (886, 226, 1072, 358)), (ITEMS, (518, 214, 650, 356), DIAG, False)),
+        ((ITEMS, (1082, 214, 1292, 356)), (ITEMS, (650, 218, 770, 362), DIAG, False)),
+        ((CATALOG, (546, 292, 636, 440)), (ITEMS, (754, 224, 872, 360), DIAG, False)),
+        ((CATALOG, (638, 292, 740, 440)), (ITEMS, (407, 216, 520, 350), DIAG, False)),
+    ],
+    'axe': [
+        ((ITEMS, (1032, 45, 1155, 180)), (ITEMS, (1032, 45, 1155, 180), NONE, False)),
+        ((ITEMS, (1164, 27, 1302, 183)), (ITEMS, (1164, 27, 1302, 183), NONE, False)),
+        ((ITEMS, (1308, 30, 1485, 186)), (ITEMS, (1308, 30, 1485, 186), NONE, False)),
+        ((CATALOG, (1024, 286, 1102, 446)), (CATALOG, (1024, 286, 1102, 446), NONE, False)),
+    ],
+    'sword': [
+        ((ITEMS, (663, 42, 751, 189)), (ITEMS, (663, 42, 751, 189), AUTO, False)),
+        ((ITEMS, (780, 30, 880, 198)), (ITEMS, (780, 30, 880, 198), AUTO, False)),
+        ((ITEMS, (537, 42, 631, 192)), (ITEMS, (537, 42, 631, 192), AUTO, False)),
+        ((ITEMS, (518, 214, 650, 356)), (ITEMS, (518, 214, 650, 356), AUTO, False)),
+    ],
+    'staff': [
+        ((ITEMS, (192, 548, 320, 686)), (ITEMS, (192, 548, 320, 686), NONE, False)),
+        ((ITEMS, (1230, 544, 1370, 672)), (ITEMS, (1230, 544, 1370, 672), DIAG, False)),
+        ((ITEMS, (636, 530, 760, 678)), (ITEMS, (636, 530, 760, 678), NONE, False)),
+        ((ITEMS, (36, 544, 194, 670)), (ITEMS, (36, 544, 194, 670), 30, True)),
+    ],
+    'flask': [
+        ((ITEMS, (902, 392, 998, 530)), (ITEMS, (902, 392, 998, 530), NONE, False)),
+        ((ITEMS, (182, 374, 284, 526)), (ITEMS, (182, 374, 284, 526), NONE, False)),
+        ((ITEMS, (458, 392, 558, 526)), (ITEMS, (458, 392, 558, 526), NONE, False)),
+        ((ITEMS, (738, 372, 838, 532)), (ITEMS, (738, 372, 838, 532), NONE, False)),
+    ],
+    'mace': [
+        ((ITEMS, (898, 42, 1024, 180)), (ITEMS, (898, 42, 1024, 180), NONE, False)),
+        ((ITEMS, (338, 698, 456, 824)), (ITEMS, (338, 698, 456, 824), NONE, False)),
+        ((ITEMS, (644, 694, 752, 820)), (ITEMS, (644, 694, 752, 820), NONE, False)),
+        ((ITEMS, (1086, 696, 1220, 826)), (ITEMS, (1086, 696, 1220, 826), NONE, False)),
+    ],
 }
+SUFFIX = ['', '_2', '_3', '_4']
+_boards: dict[str, Image.Image] = {}
 
 
-def sprite(width: int, height: int, paint) -> Image.Image:
-    image = Image.new('RGBA', (width, height), (0, 0, 0, 0))
-    d = ImageDraw.Draw(image)
-
-    def px(color: str, *points: tuple[int, int]) -> None:
-        for point in points:
-            d.point(point, fill=PALETTE[color] + (255,))
-
-    def rect(color: str, x0: int, y0: int, x1: int, y1: int) -> None:
-        d.rectangle((x0, y0, x1, y1), fill=PALETTE[color] + (255,))
-
-    def poly(color: str, points: list[tuple[int, int]]) -> None:
-        d.polygon(points, fill=PALETTE[color] + (255,))
-
-    def line(color: str, a: tuple[int, int], b: tuple[int, int]) -> None:
-        d.line((a, b), fill=PALETTE[color] + (255,))
-
-    paint(px, rect, poly, line)
-    return image
+def board(name: str) -> Image.Image:
+    if name not in _boards:
+        _boards[name] = Image.open(REFS / name).convert('RGB')
+    return _boards[name]
 
 
-def paint_dagger(px, rect, poly, line):
-    rect('gold', 0, 3, 1, 5)
-    rect('leather', 2, 3, 4, 5)
-    rect('gold', 5, 1, 6, 7)
-    poly('steel', [(7, 2), (21, 4), (7, 6)])
-    line('edge', (7, 3), (20, 4))
-    line('dark', (7, 5), (19, 5))
+def auto_turn(sprite: Image.Image) -> Image.Image:
+    """Gira el arma para que quede horizontal con la punta (el extremo más fino) a la derecha."""
+    alpha = sprite.getchannel('A').point(lambda v: 255 if v > 60 else 0)
+    ap = alpha.load()
+    pts = [(x, y) for y in range(alpha.height) for x in range(alpha.width) if ap[x, y]]
+    if len(pts) < 10:
+        return sprite
+    mx = sum(p[0] for p in pts) / len(pts)
+    my = sum(p[1] for p in pts) / len(pts)
+    sxx = sum((p[0] - mx) ** 2 for p in pts) / len(pts)
+    syy = sum((p[1] - my) ** 2 for p in pts) / len(pts)
+    sxy = sum((p[0] - mx) * (p[1] - my) for p in pts) / len(pts)
+    import math
+    angle = 0.5 * math.atan2(2 * sxy, sxx - syy)  # eje mayor, en coordenadas de imagen (y hacia abajo)
+    turned = sprite.rotate(math.degrees(angle), expand=True, resample=Image.BICUBIC)
+    bbox = turned.getchannel('A').point(lambda v: 255 if v > 20 else 0).getbbox()
+    if bbox is not None:
+        turned = turned.crop(bbox)
+    # El extremo con menos masa en su cuarto final es la punta.
+    a2 = turned.getchannel('A').point(lambda v: 255 if v > 60 else 0)
+    p2 = a2.load()
+    quarter = max(1, turned.width // 4)
+    left = sum(1 for y in range(a2.height) for x in range(quarter) if p2[x, y])
+    right = sum(1 for y in range(a2.height) for x in range(turned.width - quarter, turned.width) if p2[x, y])
+    return turned.transpose(Image.FLIP_LEFT_RIGHT) if right > left else turned
 
 
-def paint_arrow(px, rect, poly, line):
-    line('wood', (3, 4), (26, 4))
-    line('darkwood', (3, 5), (26, 5))
-    poly('steel', [(26, 1), (33, 4), (26, 7)])
-    line('edge', (27, 3), (31, 4))
-    poly('red', [(0, 1), (5, 4), (0, 7)])
-    line('bone', (1, 2), (3, 4))
+def cut_item(name: str, box: tuple[int, int, int, int], turn: float | str = 0, mirror: bool = False) -> Image.Image:
+    # Los objetos del catálogo están sobre un panel casi igual de oscuro que ellos: tolerancia baja para no borrarlos.
+    sprite = remove_background(board(name).crop(box), tolerance=44 if name == ITEMS else 14)
+    bbox = sprite.getchannel('A').point(lambda v: 255 if v > 40 else 0).getbbox()
+    if bbox is None:
+        raise SystemExit(f'Recorte vacío: {name} {box}')
+    sprite = sprite.crop(bbox)
+    if mirror:
+        sprite = sprite.transpose(Image.FLIP_LEFT_RIGHT)
+    if turn == AUTO:
+        return auto_turn(sprite)
+    if turn:
+        sprite = sprite.rotate(float(turn), expand=True, resample=Image.BICUBIC)
+        bbox = sprite.getchannel('A').point(lambda v: 255 if v > 20 else 0).getbbox()
+        if bbox is not None:
+            sprite = sprite.crop(bbox)
+    return sprite
 
 
-def paint_bolt(px, rect, poly, line):
-    rect('darkwood', 2, 3, 15, 5)
-    rect('wood', 2, 3, 15, 3)
-    poly('steel', [(15, 1), (22, 4), (15, 7)])
-    line('edge', (16, 3), (20, 4))
-    rect('leather', 0, 2, 3, 6)
-
-
-def paint_axe(px, rect, poly, line):
-    rect('wood', 11, 3, 13, 27)
-    rect('darkwood', 13, 3, 13, 27)
-    poly('steel', [(13, 3), (26, 1), (28, 10), (26, 18), (13, 15)])
-    line('edge', (14, 4), (25, 3))
-    line('dark', (14, 14), (26, 17))
-    rect('gold', 10, 24, 14, 26)
-
-
-def paint_sword(px, rect, poly, line):
-    rect('gold', 0, 3, 2, 6)
-    rect('leather', 3, 4, 6, 5)
-    rect('gold', 7, 1, 8, 8)
-    poly('steel', [(9, 3), (30, 5), (9, 7)])
-    line('edge', (9, 4), (29, 5))
-    line('dark', (9, 6), (27, 6))
-
-
-def paint_orb(px, rect, poly, line):
-    d_glow = [(10, 10, 9, (138, 90, 216, 60)), (10, 10, 7, (138, 90, 216, 120))]
-    # El brillo se pinta aparte para poder mezclarlo con transparencia.
-    return d_glow
-
-
-def paint_flask(px, rect, poly, line):
-    rect('glass', 8, 6, 12, 8)
-    rect('darkwood', 9, 3, 11, 6)
-    poly('glass', [(8, 8), (13, 8), (17, 17), (15, 22), (5, 22), (3, 17)])
-    poly('green', [(5, 15), (15, 15), (16, 18), (15, 21), (5, 21), (4, 18)])
-    line('edge', (6, 11), (5, 16))
-    rect('ink', 5, 22, 15, 22)
-
-
-def paint_mace(px, rect, poly, line):
-    rect('wood', 11, 12, 13, 29)
-    rect('darkwood', 13, 12, 13, 29)
-    poly('dark', [(12, 1), (19, 4), (22, 11), (19, 18), (12, 20), (5, 18), (2, 11), (5, 4)])
-    poly('steel', [(12, 3), (18, 5), (20, 11), (12, 11), (4, 11), (6, 5)])
-    px('edge', (10, 5), (11, 5), (9, 6))
-    for point in [(12, 0), (23, 11), (1, 11), (12, 21), (21, 3), (3, 3), (21, 19), (3, 19)]:
-        px('gold', point)
-    rect('gold', 10, 27, 14, 29)
-
-
-SPRITES = {
-    'dagger': (22, 9, paint_dagger),
-    'bow': (34, 9, paint_arrow),
-    'crossbow': (23, 9, paint_bolt),
-    'axe': (30, 30, paint_axe),
-    'sword': (31, 10, paint_sword),
-    'flask': (20, 24, paint_flask),
-    'mace': (25, 31, paint_mace),
-}
-
-
-def draw_orb() -> Image.Image:
-    image = Image.new('RGBA', (22, 22), (0, 0, 0, 0))
-    glow = Image.new('RGBA', (22, 22), (0, 0, 0, 0))
-    g = ImageDraw.Draw(glow)
-    g.ellipse((0, 0, 21, 21), fill=PALETTE['purple'] + (70,))
-    g.ellipse((3, 3, 18, 18), fill=PALETTE['purple'] + (130,))
-    image.alpha_composite(glow)
-    d = ImageDraw.Draw(image)
-    d.ellipse((6, 6, 15, 15), fill=PALETTE['purple'] + (255,))
-    d.ellipse((8, 8, 12, 12), fill=PALETTE['lilac'] + (255,))
-    d.point((9, 9), fill=(255, 255, 255, 255))
-    return image
+def fit(sprite: Image.Image, longest: int) -> Image.Image:
+    scale = longest / max(sprite.size)
+    return sprite.resize((max(1, round(sprite.width * scale)), max(1, round(sprite.height * scale))), Image.LANCZOS)
 
 
 def build_weapons() -> None:
-    for family, (w, h, paint) in SPRITES.items():
-        art = sprite(w, h, paint)
-        big = art.resize((art.width * 3, art.height * 3), Image.NEAREST)
-        big.save(OUT / f'proj-{family}.webp', lossless=True)
-        # Icono cuadrado con margen para menús y tiendas.
-        side = max(big.size) + 12
-        icon = Image.new('RGBA', (side, side), (0, 0, 0, 0))
-        icon.alpha_composite(big, ((side - big.width) // 2, (side - big.height) // 2))
-        icon.save(OUT / f'icon-{family}.webp', lossless=True)
-    orb = draw_orb()
-    big = orb.resize((orb.width * 3, orb.height * 3), Image.NEAREST)
-    big.save(OUT / 'proj-staff.webp', lossless=True)
-    icon = Image.new('RGBA', (big.width + 12, big.height + 12), (0, 0, 0, 0))
-    icon.alpha_composite(big, (6, 6))
-    icon.save(OUT / 'icon-staff.webp', lossless=True)
-    print('armas', ', '.join([*SPRITES, 'staff']))
+    for family, tiers in WEAPON_ART.items():
+        for tier, (icon_ref, proj_ref) in enumerate(tiers):
+            weapon_id = f'{family}{SUFFIX[tier]}'
+            projectile = fit(cut_item(proj_ref[0], proj_ref[1], proj_ref[2], proj_ref[3]), 64 if family in ('dagger', 'bow', 'crossbow', 'sword') else 50)
+            projectile.save(OUT / f'proj-{weapon_id}.webp', lossless=True)
+            icon = fit(cut_item(icon_ref[0], icon_ref[1]), 80)
+            canvas = Image.new('RGBA', (96, 96), (0, 0, 0, 0))
+            canvas.alpha_composite(icon, ((96 - icon.width) // 2, (96 - icon.height) // 2))
+            canvas.save(OUT / f'icon-{weapon_id}.webp', lossless=True)
+    print('armas', sum(len(t) for t in WEAPON_ART.values()))
+
+
+# Frascos de la hoja de objetos para las cuatro pociones.
+POTION_ART = {
+    'vital': (ITEMS, (45, 375, 148, 525)),
+    'ward': (ITEMS, (600, 394, 692, 530)),
+    'fury': (ITEMS, (325, 384, 422, 526)),
+    'focus': (ITEMS, (183, 374, 284, 526)),
+}
+
+
+def build_potions() -> None:
+    for name, (sheet, box) in POTION_ART.items():
+        icon = fit(cut_item(sheet, box), 80)
+        canvas = Image.new('RGBA', (96, 96), (0, 0, 0, 0))
+        canvas.alpha_composite(icon, ((96 - icon.width) // 2, (96 - icon.height) // 2))
+        canvas.save(OUT / f'potion-{name}.webp', lossless=True)
+    print('pociones', len(POTION_ART))
+
+
+# ---------- monstruos ----------
+
+# Orden de los monstruos en la hoja: fila superior (vampiro, licántropo, bruja, espectro), araña en medio y fila inferior.
+MONSTERS = ['vampire', 'werewolf', 'witch', 'specter', 'spider', 'skeleton', 'dark_knight', 'treant', 'wraith', 'golem']
+MONSTER_HEIGHT = {'vampire': 150, 'werewolf': 162, 'witch': 148, 'specter': 160, 'spider': 118, 'skeleton': 150, 'dark_knight': 168, 'treant': 176, 'wraith': 160, 'golem': 176}
+
+
+def label_regions(image: Image.Image, thresh: int = 30, grow: int = 7) -> tuple[list[int], int, int, int]:
+    """Etiqueta las siluetas de la hoja: dilata para unir las partes de un mismo monstruo y numera cada una."""
+    gray = image.convert('L').point(lambda v: 255 if v > thresh else 0).filter(ImageFilter.MaxFilter(grow * 2 + 1))
+    width, height = gray.size
+    step = 3
+    small = gray.resize((width // step, height // step))
+    sp = small.load()
+    sw, sh = small.size
+    labels = [0] * (sw * sh)
+    count = 0
+    for y in range(sh):
+        for x in range(sw):
+            if sp[x, y] and not labels[y * sw + x]:
+                count += 1
+                queue: deque[tuple[int, int]] = deque([(x, y)])
+                labels[y * sw + x] = count
+                while queue:
+                    a, b = queue.popleft()
+                    for c, d in ((a + 1, b), (a - 1, b), (a, b + 1), (a, b - 1)):
+                        if 0 <= c < sw and 0 <= d < sh and sp[c, d] and not labels[d * sw + c]:
+                            labels[d * sw + c] = count
+                            queue.append((c, d))
+    return labels, sw, sh, step
+
+
+def build_monsters() -> None:
+    sheet = Image.open(REFS / 'ashenfall_monsters_board.webp').convert('RGB')
+    labels, sw, sh, step = label_regions(sheet)
+    boxes: dict[int, list[int]] = {}
+    for y in range(sh):
+        for x in range(sw):
+            k = labels[y * sw + x]
+            if k:
+                b = boxes.setdefault(k, [x, y, x, y])
+                b[0], b[1], b[2], b[3] = min(b[0], x), min(b[1], y), max(b[2], x), max(b[3], y)
+    big = [(k, b) for k, b in boxes.items() if (b[2] - b[0]) * (b[3] - b[1]) > 400]
+    if len(big) != len(MONSTERS):
+        raise SystemExit(f'Se esperaban {len(MONSTERS)} monstruos y hay {len(big)}')
+    # Orden: fila superior (sin la araña), araña, fila inferior; dentro de cada fila, de izquierda a derecha.
+    def center_y(item: tuple[int, list[int]]) -> float:
+        return (item[1][1] + item[1][3]) / 2
+
+    ordered = sorted(big, key=center_y)
+    top = sorted([it for it in ordered if center_y(it) * step < 330], key=lambda it: it[1][0])
+    middle = [it for it in ordered if 330 <= center_y(it) * step < 480]
+    bottom = sorted([it for it in ordered if center_y(it) * step >= 480], key=lambda it: it[1][0])
+    sequence = top + middle + bottom
+    pixels = sheet.load()
+    for name, (label, box) in zip(MONSTERS, sequence):
+        x0, y0, x1, y1 = box[0] * step, box[1] * step, box[2] * step + step, box[3] * step + step
+        crop = sheet.crop((x0, y0, x1, y1))
+        # La máscara es la silueta de este monstruo y solo de este: así no entran trozos de los vecinos.
+        mask = Image.new('L', crop.size, 0)
+        mp = mask.load()
+        for yy in range(crop.height):
+            for xx in range(crop.width):
+                sx, sy = min(sw - 1, (x0 + xx) // step), min(sh - 1, (y0 + yy) // step)
+                r, g, b = pixels[x0 + xx, y0 + yy]
+                if labels[sy * sw + sx] == label and r + g + b > 60:
+                    mp[xx, yy] = 255
+        mask = mask.filter(ImageFilter.MaxFilter(3)).filter(ImageFilter.GaussianBlur(0.7))
+        sprite = crop.convert('RGBA')
+        sprite.putalpha(mask)
+        bbox = mask.point(lambda v: 255 if v > 40 else 0).getbbox()
+        if bbox is None:
+            raise SystemExit(f'Sin silueta para {name}')
+        sprite = sprite.crop(bbox)
+        target = MONSTER_HEIGHT[name]
+        scale = target / sprite.height
+        body = sprite.resize((max(1, round(sprite.width * scale)), target), Image.LANCZOS)
+        body.save(OUT / f'body-{name}.webp', quality=95, method=6)
+        side = int(sprite.height * 0.5)
+        head = sprite.crop((max(0, (sprite.width - side) // 2), 0, min(sprite.width, max(0, (sprite.width - side) // 2) + side), min(sprite.height, side)))
+        square = Image.new('RGB', (side, side), (16, 14, 22))
+        square.paste(head.convert('RGB'), ((side - head.width) // 2, 0), head.getchannel('A'))
+        square.resize((100, 100), Image.LANCZOS).save(OUT / f'portrait-{name}.webp', quality=92)
+        print('monstruo', name, body.size)
 
 
 if __name__ == '__main__':
@@ -275,3 +355,5 @@ if __name__ == '__main__':
     build_characters()
     build_biomes()
     build_weapons()
+    build_potions()
+    build_monsters()

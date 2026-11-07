@@ -92,7 +92,7 @@ export class AuthService {
       password_hash: string;
       role: Principal['role'];
       suspended_at: Date | null;
-    }>('SELECT id, password_hash, role, suspended_at FROM users WHERE lower(email) = lower($1)', [email]);
+    }>('SELECT id, password_hash, role, suspended_at FROM users WHERE lower(email) = lower($1) AND NOT is_bot', [email]);
     const user = rows[0];
     if (user === undefined) {
       await this.hasher.verify(await this.dummyHash, password);

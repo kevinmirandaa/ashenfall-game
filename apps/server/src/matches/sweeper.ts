@@ -54,6 +54,7 @@ export class MatchSweeper {
         this.logger.error({ err: error, matchId: id }, 'Fallo al aplicar un plazo vencido');
       }
     }
+    await this.runBotTurns(nowMs);
     await this.pool.query('DELETE FROM matchmaking_queue WHERE expires_at <= now()');
     await this.pool.query(
       `WITH stale AS (
@@ -64,6 +65,22 @@ export class MatchSweeper {
        DELETE FROM room_members WHERE room_id IN (SELECT id FROM stale)`,
       [ROOM_MAX_AGE],
     );
+  }
+
+  /** Turnos de bots vencidos: la misma jugada con el mismo id se descarta como duplicada si otra réplica ya la hizo. */
+  private async runBotTurns(nowMs: number): Promise<void> {
+    const { rows } = await this.pool.query<{ id: string }>(
+      `SELECT id FROM matches WHERE status = 'in_progress' AND bot_due_ms IS NOT NULL AND bot_due_ms <= $1
+       ORDER BY bot_due_ms LIMIT $2`,
+      [nowMs, BATCH_SIZE],
+    );
+    for (const { id } of rows) {
+      try {
+        await this.engine.botTurn(id, nowMs);
+      } catch (error) {
+        this.logger.error({ err: error, matchId: id }, 'Fallo en el turno del bot');
+      }
+    }
   }
 
   private async sweepMatch(matchId: string, nowMs: number): Promise<void> {

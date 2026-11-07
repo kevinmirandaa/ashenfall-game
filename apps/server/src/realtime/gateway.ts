@@ -178,7 +178,7 @@ export class RealtimeGateway {
           v: PROTOCOL_VERSION,
           type: 'error',
           code: 'INTERNAL_ERROR',
-          ...(message.type === 'shoot' ? { actionId: message.actionId } : {}),
+          ...(message.type === 'sync' ? {} : { actionId: message.actionId }),
         });
       });
     });
@@ -232,16 +232,21 @@ export class RealtimeGateway {
     const { actionId } = message;
     let decision;
     try {
-      decision = await this.engineRef().execute(message.matchId, {
-        type: 'shoot',
-        playerId: userId,
-        actionId,
-        expectedVersion: message.expectedVersion,
-        weaponId: message.weaponId,
-        angleDeg: message.angleDeg,
-        power: message.power,
-        nowMs: Date.now(),
-      });
+      decision = await this.engineRef().execute(
+        message.matchId,
+        message.type === 'use_potion'
+          ? { type: 'use_potion', playerId: userId, actionId, expectedVersion: message.expectedVersion, potionId: message.potionId, nowMs: Date.now() }
+          : {
+              type: 'shoot',
+              playerId: userId,
+              actionId,
+              expectedVersion: message.expectedVersion,
+              weaponId: message.weaponId,
+              angleDeg: message.angleDeg,
+              power: message.power,
+              nowMs: Date.now(),
+            },
+      );
     } catch (error) {
       if (!(error instanceof MatchNotFoundError)) throw error;
       this.send(socket, { v: PROTOCOL_VERSION, type: 'error', code: 'MATCH_NOT_FOUND', actionId });

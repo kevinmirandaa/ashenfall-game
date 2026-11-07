@@ -1,10 +1,10 @@
-import { powerTier, WEAPONS, type PlayerEventPayload, type PlayerMatchView, type ShotView } from '@ashenfall/domain';
+import { POTIONS, powerTier, WEAPONS, type PlayerEventPayload, type PlayerMatchView, type PotionId, type ShotView } from '@ashenfall/domain';
 import Phaser from 'phaser';
 import { ArenaScene } from './arena.js';
 import { audio } from './audio.js';
 import { baseLook, bodyFilter, frameUrl, icon, type Look } from './art.js';
 import { ApiError, GameSocket, Session, type ServerMessage } from './net.js';
-import { biomeCard, closeModal, el, END_REASON, escapeHtml, lookFrom, openBrotherhood, openModal, openRoster, openShop, portrait, type Profile, type Room, type ShopActions } from './screens.js';
+import { biomeCard, closeModal, el, END_REASON, escapeHtml, lookFrom, openAlchemist, openBrotherhood, openModal, openRoster, openShop, openStory, portrait, type Profile, type Room, type ShopActions } from './screens.js';
 
 const STAGE_W = 1280;
 const STAGE_H = 720;
@@ -58,6 +58,7 @@ let inMatch = false;
 let pendingResult: PlayerMatchView['result'] = null;
 let lastSeq = 0;
 let awaitingAck = false;
+let balanceAtMatchStart = 0;
 let toastTimer = 0;
 let introActive = false;
 let roomPoll = 0;
@@ -128,15 +129,16 @@ const shopActions: ShopActions = {
     const purse = document.getElementById('purse-value');
     if (purse !== null) purse.textContent = String(balance);
   },
-  character: () => look.character,
+  character: () => profile.characterId,
   setCharacter: (id) => {
+    profile = { ...profile, characterId: id };
     look = lookFrom(id, ownedCache);
     paintPlayerCard();
     void guarded(() => session.call('POST', '/v1/me/character', { characterId: id }));
   },
   refreshLook: (items) => {
     ownedCache = [...items];
-    look = lookFrom(look.character, ownedCache);
+    look = lookFrom(profile.characterId, ownedCache);
     paintPlayerCard();
   },
 };
@@ -204,15 +206,15 @@ const shop = (title: string, subtitle: string, kinds: readonly string[]) => (): 
 
 // Los rótulos y botones forman parte de la imagen; aquí se les da su función.
 const HOTSPOTS: readonly Hotspot[] = [
-  { id: 'arsenal', label: 'Arsenal: yelmos y capas', area: [342, 258, 192, 224], open: shop('Arsenal', 'Yelmos y capas', ['helmet', 'cloak']) },
-  { id: 'alchemist', label: 'Alquimista: efectos', area: [770, 276, 172, 214], open: shop('Alquimista', 'Efectos cosméticos', ['projectile_effect']) },
+  { id: 'arsenal', label: 'Arsenal: yelmos y capas', area: [342, 258, 192, 224], open: shop('Arsenal', 'Yelmos, capas y estelas', ['helmet', 'cloak', 'projectile_effect']) },
+  { id: 'alchemist', label: 'Alquimista: pociones', area: [770, 276, 172, 214], open: () => void guarded(() => openAlchemist(shopActions)) },
   { id: 'profile', label: 'Perfil', area: [28, 498, 76, 84], open: () => void guarded(() => openBrotherhood(shopActions, 'Perfil', false)) },
   { id: 'history', label: 'Historial', area: [28, 584, 76, 84], open: () => void guarded(() => openBrotherhood(shopActions, 'Historial', false)) },
 ];
 
 /** La barra inferior es una pieza de la interfaz, no del fondo, para poder arrastrarla. */
-const DOCK_SIZE = { width: 380, height: 104 } as const;
-const DOCK_HOME = { x: 450, y: 590 } as const;
+const DOCK_SIZE = { width: 540, height: 104 } as const;
+const DOCK_HOME = { x: 370, y: 590 } as const;
 interface DockItem {
   id: string;
   label: string;
@@ -223,6 +225,7 @@ interface DockItem {
 const DOCK_ITEMS: readonly DockItem[] = [
   { id: 'characters', label: 'Personajes', icon: 'helm', open: () => void guarded(() => openRoster(shopActions)) },
   { id: 'play', label: 'Jugar', icon: 'swords', primary: true, open: () => { showPlay(); } },
+  { id: 'story', label: 'Historia', icon: 'scroll', open: () => void guarded(() => openStory(shopActions, (level) => void guarded(() => startBotMatch({ mode: 'story', level })))) },
 ];
 let dockPos: { x: number; y: number } = loadDock();
 
@@ -386,18 +389,33 @@ function showTown(): void {
   });
 }
 
+// ---------- Contra monstruos ----------
+/** El servidor crea la partida y avisa por WebSocket, igual que en una sala; si el aviso se retrasa, se pide el estado. */
+async function startBotMatch(body: { mode: 'quick' | 'story'; level?: number }): Promise<void> {
+  const { matchId } = await session.call<{ matchId: string }>('POST', '/v1/matches/bot', body);
+  notify('Un monstruo te espera…');
+  closeModal();
+  window.setTimeout(() => {
+    if (!inMatch) socket?.send({ type: 'sync', matchId });
+  }, 2500);
+}
+
 // ---------- Jugar ----------
 function showPlay(): void {
   openModal('Jugar', 'Busca rival o reúne a un amigo', `
     <div class="stack tavern">
       <button class="primary" id="quick">${icon('swords', 24)} Buscar partida</button>
       <button id="create">Crear sala privada</button>
+      <button id="vs-monster">${icon('swords', 24)} Contra un monstruo</button>
+      <button id="story">${icon('scroll', 24)} Modo historia</button>
       <form id="join" class="row">
         <input name="code" placeholder="Código de invitación" maxlength="8" required aria-label="Código de invitación" />
         <button>Unirse</button>
       </form>
     </div>`);
   el('quick').addEventListener('click', () => void guarded(searchMatch));
+  el('vs-monster').addEventListener('click', () => void guarded(() => startBotMatch({ mode: 'quick' })));
+  el('story').addEventListener('click', () => void guarded(() => openStory(shopActions, (level) => void guarded(() => startBotMatch({ mode: 'story', level })))));
   el('create').addEventListener('click', () => {
     void guarded(async () => {
       showRoom(await session.call<Room>('POST', '/v1/rooms', { visibility: 'private' }));
@@ -517,6 +535,7 @@ function beginMatch(next: PlayerMatchView, intro: boolean): void {
   if (fresh) {
     audio.setScene('battle');
     audio.sfx('match_start');
+    balanceAtMatchStart = profile.balance;
     inMatch = true;
     stopRoomPoll();
     window.clearTimeout(searchTimeout);
@@ -550,6 +569,9 @@ function onMatchEvent(matchId: string, seq: number, payload: PlayerEventPayload)
   lastSeq = seq;
   view = applyToView(view, seq, payload);
   arena.updateView(view);
+  if (payload.type === 'potion_used' && payload.potionId === 'vital') {
+    shownHp = payload.playerId === view.you.playerId ? { ...shownHp, you: payload.hpAfter } : { ...shownHp, rival: payload.hpAfter };
+  }
   arena.applyEvent(payload);
   if (payload.type === 'match_finished') pendingResult = payload.result;
   if (payload.type === 'turn_timed_out') notify(payload.playerId === view.you.playerId ? 'Se agotó tu tiempo: pierdes el turno.' : 'El rival agotó su tiempo.');
@@ -562,8 +584,40 @@ function applyToView(current: PlayerMatchView, seq: number, payload: PlayerEvent
   const base = { ...current, seq };
   switch (payload.type) {
     case 'shot_resolved': {
-      const target = payload.shooterId === current.you.playerId ? 'opponent' : 'you';
-      return { ...base, version: current.version + 1, [target]: { ...current[target], hp: payload.targetHpAfter, position: payload.targetPosition } };
+      const shooter = payload.shooterId === current.you.playerId ? 'you' : 'opponent';
+      const target = shooter === 'you' ? 'opponent' : 'you';
+      return {
+        ...base,
+        version: current.version + 1,
+        // El disparo gasta la furia y el ojo de halcón; la piel de piedra se gasta con el primer daño recibido.
+        [shooter]: { ...current[shooter], buffs: { ...current[shooter].buffs, fury: false, focus: false } },
+        [target]: {
+          ...current[target],
+          hp: payload.targetHpAfter,
+          position: payload.targetPosition,
+          buffs: payload.damage > 0 ? { ...current[target].buffs, ward: false } : current[target].buffs,
+        },
+      };
+    }
+    case 'potion_used': {
+      const key = payload.playerId === current.you.playerId ? 'you' : 'opponent';
+      const side = current[key];
+      const used = side.potions === undefined ? -1 : side.potions.indexOf(payload.potionId);
+      const potions = side.potions === undefined ? undefined : side.potions.filter((_id, index) => index !== used);
+      return {
+        ...base,
+        version: current.version + 1,
+        [key]: {
+          ...side,
+          hp: payload.potionId === 'vital' ? payload.hpAfter : side.hp,
+          ...(potions === undefined ? {} : { potions }),
+          buffs: {
+            ward: side.buffs.ward || payload.potionId === 'ward',
+            fury: side.buffs.fury || payload.potionId === 'fury',
+            focus: side.buffs.focus || payload.potionId === 'focus',
+          },
+        },
+      };
     }
     case 'turn_timed_out':
       return { ...base, version: current.version + 1 };
@@ -587,6 +641,7 @@ function applyToView(current: PlayerMatchView, seq: number, payload: PlayerEvent
 }
 
 function showHud(match: PlayerMatchView): void {
+  potionKey = '';
   screen.className = 'hud';
   const rival = match.opponent.characterId;
   screen.innerHTML = `
@@ -594,7 +649,7 @@ function showHud(match: PlayerMatchView): void {
       <div class="fighter">
         ${portrait(match.you.characterId, look.frame)}
         <div><b>${escapeHtml(match.you.displayName)}</b>
-        <div class="hp"><i id="you-hp"></i><span id="you-hp-text"></span></div></div>
+        <div class="hp"><i id="you-hp"></i><span id="you-hp-text"></span></div><div class="buffs" id="you-buffs"></div></div>
       </div>
       <div class="turn-box">
         <small id="turn"></small><b id="timer">30</b>
@@ -602,7 +657,7 @@ function showHud(match: PlayerMatchView): void {
       </div>
       <div class="fighter right">
         <div><b><span id="rival-name">${escapeHtml(match.opponent.displayName)}</span><em id="rival-status"></em></b>
-        <div class="hp"><i id="rival-hp"></i><span id="rival-hp-text"></span></div></div>
+        <div class="hp"><i id="rival-hp"></i><span id="rival-hp-text"></span></div><div class="buffs" id="rival-buffs"></div></div>
         ${portrait(rival, false)}
       </div>
     </header>
@@ -611,6 +666,7 @@ function showHud(match: PlayerMatchView): void {
       <div class="own-weapon"><img class="wpn" src="/art/icon-${WEAPONS[match.you.weaponId].family}.webp" alt="" /><small>${escapeHtml(WEAPONS[match.you.weaponId].name)}</small></div>
       <div class="readout"><span>Ángulo</span><b id="angle-text"></b></div>
       <div class="charge"><span>Potencia: <b id="power-text"></b> <em id="tier"></em></span><i class="meter"><u id="power-bar"></u></i></div>
+      <div class="potion-bar" id="potion-bar"></div>
       <p class="hint" id="hint"></p>
     </footer>`;
 }
@@ -627,6 +683,53 @@ function setBar(id: string, hp: number): void {
   if (node !== null) node.style.width = `${String(Math.max(0, hp))}%`;
 }
 
+let potionKey = '';
+
+/** Botones de las pociones que le quedan; solo se rehacen si cambian, para no parpadear en cada refresco. */
+function renderPotions(enabled: boolean): void {
+  const bar = document.getElementById('potion-bar');
+  if (bar === null || view === null) return;
+  const list = view.you.potions ?? [];
+  const key = `${list.join(',')}|${String(enabled)}`;
+  if (key === potionKey) return;
+  potionKey = key;
+  bar.innerHTML = list
+    .map((id, index) => `<button class="potion-btn" data-potion="${id}" ${enabled ? '' : 'disabled'} title="${escapeHtml(POTIONS[id].name)}: ${escapeHtml(POTIONS[id].description)}"><img src="/art/potion-${id}.webp" alt="" /><kbd>${String(index + 1)}</kbd></button>`)
+    .join('');
+  for (const node of bar.querySelectorAll<HTMLElement>('[data-potion]')) {
+    node.addEventListener('click', () => {
+      drink(node.dataset.potion as PotionId);
+    });
+  }
+}
+
+function renderBuffs(): void {
+  if (view === null) return;
+  for (const [id, side] of [['you-buffs', view.you], ['rival-buffs', view.opponent]] as const) {
+    const node = document.getElementById(id);
+    if (node === null) continue;
+    const active = (['ward', 'fury', 'focus'] as const).filter((buff) => side.buffs[buff]);
+    const html = active.map((buff) => `<img src="/art/potion-${buff}.webp" title="${escapeHtml(POTIONS[buff].name)}" alt="" />`).join('');
+    if (node.dataset['buffs'] !== html) {
+      node.dataset['buffs'] = html;
+      node.innerHTML = html;
+    }
+  }
+}
+
+function drink(potionId: PotionId): void {
+  if (view === null || !arena.canAim) return;
+  awaitingAck = true;
+  socket?.send({ type: 'use_potion', matchId: view.matchId, actionId: crypto.randomUUID(), expectedVersion: view.version, potionId });
+  refreshHud();
+}
+
+window.addEventListener('keydown', (event) => {
+  if (!inMatch || event.repeat) return;
+  const slot = Number(event.key);
+  if (Number.isInteger(slot) && slot >= 1 && slot <= 3) document.querySelectorAll<HTMLButtonElement>('#potion-bar .potion-btn')[slot - 1]?.click();
+});
+
 function refreshHud(): void {
   if (view === null) return;
   const mine = view.turn?.playerId === view.you.playerId;
@@ -635,6 +738,8 @@ function refreshHud(): void {
   arena.drawGuide();
   if (document.getElementById('controls') === null) return;
   el('controls').classList.toggle('idle', !canShoot);
+  renderPotions(canShoot);
+  renderBuffs();
   setText('hint', canShoot ? 'Mantén pulsado y arrastra hacia atrás: la distancia es la potencia y subir o bajar el cursor, el ángulo · suelta para disparar · Esc cancela' : 'Esperando…');
   setText('turn', view.status === 'finished' ? 'Fin del duelo' : mine ? 'Tu turno' : 'Turno del rival');
   if (view.status === 'finished') setText('timer', '—');
@@ -683,7 +788,7 @@ function showResult(): void {
     <section class="panel result ${won ? 'won' : 'lost'}" role="dialog" aria-label="Resultado">
       <h2>${title}</h2>
       <p class="reason">${END_REASON[result.reason] ?? ''}</p>
-      <p class="reward">${icon('coin', 40)} <b>+${won ? '100' : '0'}</b></p>
+      <p class="reward">${icon('coin', 40)} <b id="result-reward">${won ? '…' : '+0'}</b></p>
       <p class="muted" id="result-balance">Marcas de Ceniza</p>
       <button class="primary" id="back">Volver al pueblo</button>
     </section>`;
@@ -698,6 +803,7 @@ function showResult(): void {
   void session.call<Profile>('GET', '/v1/me').then((me) => {
     profile = me;
     setText('result-balance', `Tu bolsa: ${String(me.balance)} Marcas de Ceniza`);
+    if (won) setText('result-reward', `+${String(Math.max(0, me.balance - balanceAtMatchStart))}`);
   }).catch(() => undefined);
 }
 
