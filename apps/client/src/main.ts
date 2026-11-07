@@ -167,6 +167,7 @@ function showLogin(): void {
   screen.className = 'login';
   screen.innerHTML = `
     <img class="backdrop" src="/art/castle.webp" alt="" />
+    <img class="emblem" src="/art/emblem.webp" alt="" />
     <img class="logo" src="/art/logo.webp" alt="Ashenfall, The Last Mercenary Guild" />
     <section class="panel login-box">
       <form id="auth">

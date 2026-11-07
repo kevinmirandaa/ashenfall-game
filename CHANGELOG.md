@@ -1,6 +1,8 @@
 # Changelog
 
 ## Sin publicar
+- SCRUM-74: README centrado en la historia, cómo jugar y el enlace al juego; la guía para correr en local pasa a `docs/jugar-en-local.md`. Emblema del juego en el README, en la pantalla de acceso y como favicon.
+- SCRUM-73: despliegue de prod en Azure Container Apps (`canadacentral`) con su URL pública en el README, y nota del límite de un entorno de Container Apps por región en Azure for Students.
 - SCRUM-72: auditoría contra el enunciado con matriz requisito → evidencia en `docs/cumplimiento-enunciado.md` (94 requisitos). Periodo de gracia y espera de la cola configurables por entorno (`RECONNECT_GRACE_MS`, `MATCHMAKING_MAX_WAIT_MS`), conexiones vivas por jugador en `GET /v1/admin/matches`, prueba de aislamiento entre partidas y modelo de amenazas al día.
 - SCRUM-71: Ajustes muestra el correo de contacto para reportar errores o problemas.
 - SCRUM-70: optimización medida. Un jugador nuevo descarga 1,29 MB y 47 peticiones hasta empezar partida (antes 3,84 MB y 105): arte por partida, atlas WebP con pérdida casi invisible, JS precomprimido con brotli y caché inmutable, Phaser en fichero aparte. Imagen Docker de 565 a 387 MB (Phaser fuera de producción). Jugada con 5 idas y vueltas a PostgreSQL en vez de 7, listado de salas en 2 consultas, limpieza del barrido cada 30 s y sin registros de sondas ni estáticos. Bicep: dev con contenedor mínimo, heap de Node acotado, sin métricas duplicadas en Log Analytics. Ver `docs/optimizacion.md` y `docs/azure-cost.md`.
