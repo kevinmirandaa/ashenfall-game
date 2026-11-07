@@ -43,12 +43,17 @@ const Queue = Type.Union([
   Type.Object({ status: Type.Literal('matched'), matchId: Id }, strict),
 ]);
 const Cosmetic = Type.Object({ id: Type.String(), name: Type.String(), kind: Type.String(), price: Type.Integer() }, strict);
-const Owned = Type.Object({ id: Type.String(), name: Type.String(), kind: Type.String(), equipped: Type.Boolean() }, strict);
-const PotionInventory = Type.Object(
+const Owned = Type.Object({ id: Type.String(), name: Type.String(), kind: Type.String() }, strict);
+const Stats = Type.Object(
   {
-    items: Type.Array(Type.Object({ id: Type.String(), name: Type.String(), description: Type.String(), price: Type.Integer(), quantity: Type.Integer() }, strict)),
-    loadout: Type.Array(Type.String()),
-    loadoutMax: Type.Integer(),
+    played: Type.Integer(),
+    wins: Type.Integer(),
+    losses: Type.Integer(),
+    draws: Type.Integer(),
+    level: Type.Integer(),
+    xp: Type.Integer(),
+    xpInLevel: Type.Integer(),
+    xpForNext: Type.Integer(),
   },
   strict,
 );
@@ -70,7 +75,7 @@ const History = Type.Object(
     total: Type.Integer(),
     items: Type.Array(
       Type.Object(
-        { matchId: Id, outcome: Type.String(), reason: Type.String(), rounds: Type.Integer(), endedAt: Timestamp },
+        { matchId: Id, outcome: Type.String(), opponent: Type.String(), reason: Type.String(), rounds: Type.Integer(), endedAt: Timestamp },
         strict,
       ),
     ),
@@ -146,27 +151,18 @@ export const REST_CONTRACT: Readonly<Record<string, RouteContract>> = {
   'GET /v1/matchmaking': route('Emparejamiento', 'Estado en la cola, para recuperar tras reconectar', 200, Queue, [403]),
   'DELETE /v1/matchmaking': route('Emparejamiento', 'Salir de la cola', 204, Empty, [403]),
 
-  'GET /v1/shop/catalog': route('Tienda', 'Catálogo cosmético', 200, Page(Cosmetic), [403]),
+  'GET /v1/shop/catalog': route('Tienda', 'Catálogo de personajes', 200, Page(Cosmetic), [403]),
   'POST /v1/shop/purchases': route(
     'Tienda',
-    'Comprar un cosmético; reintentar con el mismo purchaseId no cobra de nuevo',
+    'Comprar un personaje (exige nivel y dinero); reintentar con el mismo purchaseId no cobra de nuevo',
     200,
     Type.Object({ cosmeticId: Type.String(), balance: Type.Integer(), duplicate: Type.Boolean() }, strict),
     [403, 404, 409],
   ),
-  'GET /v1/me/potions': route('Tienda', 'Pociones propias y las elegidas para la próxima partida', 200, PotionInventory, [403]),
-  'POST /v1/shop/potions': route(
-    'Tienda',
-    'Comprar una poción; reintentar con el mismo purchaseId no cobra de nuevo',
-    200,
-    Type.Object({ balance: Type.Integer(), duplicate: Type.Boolean() }, strict),
-    [403, 409],
-  ),
-  'PUT /v1/me/loadout': route('Tienda', 'Elegir las pociones de la próxima partida; se descuentan al empezarla', 204, Empty, [403, 409]),
+  'GET /v1/me/stats': route('Partidas', 'Partidas, victorias, derrotas, empates y nivel propios', 200, Stats, [403]),
   'GET /v1/me/story': route('Partidas', 'Niveles del modo historia y cuáles están desbloqueados', 200, Story, [403]),
-  'POST /v1/matches/bot': route('Partidas', 'Empezar una partida rápida o un nivel de historia contra un monstruo', 201, Type.Object({ matchId: Id, monsterId: Type.String() }, strict), [403, 404, 409]),
-  'GET /v1/me/inventory': route('Tienda', 'Inventario propio', 200, Page(Owned), [403]),
-  'POST /v1/me/inventory/:cosmeticId/equip': route('Tienda', 'Equipar o desequipar', 204, Empty, [403, 404]),
+  'POST /v1/matches/bot': route('Partidas', 'Empezar un nivel del modo historia contra un monstruo', 201, Type.Object({ matchId: Id, monsterId: Type.String() }, strict), [403, 404, 409]),
+  'GET /v1/me/inventory': route('Tienda', 'Personajes comprados', 200, Page(Owned), [403]),
 
   'GET /v1/admin/matches': route('Administración', 'Partidas activas y conexión de sus jugadores', 200, Page(AdminMatch), [403]),
   'POST /v1/admin/matches/:matchId/terminate': route('Administración', 'Terminar una partida', 204, Empty, [403, 404, 409]),

@@ -1,4 +1,4 @@
-import { ARENA_IDS, CHARACTER_IDS, MONSTER_IDS, POTION_IDS, WEAPON_IDS } from '@ashenfall/domain';
+import { ARENA_IDS, CHARACTER_IDS, MONSTER_IDS, WEAPON_IDS } from '@ashenfall/domain';
 import { Type, type TSchema } from '@sinclair/typebox';
 
 const strict = { additionalProperties: false } as const;
@@ -30,8 +30,6 @@ const Side = Type.Object(
     connected: Type.Boolean(),
     characterId: literalUnion([...CHARACTER_IDS, ...MONSTER_IDS]),
     weaponId: literalUnion(WEAPON_IDS),
-    buffs: Type.Object({ ward: Type.Boolean(), fury: Type.Boolean(), focus: Type.Boolean() }, { ...strict, description: 'Efectos de pociones activos; públicos' }),
-    potions: Type.Optional(Type.Array(literalUnion(POTION_IDS), { description: 'Solo las recibe el propio jugador' })),
     displayName: Type.String(),
   },
   strict,
@@ -83,16 +81,6 @@ const eventPayloads = [
     },
     strict,
   ),
-  Type.Object(
-    {
-      type: Type.Literal('potion_used'),
-      playerId: Id,
-      potionId: literalUnion(POTION_IDS),
-      hpAfter: Type.Integer(),
-      own: Type.Optional(Type.Object({ actionId: Id }, { ...strict, description: 'Solo lo recibe quien la usó' })),
-    },
-    strict,
-  ),
   Type.Object({ type: Type.Literal('turn_timed_out'), playerId: Id }, strict),
   Type.Object({ type: Type.Literal('turn_started'), playerId: Id, round: Type.Integer(), deadlineMs: Type.Number() }, strict),
   Type.Object({ type: Type.Literal('player_disconnected'), playerId: Id, graceDeadlineMs: Type.Number() }, strict),
@@ -117,7 +105,6 @@ export const WS_ERROR_CODES = [
   'INVALID_WEAPON',
   'INVALID_ANGLE',
   'INVALID_POWER',
-  'POTION_NOT_AVAILABLE',
   'ACTION_ID_CONFLICT',
 ] as const;
 

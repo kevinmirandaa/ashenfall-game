@@ -7,7 +7,6 @@ import {
   WEAPONS,
   type PlayerEventPayload,
   type PlayerMatchView,
-  type PotionView,
   type ShotView,
   type Vec2,
   type WeaponEffect,
@@ -18,7 +17,7 @@ import {
 } from '@ashenfall/domain';
 import Phaser from 'phaser';
 import { audio } from './audio.js';
-import { bodyTint, CHARACTERS, type FighterId, type Look } from './art.js';
+import { CHARACTERS, type FighterId, type Look } from './art.js';
 import { BIOME_ART, drawGround, GROUND_DEPTH, GROUND_HEADROOM, WORLD_LEFT, WORLD_WIDTH } from './biomes.js';
 
 const VIEW_W = 1280;
@@ -29,8 +28,7 @@ const WORLD_BOTTOM = GROUND_Y + GROUND_DEPTH;
 const WORLD_TOP = -1500;
 const REST_SCROLL_Y = WORLD_BOTTOM - VIEW_H;
 /** La guía muestra solo el inicio del arco: con la posición del rival a la vista, una guía completa haría trivial apuntar. */
-const GUIDE_FRACTION = 0.5;
-const GUIDE_SPACING = 20;
+const GUIDE_FRACTION = 0.72;
 const PAN_MS = 900;
 const SHOT_MIN_MS = 500;
 const PARTICLES = 28;
@@ -150,7 +148,6 @@ export class ArenaScene extends Phaser.Scene {
     for (const weaponId of WEAPON_IDS) this.load.image(`proj-${weaponId}`, `/art/proj-${weaponId}.webp`);
     for (const [hero, poses] of Object.entries(POSES)) for (const pose of poses) this.load.image(`pose-${hero}-${pose}`, `/art/pose-${hero}-${pose}.webp`);
     for (const id of ARENA_IDS) this.load.image(`biome-${id}`, `/art/biome-${id}.webp`);
-    this.load.image('helm', '/art/icon-helm.webp');
   }
 
   create(): void {
@@ -253,7 +250,6 @@ export class ArenaScene extends Phaser.Scene {
   /** Los eventos se animan en orden, uno tras otro, en ambos jugadores. */
   applyEvent(payload: PlayerEventPayload): void {
     if (payload.type === 'shot_resolved') this.enqueue(() => this.playShot(payload));
-    if (payload.type === 'potion_used') this.enqueue(() => this.playPotion(payload));
     if (payload.type === 'turn_started') {
       const mine = payload.playerId === this.view?.you.playerId;
       this.enqueue(async () => {
@@ -290,70 +286,38 @@ export class ArenaScene extends Phaser.Scene {
       arena: ARENAS[view.arenaId],
       target: playerHitbox(view.opponent.position),
     }).path;
-    // El dominio devuelve pocos puntos: se reparten puntos regulares a lo largo del primer tramo del arco.
+    // Línea continua y suave que se afina y se desvanece: muestra hacia dónde irá el tiro sin cifras ni ángulos.
     const points = path.map(toScreen);
-    const segments = points.slice(1).map((point, index) => {
-      const from = points[index] ?? point;
-      return { from, to: point, length: Math.hypot(point.x - from.x, point.y - from.y) };
-    });
-    const shownLength = segments.reduce((sum, segment) => sum + segment.length, 0) * GUIDE_FRACTION;
-    // Puntos que se achican y se desvanecen con la distancia: se lee la curva sin ver dónde cae.
-    let walked = 0;
-    let nextDot = GUIDE_SPACING;
-    for (const { from, to, length } of segments) {
-      while (nextDot <= walked + length && nextDot <= shownLength) {
-        const t = (nextDot - walked) / length;
-        const fade = 1 - nextDot / Math.max(1, shownLength);
-        const size = 3 + Math.round(fade * 4);
-        const dotX = Math.round(from.x + (to.x - from.x) * t) - size / 2;
-        const dotY = Math.round(from.y + (to.y - from.y) * t) - size / 2;
-        // Contorno oscuro: se lee igual sobre la nieve clara que sobre el bosque oscuro.
-        guide.fillStyle(0x15101a, 0.55 + fade * 0.4);
-        guide.fillRect(dotX - 2, dotY - 2, size + 4, size + 4);
-        guide.fillStyle(fade > 0.6 ? 0xfff4d6 : 0xf0d9a0, 0.5 + fade * 0.5);
-        guide.fillRect(dotX, dotY, size, size);
-        nextDot += GUIDE_SPACING;
-      }
-      walked += length;
+    if (points.length < 2) return;
+    const curve = new Phaser.Curves.Spline(points.flatMap((point) => [point.x, point.y]));
+    const total = curve.getLength();
+    const shown = Math.min(1, GUIDE_FRACTION);
+    const steps = Math.max(8, Math.min(64, Math.round((total * shown) / 14)));
+    const samples = Array.from({ length: steps + 1 }, (_unused, index) => curve.getPoint((index / steps) * shown));
+    for (let index = 1; index < samples.length; index += 1) {
+      const from = samples[index - 1];
+      const to = samples[index];
+      if (from === undefined || to === undefined) continue;
+      const fade = 1 - index / samples.length;
+      const width = 2 + fade * 4;
+      guide.lineStyle(width + 4, 0x15101a, 0.25 + fade * 0.5);
+      guide.lineBetween(from.x, from.y, to.x, to.y);
+      guide.lineStyle(width, fade > 0.5 ? 0xfff4d6 : 0xf0d9a0, 0.35 + fade * 0.65);
+      guide.lineBetween(from.x, from.y, to.x, to.y);
     }
-    this.drawProtractor(guide, muzzlePosition(side.position, side.facing), side.facing);
-  }
-
-  /** Semicírculo de ángulo junto al arma: línea de 0°, arco recorrido y flecha de dirección. */
-  private drawProtractor(guide: Phaser.GameObjects.Graphics, muzzle: Vec2, facing: 1 | -1): void {
-    const origin = toScreen(muzzle);
-    const radius = 62;
-    const rad = Phaser.Math.DegToRad(this.angleDeg);
-    for (const [width, colour, alpha] of [[5, 0x15101a, 0.6], [2, 0xf0d9a0, 0.8]] as const) {
-      guide.lineStyle(width, colour, alpha);
-      for (let x = 14; x < radius + 18; x += 10) guide.lineBetween(origin.x + facing * x, origin.y, origin.x + facing * (x + 4), origin.y);
+    // Punta de flecha al final de lo que se muestra.
+    const tip = samples.at(-1);
+    const before = samples.at(-3) ?? samples.at(-2);
+    if (tip !== undefined && before !== undefined) {
+      const heading = Math.atan2(tip.y - before.y, tip.x - before.x);
+      const wing = (side: number, scale: number): [number, number] => [tip.x - Math.cos(heading + side) * scale, tip.y - Math.sin(heading + side) * scale];
+      const [ax, ay] = wing(0.5, 14);
+      const [bx, by] = wing(-0.5, 14);
+      guide.fillStyle(0x15101a, 0.55);
+      guide.fillTriangle(tip.x + Math.cos(heading) * 3, tip.y + Math.sin(heading) * 3, ax + Math.cos(heading + 1.2) * 2, ay + Math.sin(heading + 1.2) * 2, bx + Math.cos(heading - 1.2) * 2, by + Math.sin(heading - 1.2) * 2);
+      guide.fillStyle(0xf0d9a0, 0.55);
+      guide.fillTriangle(tip.x, tip.y, ax, ay, bx, by);
     }
-    const steps = Math.max(2, Math.round(this.angleDeg / 4));
-    for (const [width, colour] of [[7, 0x15101a], [3, 0xf0b24a]] as const) {
-      guide.lineStyle(width, colour, 0.95);
-      guide.beginPath();
-      for (let i = 0; i <= steps; i += 1) {
-        const a = (rad * i) / steps;
-        const x = origin.x + facing * Math.cos(a) * radius;
-        const y = origin.y - Math.sin(a) * radius;
-        if (i === 0) guide.moveTo(x, y);
-        else guide.lineTo(x, y);
-      }
-      guide.strokePath();
-    }
-    const tipX = origin.x + facing * Math.cos(rad) * (radius + 26);
-    const tipY = origin.y - Math.sin(rad) * (radius + 26);
-    const baseX = origin.x + facing * Math.cos(rad) * 18;
-    const baseY = origin.y - Math.sin(rad) * 18;
-    const back = Math.atan2(baseY - tipY, baseX - tipX);
-    guide.lineStyle(8, 0x15101a, 0.8);
-    guide.lineBetween(baseX, baseY, tipX, tipY);
-    guide.lineStyle(4, 0xfff4d6, 0.95);
-    guide.lineBetween(baseX, baseY, tipX, tipY);
-    guide.fillStyle(0x15101a, 0.8);
-    guide.fillTriangle(tipX + Math.cos(back + Math.PI) * 4, tipY + Math.sin(back + Math.PI) * 4, tipX + Math.cos(back + 0.6) * 18, tipY + Math.sin(back + 0.6) * 18, tipX + Math.cos(back - 0.6) * 18, tipY + Math.sin(back - 0.6) * 18);
-    guide.fillStyle(0xfff4d6, 0.95);
-    guide.fillTriangle(tipX, tipY, tipX + Math.cos(back + 0.5) * 14, tipY + Math.sin(back + 0.5) * 14, tipX + Math.cos(back - 0.5) * 14, tipY + Math.sin(back - 0.5) * 14);
   }
 
   /** El nombre puede conocerse después de empezar: en sala se consulta aparte. */
@@ -424,13 +388,10 @@ export class ArenaScene extends Phaser.Scene {
     const upper = this.add.image(0, 8, key, 'upper').setOrigin(0.5, 1);
     const weapon = this.add.image(16, -BODY_HEIGHT[look.character] * 0.14, 'proj-dagger').setOrigin(0.5, 0.5).setVisible(false);
     const children: Phaser.GameObjects.GameObject[] = [upper, weapon];
-    if (look.helm) children.push(this.add.image(2, -BODY_HEIGHT[look.character] * 0.4, 'helm').setDisplaySize(34, 34));
     const torso = this.add.container(0, hipY, children);
     const frame = this.add.image(0, 0, key).setOrigin(0.5, 1).setVisible(false);
     const root = this.add.container(x, y + 3, [lower, torso, frame]).setDepth(3).setScale(side.facing, 1);
     const parts = [lower, upper, frame];
-    const tint = bodyTint(look);
-    if (tint !== 0xffffff) for (const part of parts) part.setTint(tint);
     const label = this.add
       .text(x, y - BODY_HEIGHT[look.character] - 22, name, { fontFamily: 'Palatino, Georgia, serif', fontSize: '17px', color: '#e8d8b0', stroke: '#0d0a0e', strokeThickness: 4 })
       .setOrigin(0.5)
@@ -490,8 +451,7 @@ export class ArenaScene extends Phaser.Scene {
       for (const part of figure.parts) part.setTint(0xff5a48);
     });
     this.time.delayedCall(330, () => {
-      const tint = bodyTint(figure.look);
-      for (const part of figure.parts) part.setTint(tint);
+      for (const part of figure.parts) part.clearTint();
     });
   }
 
@@ -763,7 +723,7 @@ export class ArenaScene extends Phaser.Scene {
     const spin = SPINNING.has(family);
     projectile.setTexture(`proj-${shot.weaponId}`).setPosition(start.x, start.y).setVisible(true).clearTint().setScale(1).setOrigin(0.5, 0.5);
     this.trailColors = shot.effect === null ? [0xf2963c, 0xfbe58a] : EFFECT_COLORS[shot.effect.kind];
-    this.trailOn = shooter.look.embers || shot.effect !== null;
+    this.trailOn = shot.effect !== null;
     const camera = this.cameras.main;
     camera.stopFollow();
     camera.startFollow(projectile, true, 0.12, 0.12);
@@ -794,31 +754,6 @@ export class ArenaScene extends Phaser.Scene {
     this.showImpact(shot);
     this.resolveImpact(shot);
     await this.wait(shot.impactKind !== 'player' ? 800 : shot.targetHpAfter <= 0 ? 1500 : 1600);
-  }
-
-  /** Una poción: destello del color del efecto alrededor de quien la bebe y el texto de lo que hace. */
-  private async playPotion(potion: PotionView): Promise<void> {
-    const figure = this.figures.get(potion.playerId);
-    if (figure === undefined) return;
-    const colour = { vital: 0x7ed957, ward: 0x9fb4d8, fury: 0xe0503c, focus: 0xf0d060 }[potion.potionId];
-    const label = { vital: 'Elixir vital', ward: 'Piel de piedra', fury: 'Furia salvaje', focus: 'Ojo de halcón' }[potion.potionId];
-    audio.sfx(potion.potionId === 'vital' ? 'heal' : 'potion');
-    if (document.hidden) return;
-    const height = BODY_HEIGHT[figure.look.character];
-    const ring = this.add.ellipse(figure.homeX, figure.homeY - height * 0.45, 40, height * 0.9, colour, 0.35).setDepth(6).setBlendMode(Phaser.BlendModes.ADD);
-    this.tweens.add({ targets: ring, scaleX: 2.6, scaleY: 1.5, alpha: 0, duration: 900, onComplete: () => ring.destroy() });
-    for (let i = 0; i < 14; i += 1) {
-      const spark = this.add.rectangle(figure.homeX + (Math.random() - 0.5) * 60, figure.homeY - Math.random() * height * 0.8, 4, 4, colour).setDepth(7);
-      this.tweens.add({ targets: spark, y: spark.y - 40 - Math.random() * 40, alpha: 0, duration: 700 + Math.random() * 400, onComplete: () => spark.destroy() });
-    }
-    const text = this.add
-      .text(figure.homeX, figure.homeY - height - 14, label, {
-        fontFamily: 'Palatino, Georgia, serif', fontStyle: 'bold', fontSize: '28px', color: `#${colour.toString(16).padStart(6, '0')}`, stroke: '#0d0a0e', strokeThickness: 5,
-      })
-      .setOrigin(0.5)
-      .setDepth(8);
-    this.tweens.add({ targets: text, y: text.y - 70, alpha: 0, duration: 1300, onComplete: () => text.destroy() });
-    await this.wait(900);
   }
 
   private resolveImpact(shot: ShotView): void {

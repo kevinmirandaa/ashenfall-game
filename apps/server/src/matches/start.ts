@@ -1,23 +1,18 @@
 import { randomInt, randomUUID } from 'node:crypto';
 import {
-  CHARACTER_FAMILY,
   CHARACTER_IDS,
   createMatchSetup,
   isCharacterId,
-  isWeaponId,
   startMatch,
-  WEAPONS,
   type FighterId,
   type MatchConfig,
   type MonsterProfile,
-  type PotionId,
   type RandomSource,
   type WeaponId,
 } from '@ashenfall/domain';
 import type pg from 'pg';
 import { isUniqueViolation } from '../db/transaction.js';
 import { ProblemError } from '../problem.js';
-import { consumeLoadout } from '../shop/potions.js';
 import { botThinkMs } from './bots.js';
 import { WIN_REWARD } from './event-store.js';
 
@@ -25,7 +20,7 @@ import { WIN_REWARD } from './event-store.js';
 export const cryptoRandom: RandomSource = { intBelow: (exclusiveMax) => randomInt(exclusiveMax) };
 
 export interface BotMatch {
-  readonly mode: 'quick' | 'story';
+  readonly mode: 'story';
   readonly monster: MonsterProfile;
   readonly reward: number;
 }
@@ -47,27 +42,14 @@ export async function createMatchInTransaction(
     'SELECT id, display_name, character_id FROM users WHERE id = ANY($1::uuid[])',
     [[...playerIds]],
   );
-  // Arma equipada de cada jugador; solo cuenta si es de la familia de su personaje.
-  const equipped = await client.query<{ user_id: string; cosmetic_id: string }>(
-    `SELECT p.user_id, p.cosmetic_id FROM player_cosmetics p JOIN cosmetic_catalog c ON c.id = p.cosmetic_id
-     WHERE p.user_id = ANY($1::uuid[]) AND p.equipped AND c.kind LIKE 'weapon\\_%'`,
-    [[...playerIds]],
-  );
-  const profiles: Record<string, { characterId: FighterId; displayName: string; weaponId?: WeaponId; potions?: readonly PotionId[] }> = {};
+  const profiles: Record<string, { characterId: FighterId; displayName: string; weaponId?: WeaponId }> = {};
   for (const row of rows) {
     if (bot !== undefined && row.id === playerIds[1]) {
       profiles[row.id] = { characterId: bot.monster.id, displayName: bot.monster.name, weaponId: bot.monster.weaponId };
       continue;
     }
-    const characterId = isCharacterId(row.character_id) ? row.character_id : CHARACTER_IDS[0];
-    const weapons = equipped.rows
-      .filter((entry) => entry.user_id === row.id)
-      .map((entry) => entry.cosmetic_id.replace(/^wpn-/, '').replace('-', '_'))
-      .filter(isWeaponId)
-      .filter((id) => WEAPONS[id].family === CHARACTER_FAMILY[characterId]);
-    const weaponId = weapons[0];
-    const potions = await consumeLoadout(client, row.id);
-    profiles[row.id] = { characterId, displayName: row.display_name, ...(weaponId === undefined ? {} : { weaponId }), ...(potions.length === 0 ? {} : { potions }) };
+    // Cada personaje usa siempre la misma arma, la de su familia: no hay cambio de armas.
+    profiles[row.id] = { characterId: isCharacterId(row.character_id) ? row.character_id : CHARACTER_IDS[0], displayName: row.display_name };
   }
   const setup = createMatchSetup({ matchId, playerIds, profiles, ...(config === undefined ? {} : { config }) }, cryptoRandom);
   const first = startMatch(setup, nowMs);

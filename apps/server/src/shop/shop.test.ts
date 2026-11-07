@@ -1,10 +1,10 @@
 import { randomUUID } from 'node:crypto';
+import { CHARACTER_IDS, CHARACTER_LEVEL, CHARACTER_PRICE, STARTER_CHARACTER } from '@ashenfall/domain';
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildTestApp, registerUser, type TestUser } from '../test-support/api.js';
-import { CHARACTER_IDS, CHARACTER_PRICE, STARTER_CHARACTER, WEAPON_FAMILIES, WEAPONS } from '@ashenfall/domain';
-import { createMatchInTransaction } from '../matches/start.js';
 import { createTestDatabase, type TestDatabase } from '../test-support/database.js';
+import { grantLevel } from '../test-support/progress.js';
 
 let db: TestDatabase;
 let app: FastifyInstance;
@@ -19,133 +19,113 @@ afterAll(async () => {
   await db.destroy();
 });
 
-async function userWith(balance: number): Promise<TestUser> {
+/** Usuario con saldo y nivel a medida: el personaje exige las dos cosas a la vez. */
+async function userWith(balance: number, level = 1): Promise<TestUser> {
   const user = await registerUser(app);
   await db.pool.query('UPDATE wallets SET balance = $1 WHERE user_id = $2', [balance, user.id]);
+  if (level > 1) await grantLevel(db, user.id, level);
   return user;
 }
 const buy = (user: TestUser, cosmeticId: string, purchaseId: string = randomUUID()) =>
   user.request('POST', '/v1/shop/purchases', { cosmeticId, purchaseId });
 const balanceOf = async (user: TestUser) => (await user.request('GET', '/v1/me')).json<{ balance: number }>().balance;
-const inventory = async (user: TestUser) =>
-  (await user.request('GET', '/v1/me/inventory')).json<{ items: { id: string; equipped: boolean }[] }>().items;
+const inventory = async (user: TestUser) => (await user.request('GET', '/v1/me/inventory')).json<{ items: { id: string }[] }>().items;
+const choose = (user: TestUser, characterId: string) => user.request('POST', '/v1/me/character', { characterId });
+const stats = async (user: TestUser) => (await user.request('GET', '/v1/me/stats')).json<{ level: number; played: number; wins: number; losses: number; draws: number }>();
 
-describe('tienda', () => {
-  it('el catálogo exige autenticación y lista los precios', async () => {
+describe('catálogo', () => {
+  it('exige autenticación y solo vende personajes, a los precios del dominio', async () => {
     expect((await app.inject({ method: 'GET', url: '/v1/shop/catalog' })).statusCode).toBe(401);
     const user = await userWith(0);
-    const { items } = (await user.request('GET', '/v1/shop/catalog')).json<{ items: { id: string; price: number }[] }>();
-    expect(items.find((item) => item.id === 'frame-ash')?.price).toBe(100);
+    const { items } = (await user.request('GET', '/v1/shop/catalog')).json<{ items: { id: string; price: number; kind: string }[] }>();
+    expect(items.every((item) => item.kind === 'character')).toBe(true);
+    expect(items.find((item) => item.id === `char-${STARTER_CHARACTER}`)).toBeUndefined();
+    for (const id of CHARACTER_IDS) {
+      if (id !== STARTER_CHARACTER) expect(items.find((item) => item.id === `char-${id}`)?.price).toBe(CHARACTER_PRICE[id]);
+    }
+    expect(items).toHaveLength(CHARACTER_IDS.length - 1);
+  });
+});
+
+describe('comprar un personaje', () => {
+  it('descuenta el precio del servidor y entrega el personaje', async () => {
+    const user = await userWith(1000, CHARACTER_LEVEL.sylwen);
+    const response = await buy(user, 'char-sylwen');
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ balance: 1000 - CHARACTER_PRICE.sylwen, duplicate: false });
+    expect((await inventory(user)).map((item) => item.id)).toEqual(['char-sylwen']);
   });
 
-  it('comprar descuenta el precio del servidor y entrega el artículo', async () => {
-    const user = await userWith(250);
-    const response = await buy(user, 'frame-ash');
-    expect(response.statusCode).toBe(200);
-    expect(response.json()).toMatchObject({ balance: 150, duplicate: false });
-    expect((await inventory(user)).map((item) => item.id)).toEqual(['frame-ash']);
+  it('necesita las dos cosas: con dinero pero sin nivel y con nivel pero sin dinero se rechaza sin cambiar nada', async () => {
+    const lowLevel = await userWith(5000, 1);
+    expect((await buy(lowLevel, 'char-sylwen')).json()).toMatchObject({ code: 'LEVEL_TOO_LOW' });
+    expect(await balanceOf(lowLevel)).toBe(5000);
+    expect(await inventory(lowLevel)).toEqual([]);
+
+    const broke = await userWith(CHARACTER_PRICE.sylwen - 1, CHARACTER_LEVEL.sylwen);
+    expect((await buy(broke, 'char-sylwen')).json()).toMatchObject({ code: 'INSUFFICIENT_FUNDS' });
+    expect(await balanceOf(broke)).toBe(CHARACTER_PRICE.sylwen - 1);
+    expect(await inventory(broke)).toEqual([]);
+  });
+
+  it('el nivel exigido crece con el personaje', async () => {
+    const user = await userWith(10_000, CHARACTER_LEVEL.borgrim);
+    expect((await buy(user, 'char-borgrim')).statusCode).toBe(200);
+    expect((await buy(user, 'char-morveth')).json()).toMatchObject({ code: 'LEVEL_TOO_LOW' });
   });
 
   it('el cliente no puede fijar el precio', async () => {
-    const user = await userWith(100);
-    const response = await user.request('POST', '/v1/shop/purchases', { cosmeticId: 'frame-ash', purchaseId: randomUUID(), price: 0 });
+    const user = await userWith(CHARACTER_PRICE.sylwen, CHARACTER_LEVEL.sylwen);
+    const response = await user.request('POST', '/v1/shop/purchases', { cosmeticId: 'char-sylwen', purchaseId: randomUUID(), price: 0 });
     if (response.statusCode === 200) expect(await balanceOf(user)).toBe(0);
     else expect(response.statusCode).toBe(400);
   });
 
-  it('sin saldo suficiente rechaza sin cambiar nada', async () => {
-    const user = await userWith(99);
-    expect((await buy(user, 'frame-ash')).json()).toMatchObject({ code: 'INSUFFICIENT_FUNDS' });
-    expect(await balanceOf(user)).toBe(99);
-    expect(await inventory(user)).toEqual([]);
-  });
-
   it('rechaza artículos inexistentes y repetidos', async () => {
-    const user = await userWith(500);
+    const user = await userWith(5000, 10);
     expect((await buy(user, 'no-existe')).statusCode).toBe(404);
-    await buy(user, 'frame-ash');
-    expect((await buy(user, 'frame-ash')).json()).toMatchObject({ code: 'ALREADY_OWNED' });
-    expect(await balanceOf(user)).toBe(400);
+    await buy(user, 'char-sylwen');
+    expect((await buy(user, 'char-sylwen')).json()).toMatchObject({ code: 'ALREADY_OWNED' });
+    expect(await balanceOf(user)).toBe(5000 - CHARACTER_PRICE.sylwen);
   });
 
-  it('reintentar con el mismo id no cobra dos veces, ni siquiera a la vez', async () => {
-    const user = await userWith(500);
+  it('reintentar con el mismo purchaseId nunca cobra dos veces', async () => {
+    const user = await userWith(5000, 10);
     const purchaseId = randomUUID();
-    const responses = await Promise.all(Array.from({ length: 10 }, () => buy(user, 'frame-ash', purchaseId)));
+    const responses = await Promise.all(Array.from({ length: 10 }, () => buy(user, 'char-sylwen', purchaseId)));
     expect(responses.every((response) => response.statusCode === 200)).toBe(true);
     expect(responses.filter((response) => !response.json<{ duplicate: boolean }>().duplicate)).toHaveLength(1);
-    expect(await balanceOf(user)).toBe(400);
+    expect(await balanceOf(user)).toBe(5000 - CHARACTER_PRICE.sylwen);
   });
 
-  it('compras simultáneas de artículos distintos nunca dejan saldo negativo', async () => {
-    const user = await userWith(250);
-    const items = ['frame-ash', 'emblem-brotherhood', 'wpn-dagger-2', 'wpn-dagger-3', 'cloak-frost', 'trail-embers'];
-    const responses = await Promise.all(items.map((item) => buy(user, item)));
+  it('compras simultáneas de personajes distintos nunca dejan saldo negativo', async () => {
+    const user = await userWith(CHARACTER_PRICE.sylwen + CHARACTER_PRICE.borgrim, 10);
+    const responses = await Promise.all(['char-sylwen', 'char-borgrim', 'char-aldric', 'char-vaela', 'char-morveth'].map((item) => buy(user, item)));
     const balance = await balanceOf(user);
     expect(balance).toBeGreaterThanOrEqual(0);
     expect(responses.some((response) => response.statusCode === 409)).toBe(true);
-    const { rows } = await db.pool.query<{ total: number }>(
-      `SELECT coalesce(sum(amount), 0)::int AS total FROM wallet_transactions WHERE user_id = $1`,
-      [user.id],
-    );
-    expect(250 + (rows[0]?.total ?? 0)).toBe(balance);
+    const { rows } = await db.pool.query<{ total: number }>(`SELECT coalesce(sum(amount), 0)::int AS total FROM wallet_transactions WHERE user_id = $1`, [user.id]);
+    expect(CHARACTER_PRICE.sylwen + CHARACTER_PRICE.borgrim + (rows[0]?.total ?? 0)).toBe(balance);
   });
 
-  it('el mismo artículo con ids distintos a la vez se compra una sola vez', async () => {
-    const user = await userWith(1000);
-    const responses = await Promise.all(Array.from({ length: 6 }, () => buy(user, 'frame-ash')));
+  it('el mismo personaje con ids distintos a la vez se compra una sola vez', async () => {
+    const user = await userWith(5000, 10);
+    const responses = await Promise.all(Array.from({ length: 6 }, () => buy(user, 'char-sylwen')));
     expect(responses.filter((response) => response.statusCode === 200)).toHaveLength(1);
-    expect(await balanceOf(user)).toBe(900);
-  });
-});
-
-describe('equipar', () => {
-  const equip = (user: TestUser, id: string, equipped: boolean) =>
-    user.request('POST', `/v1/me/inventory/${id}/equip`, { equipped });
-
-  it('solo se equipa lo propio y un artículo por tipo', async () => {
-    const user = await userWith(3000);
-    expect((await equip(user, 'wpn-dagger-2', true)).statusCode).toBe(404);
-    await buy(user, 'wpn-dagger-2');
-    await buy(user, 'wpn-dagger-3');
-    expect((await equip(user, 'wpn-dagger-2', true)).statusCode).toBe(204);
-    expect((await equip(user, 'wpn-dagger-3', true)).statusCode).toBe(204);
-    expect(await inventory(user)).toEqual([
-      expect.objectContaining({ id: 'wpn-dagger-2', equipped: false }),
-      expect.objectContaining({ id: 'wpn-dagger-3', equipped: true }),
-    ]);
-    expect((await equip(user, 'wpn-dagger-3', false)).statusCode).toBe(204);
+    expect(await balanceOf(user)).toBe(5000 - CHARACTER_PRICE.sylwen);
   });
 
   it('el inventario de otro usuario no se ve afectado', async () => {
-    const owner = await userWith(100);
+    const owner = await userWith(5000, 10);
     const other = await userWith(0);
-    await buy(owner, 'frame-ash');
+    await buy(owner, 'char-sylwen');
     expect(await inventory(other)).toEqual([]);
-    expect((await equip(other, 'frame-ash', true)).statusCode).toBe(404);
   });
 });
 
-describe('personajes y armas', () => {
-  const choose = (user: TestUser, characterId: string) => user.request('POST', '/v1/me/character', { characterId });
-
-  it('el catálogo replica los precios del dominio', async () => {
-    const user = await userWith(0);
-    const { items } = (await user.request('GET', '/v1/shop/catalog')).json<{ items: { id: string; price: number; kind: string }[] }>();
-    for (const id of CHARACTER_IDS) {
-      if (id === STARTER_CHARACTER) expect(items.find((item) => item.id === `char-${id}`)).toBeUndefined();
-      else expect(items.find((item) => item.id === `char-${id}`)).toMatchObject({ kind: 'character', price: CHARACTER_PRICE[id] });
-    }
-    for (const family of WEAPON_FAMILIES) {
-      for (const tier of ['_2', '_3', '_4'] as const) {
-        const weapon = WEAPONS[`${family}${tier}`];
-        expect(items.find((item) => item.id === `wpn-${family}-${tier.slice(1)}`)).toMatchObject({ kind: `weapon_${family}`, price: weapon.price });
-      }
-    }
-  });
-
-  it('se empieza solo con el inicial: los demás se eligen únicamente tras comprarlos', async () => {
-    const user = await userWith(2000);
+describe('elegir personaje', () => {
+  it('se empieza solo con el inicial y los demás se eligen únicamente tras comprarlos', async () => {
+    const user = await userWith(5000, CHARACTER_LEVEL.sylwen);
     expect((await choose(user, STARTER_CHARACTER)).statusCode).toBe(204);
     expect((await choose(user, 'sylwen')).json()).toMatchObject({ code: 'CHARACTER_NOT_OWNED' });
     expect((await user.request('GET', '/v1/me')).json<{ characterId: string }>().characterId).toBe(STARTER_CHARACTER);
@@ -154,31 +134,24 @@ describe('personajes y armas', () => {
     expect((await user.request('GET', '/v1/me')).json<{ characterId: string }>().characterId).toBe('sylwen');
   });
 
-  it('el cliente no puede elegir un personaje inexistente', async () => {
+  it('el cliente no puede elegir un personaje inexistente ni un monstruo', async () => {
     const user = await userWith(0);
     expect((await choose(user, 'dragon')).statusCode).toBe(400);
+    expect((await choose(user, 'golem')).statusCode).toBe(400);
+  });
+});
+
+describe('nivel y estadísticas', () => {
+  it('un jugador nuevo es de nivel 1 sin partidas', async () => {
+    const user = await userWith(0);
+    expect(await stats(user)).toMatchObject({ level: 1, played: 0, wins: 0, losses: 0, draws: 0 });
   });
 
-  it('la partida usa el arma equipada de la familia del personaje y descarta las de otra', async () => {
-    const [a, b] = [await userWith(5000), await userWith(5000)];
-    await buy(a, 'wpn-dagger-3');
-    await buy(a, 'wpn-bow-3');
-    await a.request('POST', '/v1/me/inventory/wpn-dagger-3/equip', { equipped: true });
-    await a.request('POST', '/v1/me/inventory/wpn-bow-3/equip', { equipped: true });
-    const client = await db.pool.connect();
-    let matchId: string;
-    try {
-      matchId = await createMatchInTransaction(client, [a.id, b.id], Date.now());
-    } finally {
-      client.release();
-    }
-    const { rows } = await db.pool.query<{ payload: { setup: { players: { playerId: string; weaponId?: string }[] } } }>(
-      `SELECT payload FROM match_events WHERE match_id = $1 AND seq = 1`,
-      [matchId],
-    );
-    const players = rows[0]?.payload.setup.players ?? [];
-    // a es Edrik (dagas): la daga especial cuenta, el arco equipado no.
-    expect(players.find((player) => player.playerId === a.id)?.weaponId).toBe('dagger_3');
-    expect(players.find((player) => player.playerId === b.id)?.weaponId).toBeUndefined();
+  it('el nivel sube con las victorias reales y las cifras cuadran', async () => {
+    const user = await userWith(0, 5);
+    const result = await stats(user);
+    expect(result.level).toBeGreaterThanOrEqual(5);
+    expect(result.wins).toBe(result.played);
+    expect(result.wins + result.losses + result.draws).toBe(result.played);
   });
 });

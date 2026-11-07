@@ -11,8 +11,7 @@ import {
 } from './physics.js';
 import type { ActionId, MatchId, PlayerId, RandomSource, Vec2 } from './types.js';
 import { defaultWeapon, type FighterId } from './monsters.js';
-import { FURY_FACTOR, VITAL_HEAL, WARD_FACTOR, isPotionId, type PotionId } from './potions.js';
-import { computeDamage, effectTotal, isWeaponId, MAX_DAMAGE_PER_SHOT, WEAPONS, type HitZone, type WeaponEffect, type WeaponId } from './weapons.js';
+import { computeDamage, effectTotal, isWeaponId, WEAPONS, type HitZone, type WeaponEffect, type WeaponId } from './weapons.js';
 
 export const ANGLE_RANGE = { min: 0, max: 90 } as const;
 export const POWER_RANGE = { min: 10, max: 100 } as const;
@@ -40,8 +39,6 @@ export interface PlayerSetup {
   /** Fijados al empezar. Ausentes en partidas anteriores a este cambio. */
   readonly characterId?: FighterId;
   readonly displayName?: string;
-  /** Pociones que lleva a la partida, ya descontadas de su inventario. */
-  readonly potions?: readonly PotionId[];
   /** Arma equipada de la familia de su personaje, fijada al empezar. Ausente: la común. */
   readonly weaponId?: WeaponId;
 }
@@ -91,13 +88,6 @@ export type EventPayload =
       /** Dónde queda el impactado tras retroceder. Ausente en partidas anteriores: no se movía. */
       readonly targetPosition?: Vec2;
     }
-  | {
-      readonly type: 'potion_used';
-      readonly actionId: ActionId;
-      readonly playerId: PlayerId;
-      readonly potionId: PotionId;
-      readonly hpAfter: number;
-    }
   | { readonly type: 'turn_timed_out'; readonly playerId: PlayerId }
   | { readonly type: 'turn_started'; readonly playerId: PlayerId; readonly round: number; readonly deadlineMs: number }
   | { readonly type: 'player_disconnected'; readonly playerId: PlayerId; readonly graceDeadlineMs: number }
@@ -115,10 +105,6 @@ export interface PlayerState {
   readonly hp: number;
   /** Posición actual: parte de la de aparición y cambia con cada impacto recibido. */
   readonly position: Vec2;
-  /** Pociones sin usar. */
-  readonly potions: readonly PotionId[];
-  /** Efectos activos: se consumen con el siguiente disparo (furia y ojo de halcón) o golpe recibido (piel de piedra). */
-  readonly buffs: { readonly ward: boolean; readonly fury: boolean; readonly focus: boolean };
   readonly connected: boolean;
   readonly graceDeadlineMs: number | null;
   readonly consecutiveTimeouts: number;
@@ -155,14 +141,6 @@ export type MatchCommand =
       readonly power: number;
       readonly nowMs: number;
     }
-  | {
-      readonly type: 'use_potion';
-      readonly playerId: PlayerId;
-      readonly actionId: ActionId;
-      readonly expectedVersion: number;
-      readonly potionId: string;
-      readonly nowMs: number;
-    }
   | { readonly type: 'turn_timeout'; readonly expectedVersion: number; readonly nowMs: number }
   | { readonly type: 'player_disconnected'; readonly playerId: PlayerId; readonly nowMs: number }
   | { readonly type: 'player_reconnected'; readonly playerId: PlayerId; readonly nowMs: number }
@@ -179,7 +157,6 @@ export type MatchErrorCode =
   | 'INVALID_WEAPON'
   | 'INVALID_ANGLE'
   | 'INVALID_POWER'
-  | 'POTION_NOT_AVAILABLE'
   | 'ACTION_ID_CONFLICT'
   | 'GRACE_NOT_EXPIRED'
   | 'PLAYER_CONNECTED';
@@ -199,7 +176,7 @@ export interface CreateSetupInput {
   readonly playerIds: readonly [PlayerId, PlayerId];
   readonly config?: MatchConfig;
   /** Por jugador; quien no aparezca juega como Edrik. */
-  readonly profiles?: Readonly<Record<PlayerId, { readonly characterId: FighterId; readonly displayName: string; readonly weaponId?: WeaponId; readonly potions?: readonly PotionId[] }>>;
+  readonly profiles?: Readonly<Record<PlayerId, { readonly characterId: FighterId; readonly displayName: string; readonly weaponId?: WeaponId }>>;
 }
 
 /** Arena, posiciones, viento y primer jugador los decide siempre el servidor. */
@@ -259,8 +236,6 @@ export function initialState(event: MatchEvent): MatchState {
     playerId: player.playerId,
     hp: setup.config.startingHp,
     position: player.position,
-    potions: player.potions ?? [],
-    buffs: { ward: false, fury: false, focus: false },
     connected: true,
     graceDeadlineMs: null,
     consecutiveTimeouts: 0,
@@ -306,46 +281,14 @@ export function evolve(state: MatchState, event: MatchEvent): MatchState {
         ...base,
         version: state.version + 1,
         players: updatePlayer(
-          // El disparo gasta la furia y el ojo de halcón, acierte o no.
-          updatePlayer(state.players, payload.shooterId, (player) => ({
-            ...player,
-            consecutiveTimeouts: 0,
-            buffs: { ...player.buffs, fury: false, focus: false },
-          })),
+          updatePlayer(state.players, payload.shooterId, (player) => ({ ...player, consecutiveTimeouts: 0 })),
           opponentOf(state, payload.shooterId).playerId,
-          (player) => ({
-            ...player,
-            hp: payload.targetHpAfter,
-            position: payload.targetPosition ?? player.position,
-            // La piel de piedra se gasta con el primer daño que recibe.
-            buffs: payload.damage > 0 ? { ...player.buffs, ward: false } : player.buffs,
-          }),
+          (player) => ({ ...player, hp: payload.targetHpAfter, position: payload.targetPosition ?? player.position }),
         ),
         appliedActions: [
           ...state.appliedActions,
           { actionId: payload.actionId, playerId: payload.shooterId, seq: event.seq },
         ],
-      };
-    case 'potion_used':
-      return {
-        ...base,
-        version: state.version + 1,
-        players: updatePlayer(state.players, payload.playerId, (player) => {
-          const index = player.potions.indexOf(payload.potionId);
-          const potions = index < 0 ? player.potions : [...player.potions.slice(0, index), ...player.potions.slice(index + 1)];
-          return {
-            ...player,
-            potions,
-            consecutiveTimeouts: 0,
-            hp: payload.potionId === 'vital' ? payload.hpAfter : player.hp,
-            buffs: {
-              ward: player.buffs.ward || payload.potionId === 'ward',
-              fury: player.buffs.fury || payload.potionId === 'fury',
-              focus: player.buffs.focus || payload.potionId === 'focus',
-            },
-          };
-        }),
-        appliedActions: [...state.appliedActions, { actionId: payload.actionId, playerId: payload.playerId, seq: event.seq }],
       };
     case 'turn_timed_out':
       return {
@@ -488,7 +431,6 @@ function decideShoot(state: MatchState, command: Extract<MatchCommand, { type: '
   // Solo el arma equipada de su familia: no puede llevar otro tipo de arma ni una que no tenga.
   if (shooter.characterId !== undefined && (shooter.weaponId ?? defaultWeapon(shooter.characterId)) !== weapon.id) return rejected('INVALID_WEAPON');
   const opponent = opponentOf(state, playerId);
-  const shooterState = findPlayer(state, playerId);
   const shooterPosition = opponentOf(state, opponent.playerId).position;
   const targetBox = playerHitbox(opponent.position);
   const outcome = simulateShot({
@@ -497,18 +439,13 @@ function decideShoot(state: MatchState, command: Extract<MatchCommand, { type: '
     angleDeg: command.angleDeg,
     power: command.power,
     weapon,
-    windAccel: shooterState?.buffs.focus === true ? 0 : state.setup.windAccel,
+    windAccel: state.setup.windAccel,
     arena: ARENAS[state.setup.arenaId],
     target: targetBox,
   });
   const zone = outcome.impactKind === 'player' ? hitZone(outcome.impact, targetBox) : null;
-  const rawDamage = zone === null ? 0 : computeDamage(weapon, command.power, zone);
-  const boosted = shooterState?.buffs.fury === true && rawDamage > 0 ? Math.min(MAX_DAMAGE_PER_SHOT, Math.round(rawDamage * FURY_FACTOR)) : rawDamage;
-  const warded = opponent.buffs.ward && boosted > 0;
-  const damage = warded ? Math.max(1, Math.round(boosted * WARD_FACTOR)) : boosted;
-  const baseEffect = damage > 0 ? weapon.effect : undefined;
-  const effect: WeaponEffect | undefined =
-    baseEffect !== undefined && warded ? { ...baseEffect, perSecond: Math.max(1, Math.round(baseEffect.perSecond * WARD_FACTOR)) } : baseEffect;
+  const damage = zone === null ? 0 : computeDamage(weapon, command.power, zone);
+  const effect: WeaponEffect | undefined = damage > 0 ? weapon.effect : undefined;
   const targetPosition =
     damage > 0
       ? applyKnockback(opponent.position, setupOf(state, opponent.playerId).facing, damage, ARENAS[state.setup.arenaId])
@@ -535,37 +472,9 @@ function decideShoot(state: MatchState, command: Extract<MatchCommand, { type: '
   );
 }
 
-function decideUsePotion(state: MatchState, command: Extract<MatchCommand, { type: 'use_potion' }>): Decision {
-  const { playerId, actionId, nowMs } = command;
-  const player = findPlayer(state, playerId);
-  if (player === undefined) return rejected('NOT_A_PARTICIPANT');
-
-  const previous = state.appliedActions.find((action) => action.actionId === actionId);
-  if (previous !== undefined) {
-    return previous.playerId === playerId ? { kind: 'duplicate', seq: previous.seq } : rejected('ACTION_ID_CONFLICT');
-  }
-
-  if (state.turn === null) return rejected('MATCH_FINISHED');
-  if (state.turn.playerId !== playerId) return rejected('NOT_YOUR_TURN');
-  if (command.expectedVersion !== state.version) return rejected('STALE_VERSION');
-  if (nowMs >= state.turn.deadlineMs) return rejected('TURN_EXPIRED');
-  // Solo las que lleva a la partida: el servidor no cree en lo que el cliente dice tener.
-  if (!isPotionId(command.potionId) || !player.potions.includes(command.potionId)) return rejected('POTION_NOT_AVAILABLE');
-
-  const hpAfter = command.potionId === 'vital' ? Math.min(state.setup.config.startingHp, player.hp + VITAL_HEAL) : player.hp;
-  // Usar una poción ocupa el turno, igual que disparar.
-  return emit(
-    state,
-    nowMs,
-    { type: 'potion_used', actionId, playerId, potionId: command.potionId, hpAfter },
-    (after) => followUp(after, playerId, nowMs),
-  );
-}
-
 /** Función pura de decisión: estado + intención producen eventos, o un rechazo tipado que no altera la partida. */
 export function decide(state: MatchState, command: MatchCommand): Decision {
   if (command.type === 'shoot') return decideShoot(state, command);
-  if (command.type === 'use_potion') return decideUsePotion(state, command);
   if (state.status === 'finished') return rejected('MATCH_FINISHED');
 
   const { nowMs } = command;

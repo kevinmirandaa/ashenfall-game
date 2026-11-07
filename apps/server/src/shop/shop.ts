@@ -1,16 +1,16 @@
 import { randomUUID } from 'node:crypto';
+import { CHARACTER_LEVEL, isCharacterId } from '@ashenfall/domain';
 import { Type, type Static } from '@sinclair/typebox';
 import type { FastifyInstance } from 'fastify';
 import type pg from 'pg';
 import type { AuthService } from '../auth/auth-service.js';
 import { inTransaction } from '../db/transaction.js';
+import { loadStats } from '../matches/stats.js';
 import { ProblemError } from '../problem.js';
 
 const CosmeticId = Type.String({ pattern: '^[a-z0-9-]{1,64}$' });
 // El cliente no envía precio: solo qué quiere y un id para reintentar sin pagar dos veces.
 const Purchase = Type.Object({ cosmeticId: CosmeticId, purchaseId: Type.String({ format: 'uuid' }) }, { additionalProperties: false });
-const EquipParams = Type.Object({ cosmeticId: CosmeticId });
-const Equip = Type.Object({ equipped: Type.Boolean() }, { additionalProperties: false });
 
 export interface PurchaseResult {
   readonly cosmeticId: string;
@@ -38,6 +38,11 @@ export class ShopService {
 
       const owned = await client.query('SELECT 1 FROM player_cosmetics WHERE user_id = $1 AND cosmetic_id = $2', [userId, cosmeticId]);
       if ((owned.rowCount ?? 0) > 0) throw new ProblemError(409, 'ALREADY_OWNED', 'Ya tienes este artículo');
+      // Un personaje exige nivel además de dinero: ninguna de las dos cosas basta por sí sola.
+      const hero = cosmeticId.startsWith('char-') ? cosmeticId.slice(5) : '';
+      if (isCharacterId(hero) && (await loadStats(client, userId)).level < CHARACTER_LEVEL[hero]) {
+        throw new ProblemError(403, 'LEVEL_TOO_LOW', `Necesitas el nivel ${String(CHARACTER_LEVEL[hero])} para este personaje`);
+      }
       if (balance < price) throw new ProblemError(409, 'INSUFFICIENT_FUNDS', 'No tienes suficientes Marcas de Ceniza');
 
       await client.query(
@@ -47,27 +52,6 @@ export class ShopService {
       await client.query('UPDATE wallets SET balance = balance - $1 WHERE user_id = $2', [price, userId]);
       await client.query('INSERT INTO player_cosmetics (user_id, cosmetic_id) VALUES ($1, $2)', [userId, cosmeticId]);
       return { cosmeticId, balance: balance - price, duplicate: false };
-    });
-  }
-
-  /** Solo un artículo equipado por tipo. */
-  async setEquipped(userId: string, cosmeticId: string, equipped: boolean): Promise<void> {
-    await inTransaction(this.pool, async (client) => {
-      const owned = await client.query<{ kind: string }>(
-        `SELECT c.kind FROM player_cosmetics p JOIN cosmetic_catalog c ON c.id = p.cosmetic_id
-         WHERE p.user_id = $1 AND p.cosmetic_id = $2 FOR UPDATE OF p`,
-        [userId, cosmeticId],
-      );
-      const kind = owned.rows[0]?.kind;
-      if (kind === undefined) throw new ProblemError(404, 'COSMETIC_NOT_OWNED', 'No tienes este artículo');
-      if (equipped) {
-        await client.query(
-          `UPDATE player_cosmetics p SET equipped = false FROM cosmetic_catalog c
-           WHERE c.id = p.cosmetic_id AND p.user_id = $1 AND c.kind = $2`,
-          [userId, kind],
-        );
-      }
-      await client.query('UPDATE player_cosmetics SET equipped = $1 WHERE user_id = $2 AND cosmetic_id = $3', [equipped, userId, cosmeticId]);
     });
   }
 }
@@ -88,21 +72,11 @@ export function registerShopRoutes(app: FastifyInstance, auth: AuthService, pool
 
   app.get('/v1/me/inventory', async (request) => {
     const { userId } = await auth.authenticate(request.headers.authorization);
-    const { rows } = await pool.query<{ id: string; name: string; kind: string; equipped: boolean }>(
-      `SELECT c.id, c.name, c.kind, p.equipped FROM player_cosmetics p JOIN cosmetic_catalog c ON c.id = p.cosmetic_id
+    const { rows } = await pool.query<{ id: string; name: string; kind: string }>(
+      `SELECT c.id, c.name, c.kind FROM player_cosmetics p JOIN cosmetic_catalog c ON c.id = p.cosmetic_id
        WHERE p.user_id = $1 ORDER BY c.id`,
       [userId],
     );
     return { items: rows };
   });
-
-  app.post<{ Params: Static<typeof EquipParams>; Body: Static<typeof Equip> }>(
-    '/v1/me/inventory/:cosmeticId/equip',
-    { schema: { params: EquipParams, body: Equip } },
-    async (request, reply) => {
-      const { userId } = await auth.authenticate(request.headers.authorization);
-      await shop.setEquipped(userId, request.params.cosmeticId, request.body.equipped);
-      return reply.code(204).send();
-    },
-  );
 }
