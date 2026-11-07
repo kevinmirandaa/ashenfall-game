@@ -16,7 +16,7 @@ import { ProblemError } from '../problem.js';
 import { botThinkMs } from './bots.js';
 import { WIN_REWARD } from './event-store.js';
 
-/** Azar criptográficamente seguro para arena, posiciones, viento y primer turno. */
+/** Azar criptográficamente seguro para arena, obstáculos, posiciones y primer turno. */
 export const cryptoRandom: RandomSource = { intBelow: (exclusiveMax) => randomInt(exclusiveMax) };
 
 export interface BotMatch {
@@ -69,6 +69,8 @@ export async function createMatchInTransaction(
       first.atMs,
       JSON.stringify(first.payload),
     ]);
+    // Quien empieza una partida (sala, cola o bot) deja de esperar en la cola rápida.
+    await client.query('DELETE FROM matchmaking_queue WHERE user_id = ANY($1::uuid[])', [[...playerIds]]);
   } catch (error) {
     if (isUniqueViolation(error, 'match_players_one_active')) {
       throw new ProblemError(409, 'ALREADY_IN_MATCH', 'Un jugador ya está en una partida activa');

@@ -88,6 +88,23 @@ describe('emparejamiento', () => {
     expect(await join(b)).toMatchObject({ status: 'queued' });
   });
 
+  it('quien empieza una partida contra un monstruo sale de la cola y no bloquea a los demás', async () => {
+    const a = await registerUser(app);
+    const b = await registerUser(app);
+    const c = await registerUser(app);
+    await join(a);
+    expect((await a.request('POST', '/v1/matches/bot', { level: 1 })).statusCode).toBe(201);
+    const { rows } = await db.pool.query('SELECT 1 FROM matchmaking_queue WHERE user_id = $1', [a.id]);
+    expect(rows).toHaveLength(0);
+    // Aunque quede una entrada vieja de alguien que ya juega, la cola la salta en lugar de responder 409.
+    await db.pool.query(`INSERT INTO matchmaking_queue (user_id, expires_at) VALUES ($1, now() + interval '1 minute')`, [a.id]);
+    expect(await join(b)).toMatchObject({ status: 'queued' });
+    const matched = await join(c);
+    if (matched.status !== 'matched') throw new Error('Debía emparejar con b');
+    const players = await db.pool.query<{ user_id: string }>('SELECT user_id FROM match_players WHERE match_id = $1', [matched.matchId]);
+    expect(players.rows.map((row) => row.user_id).sort()).toEqual([b.id, c.id].sort());
+  });
+
   it('quien está en una sala no puede entrar en la cola, y entrar a una sala lo saca de ella', async () => {
     const a = await registerUser(app);
     const b = await registerUser(app);
