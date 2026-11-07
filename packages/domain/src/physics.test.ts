@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { ARENAS, ARENA_IDS, type ArenaDefinition } from './arenas.js';
 import {
   applyKnockback,
+  HEAD_FROM,
+  LEGS_BELOW,
   muzzlePosition,
   playerHitbox,
   segmentEntryFraction,
@@ -263,5 +265,28 @@ describe('applyKnockback', () => {
 
   it('es determinista', () => {
     expect(applyKnockback(start, 1, 17, ARENAS.frostlands)).toEqual(applyKnockback(start, 1, 17, ARENAS.frostlands));
+  });
+});
+
+describe('zonas de impacto', () => {
+  const box = playerHitbox({ x: 1000, y: 0 });
+  const at = (fraction: number) => hitZone({ x: 1000, y: box.y + box.height * fraction }, box);
+
+  it('la cabeza es una franja mínima en lo alto', () => {
+    expect(at(0.95)).toBe('head');
+    expect(at(0.9)).toBe('head');
+    expect(HEAD_FROM).toBeGreaterThanOrEqual(0.85);
+  });
+
+  it('el centro del personaje es el torso, no la cabeza', () => {
+    expect(at(0.5)).toBe('body');
+    expect(at(0.7)).toBe('body');
+    expect(at(0.8)).toBe('body');
+  });
+
+  it('la parte baja son las piernas', () => {
+    expect(at(0.1)).toBe('legs');
+    expect(at(0.35)).toBe('legs');
+    expect(at(LEGS_BELOW)).toBe('body');
   });
 });

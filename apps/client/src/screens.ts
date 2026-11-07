@@ -1,4 +1,5 @@
 /** Pueblo y paneles. Todo precio, saldo y propiedad viene del servidor; el cliente solo los presenta. */
+import { audio } from './audio.js';
 import type { ArenaId } from '@ashenfall/domain';
 import { baseLook, bodyFilter, CHARACTERS, icon, iconUrl, type CharacterId, type IconName, type Look } from './art.js';
 import { BIOME_NAMES } from './biomes.js';
@@ -205,6 +206,7 @@ export async function openShop(title: string, subtitle: string, kinds: readonly 
         actions.setBalance(result.balance);
         owned = (await actions.session.call<{ items: OwnedItem[] }>('GET', '/v1/me/inventory')).items;
         actions.refreshLook(owned);
+        audio.sfx('buy');
         actions.notify(`Has comprado ${current.name}.`);
         render();
       });

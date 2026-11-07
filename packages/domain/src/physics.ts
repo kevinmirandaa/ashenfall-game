@@ -3,7 +3,7 @@ import type { Rect, Vec2 } from './types.js';
 import type { HitZone, WeaponProfile } from './weapons.js';
 
 /** Sube si cambia cualquier constante: el cliente la compara para saber si su guía sigue siendo válida. */
-export const PHYSICS_VERSION = 3;
+export const PHYSICS_VERSION = 4;
 
 export const GRAVITY = 900;
 export const STEP_SECONDS = 1 / 60;
@@ -12,8 +12,8 @@ export const PATH_SAMPLE_EVERY_STEPS = 6;
 export const OUT_OF_BOUNDS_MARGIN = 200;
 
 /** Hitbox lógica idéntica para todos los personajes: la apariencia nunca cambia las colisiones. */
-export const PLAYER_HITBOX = { width: 48, height: 96 } as const;
-export const MUZZLE_OFFSET = { forward: 28, up: 72 } as const;
+export const PLAYER_HITBOX = { width: 48, height: 140 } as const;
+export const MUZZLE_OFFSET = { forward: 28, up: 92 } as const;
 
 export type Facing = 1 | -1;
 export type ImpactKind = 'player' | 'obstacle' | 'ground' | 'out_of_bounds';
@@ -46,11 +46,16 @@ export function playerHitbox(position: Vec2): Rect {
   };
 }
 
-/** Zona según la altura del impacto: cabeza el cuarto superior, piernas el tercio inferior. */
+/** Fracción de la altura del dibujo, medida desde los pies, a partir de la cual el impacto es en la cabeza. */
+export const HEAD_FROM = 0.87;
+/** Por debajo de esta fracción el impacto es en las piernas. */
+export const LEGS_BELOW = 0.4;
+
+/** Zona según la altura del impacto: una franja mínima arriba es la cabeza, luego el torso y las piernas. */
 export function hitZone(impact: Vec2, target: Rect): HitZone {
   const height = (impact.y - target.y) / target.height;
-  if (height >= 0.75) return 'head';
-  return height < 1 / 3 ? 'legs' : 'body';
+  if (height >= HEAD_FROM) return 'head';
+  return height < LEGS_BELOW ? 'legs' : 'body';
 }
 
 /** Unidades que retrocede un personaje por cada punto de daño recibido. */
