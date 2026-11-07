@@ -58,6 +58,10 @@ let inMatch = false;
 let pendingResult: PlayerMatchView['result'] = null;
 let lastSeq = 0;
 let awaitingAck = false;
+/** Número de evento con el que el servidor confirmó mi última jugada, mientras no lo haya procesado. */
+let ackSeq: number | null = null;
+/** La próxima instantánea debe reconstruir la arena (se volvió a la pestaña o la animación se atascó). */
+let resyncPending = false;
 let balanceAtMatchStart = 0;
 let toastTimer = 0;
 let introActive = false;
@@ -82,7 +86,28 @@ function syncLoop(): void {
 document.addEventListener('visibilitychange', () => {
   // Phaser reanuda su bucle al volver a la pestaña; aquí se mantiene dormido si no hay partida.
   window.setTimeout(syncLoop, 0);
+  // Con la pestaña oculta el navegador frena animaciones y temporizadores: al volver tras un rato se pide el estado real.
+  if (document.hidden) {
+    hiddenAt = Date.now();
+  } else if (hiddenAt !== 0 && Date.now() - hiddenAt > 1500) {
+    hiddenAt = 0;
+    requestResync();
+  }
 });
+let hiddenAt = 0;
+
+/** Pide al servidor el estado actual de la partida y reconstruye la arena con él. Más de una vez por segundo no hace falta. */
+let lastResyncAt = 0;
+function requestResync(): void {
+  if (!inMatch || view === null || view.status !== 'in_progress') return;
+  const now = Date.now();
+  if (now - lastResyncAt < 1000) return;
+  lastResyncAt = now;
+  resyncPending = true;
+  void socket?.ensureConnected().then(() => {
+    if (view !== null) socket?.send({ type: 'sync', matchId: view.matchId });
+  });
+}
 
 // ---------- Avisos y errores ----------
 function notify(message: string): void {
@@ -372,12 +397,19 @@ function showTown(): void {
   };
   el('settings').addEventListener('click', () => {
     openModal('Ajustes', profile.displayName, `<div class="stack">
-      <label class="slider">Música <input type="range" id="vol-music" min="0" max="100" value="${String(Math.round(audio.music * 100))}" /></label>
-      <label class="slider">Efectos <input type="range" id="vol-sfx" min="0" max="100" value="${String(Math.round(audio.sfxVolume * 100))}" /></label>
+      <label class="slider">Música <input type="range" id="vol-music" min="0" max="100" value="${String(Math.round(audio.music * 100))}" style="--fill:${String(Math.round(audio.music * 100))}%" /></label>
+      <label class="slider">Efectos <input type="range" id="vol-sfx" min="0" max="100" value="${String(Math.round(audio.sfxVolume * 100))}" style="--fill:${String(Math.round(audio.sfxVolume * 100))}%" /></label>
       <button id="logout">Cerrar sesión</button></div>`);
+    // El relleno azul de cada barra sigue al control mientras se arrastra.
+    const fillTo = (input: HTMLInputElement): void => {
+      input.style.setProperty('--fill', `${input.value}%`);
+    };
     el<HTMLInputElement>('vol-music').addEventListener('input', (event) => {
-      audio.setVolumes({ music: Number((event.currentTarget as HTMLInputElement).value) / 100 });
+      const input = event.currentTarget as HTMLInputElement;
+      fillTo(input);
+      audio.setVolumes({ music: Number(input.value) / 100 });
     });
+    el<HTMLInputElement>('vol-sfx').addEventListener('input', (event) => fillTo(event.currentTarget as HTMLInputElement));
     el<HTMLInputElement>('vol-sfx').addEventListener('change', (event) => {
       audio.setVolumes({ sfx: Number((event.currentTarget as HTMLInputElement).value) / 100 });
       audio.sfx('coin');
@@ -503,13 +535,18 @@ async function searchMatch(): Promise<void> {
 function onServerMessage(message: ServerMessage): void {
   switch (message.type) {
     case 'snapshot':
-      if (message.view.status === 'in_progress') beginMatch(message.view, false);
+      if (message.view.status !== 'in_progress') break;
+      // Tras volver a la pestaña, un hueco de secuencia o una cola atascada, el estado del servidor manda: se reconstruye la arena.
+      beginMatch(message.view, false, resyncPending || (inMatch && view?.matchId === message.view.matchId && message.view.seq !== lastSeq));
+      resyncPending = false;
       break;
     case 'event':
       onMatchEvent(message.matchId, message.event.seq, message.event.payload);
       break;
     case 'ack':
-      awaitingAck = false;
+      // El aviso puede llegar antes que el resultado de la jugada: hasta que este se procese no se puede volver a apuntar.
+      ackSeq = message.seq;
+      awaitingAck = lastSeq < message.seq;
       refreshHud();
       break;
     case 'error':
@@ -523,17 +560,21 @@ function onServerMessage(message: ServerMessage): void {
   }
 }
 
-function beginMatch(next: PlayerMatchView, intro: boolean): void {
-  const fresh = intro || !inMatch || view?.matchId !== next.matchId;
+function beginMatch(next: PlayerMatchView, intro: boolean, rebuild = false): void {
+  const isNewMatch = intro || !inMatch || view?.matchId !== next.matchId;
+  const fresh = isNewMatch || rebuild;
   view = next;
   lastSeq = next.seq;
   pendingResult = null;
   awaitingAck = false;
+  ackSeq = null;
   shownHp = { you: next.you.hp, rival: next.opponent.hp };
   if (fresh) {
-    audio.setScene('battle');
-    audio.sfx('match_start');
-    balanceAtMatchStart = profile.balance;
+    if (isNewMatch) {
+      audio.setScene('battle');
+      audio.sfx('match_start');
+      balanceAtMatchStart = profile.balance;
+    }
     inMatch = true;
     stopRoomPoll();
     window.clearTimeout(searchTimeout);
@@ -565,6 +606,10 @@ function onMatchEvent(matchId: string, seq: number, payload: PlayerEventPayload)
     return;
   }
   lastSeq = seq;
+  if (awaitingAck && ackSeq !== null && seq >= ackSeq) {
+    awaitingAck = false;
+    ackSeq = null;
+  }
   view = applyToView(view, seq, payload);
   arena.updateView(view);
   arena.applyEvent(payload);
@@ -754,6 +799,20 @@ arena.setHooks({
     if (node !== null) node.hidden = !introActive;
   },
 });
+
+/** Si una animación lleva demasiado atascada (ventana tapada, pestaña dormida), se descarta y se recupera el estado real. */
+let busySince = 0;
+window.setInterval(() => {
+  if (!inMatch || !arena.busy) {
+    busySince = 0;
+    return;
+  }
+  busySince ||= Date.now();
+  if (Date.now() - busySince > 15_000) {
+    busySince = 0;
+    requestResync();
+  }
+}, 1000);
 
 window.setInterval(() => {
   if (view?.turn === null || view === null || !inMatch) return;
