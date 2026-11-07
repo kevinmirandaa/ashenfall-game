@@ -1,0 +1,114 @@
+{
+  "label": "",
+  "url": "http://127.0.0.1:8080",
+  "thinkMs": 100,
+  "shotsPerMatch": 20,
+  "date": "2026-11-07T10:22:29.645Z",
+  "results": [
+    {
+      "matches": 200,
+      "matchesStarted": 200,
+      "connections": 400,
+      "shotsSent": 4000,
+      "shotsConfirmed": 4000,
+      "lost": 0,
+      "duplicatedOrGapped": 0,
+      "errors": 0,
+      "errorRate": 0,
+      "errorKinds": {},
+      "shotsPerSecond": 1531.13547275328,
+      "latencyMs": {
+        "p50": 8.030667000000903,
+        "p95": 108.03083399999923,
+        "p99": 156.74591699999837,
+        "max": 161.5883329999997
+      },
+      "bytesPerMessage": 353.26567307692306,
+      "setupSeconds": 9.845247292,
+      "playSeconds": 2.612440290999999,
+      "cpuPercentAvg": 45.745,
+      "dbCpuPercentAvg": 85.3,
+      "loginStorm": {
+        "sent": 0,
+        "ok": 0,
+        "busy": 0,
+        "limited": 0,
+        "other": 0
+      },
+      "memoryMbIdle": 47.45,
+      "memoryMbMax": 75.58,
+      "cpuPercentPerMatch": 0.22872499999999998,
+      "memoryMbPerMatch": 0.14064999999999997
+    },
+    {
+      "matches": 400,
+      "matchesStarted": 400,
+      "connections": 800,
+      "shotsSent": 8000,
+      "shotsConfirmed": 8000,
+      "lost": 0,
+      "duplicatedOrGapped": 0,
+      "errors": 0,
+      "errorRate": 0,
+      "errorKinds": {},
+      "shotsPerSecond": 1753.902840451416,
+      "latencyMs": {
+        "p50": 119.53254100000049,
+        "p95": 179.85025000000314,
+        "p99": 195.65320899999642,
+        "max": 202.8195410000044
+      },
+      "bytesPerMessage": 354.1042788461538,
+      "setupSeconds": 16.553585666999997,
+      "playSeconds": 4.561256083,
+      "cpuPercentAvg": 96.735,
+      "dbCpuPercentAvg": 59.44,
+      "loginStorm": {
+        "sent": 0,
+        "ok": 0,
+        "busy": 0,
+        "limited": 0,
+        "other": 0
+      },
+      "memoryMbIdle": 76.18,
+      "memoryMbMax": 83.67,
+      "cpuPercentPerMatch": 0.2418375,
+      "memoryMbPerMatch": 0.018724999999999988
+    },
+    {
+      "matches": 800,
+      "matchesStarted": 800,
+      "connections": 1600,
+      "shotsSent": 16000,
+      "shotsConfirmed": 16000,
+      "lost": 0,
+      "duplicatedOrGapped": 0,
+      "errors": 0,
+      "errorRate": 0,
+      "errorKinds": {},
+      "shotsPerSecond": 1838.9895056743212,
+      "latencyMs": {
+        "p50": 314.9213749999908,
+        "p95": 423.7353329999896,
+        "p99": 459.82941700000083,
+        "max": 487.9097499999916
+      },
+      "bytesPerMessage": 353.7218028846154,
+      "setupSeconds": 32.689360832999995,
+      "playSeconds": 8.70043029100001,
+      "cpuPercentAvg": 82.41499999999999,
+      "dbCpuPercentAvg": 67.08999999999999,
+      "loginStorm": {
+        "sent": 0,
+        "ok": 0,
+        "busy": 0,
+        "limited": 0,
+        "other": 0
+      },
+      "memoryMbIdle": 86.45,
+      "memoryMbMax": 99.19,
+      "cpuPercentPerMatch": 0.10301874999999999,
+      "memoryMbPerMatch": 0.015924999999999995
+    }
+  ]
+}

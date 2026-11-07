@@ -66,5 +66,8 @@ También se cambió Argon2id de los valores por defecto de la librería (64 MiB,
 
 **Coste aceptado:** una sola réplica procesa pocos logins por segundo (unos 20 en este pico), así que en un pico real algunos usuarios recibirán 503 y deberán reintentar. Se prefiere a poner en riesgo las partidas en curso.
 
+## Segunda optimización (SCRUM-70, 7 nov 2026)
+Cada jugada pasa de 7 a 5 idas y vueltas a PostgreSQL (eventos en un solo `INSERT` y un solo `UPDATE` de plazos). Repitiendo la prueba de quiebre dos veces con cada versión, en saturación el rendimiento sube de 1 593–1 647 a 1 754–1 839 jugadas/s y a 400 partidas el p95 queda en 180–181 ms (antes 189–212 ms). Detalle, cifras del cliente, de la imagen Docker y del reposo en [optimizacion.md](optimizacion.md); datos crudos en `load/opt-quiebre-*.json`.
+
 ## Mensajes compactos
 JSON con los campos mínimos y trayectorias en enteros muestreados: **unos 302 bytes por mensaje** de media.

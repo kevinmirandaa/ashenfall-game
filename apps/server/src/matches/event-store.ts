@@ -43,12 +43,7 @@ export class MatchEventStore {
     try {
       await inTransaction(this.pool, async (client) => {
         await this.insertEvents(client, matchId, events);
-        if (nextDeadlineMs !== undefined) {
-          await client.query('UPDATE matches SET next_deadline_ms = $1 WHERE id = $2', [nextDeadlineMs, matchId]);
-        }
-        if (botDueMs !== undefined) {
-          await client.query('UPDATE matches SET bot_due_ms = $1 WHERE id = $2', [botDueMs, matchId]);
-        }
+        await this.updateDeadlines(client, matchId, nextDeadlineMs, botDueMs);
         for (const { payload } of events) {
           if (payload.type !== 'match_finished') continue;
           const { result } = payload;
@@ -108,14 +103,28 @@ export class MatchEventStore {
     }
   }
 
+  /**
+   * Todos los eventos de la jugada en un solo INSERT (una jugada suele traer dos: disparo y turno siguiente).
+   * PostgreSQL es el cuello de botella medido: cada ida y vuelta menos dentro de la transacción cuenta.
+   */
   private async insertEvents(client: pg.ClientBase, matchId: string, events: readonly MatchEvent[]): Promise<void> {
-    for (const event of events) {
-      await client.query('INSERT INTO match_events (match_id, seq, at_ms, payload) VALUES ($1, $2, $3, $4)', [
-        matchId,
-        event.seq,
-        event.atMs,
-        JSON.stringify(event.payload),
-      ]);
-    }
+    await client.query(
+      `INSERT INTO match_events (match_id, seq, at_ms, payload)
+       SELECT $1, seq, at_ms, payload FROM unnest($2::integer[], $3::bigint[], $4::jsonb[]) AS e(seq, at_ms, payload)`,
+      [matchId, events.map((event) => event.seq), events.map((event) => event.atMs), events.map((event) => JSON.stringify(event.payload))],
+    );
+  }
+
+  /** Plazo del turno y turno del bot en una sola sentencia; `undefined` deja la columna como estaba. */
+  private async updateDeadlines(client: pg.ClientBase, matchId: string, nextDeadlineMs: number | null | undefined, botDueMs: number | null | undefined): Promise<void> {
+    if (nextDeadlineMs === undefined && botDueMs === undefined) return;
+    // CASE en vez de SQL armado a mano: la sentencia es siempre la misma y PostgreSQL la planifica igual.
+    await client.query(
+      `UPDATE matches SET
+         next_deadline_ms = CASE WHEN $2 THEN $3::bigint ELSE next_deadline_ms END,
+         bot_due_ms = CASE WHEN $4 THEN $5::bigint ELSE bot_due_ms END
+       WHERE id = $1`,
+      [matchId, nextDeadlineMs !== undefined, nextDeadlineMs ?? null, botDueMs !== undefined, botDueMs ?? null],
+    );
   }
 }
