@@ -232,7 +232,7 @@ resource appsEnvDiagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-pr
   }
 }
 
-// Redis sin contraseña: solo es alcanzable dentro del entorno (ingress interno TCP). Ver DECISIONS.md.
+// Redis sin contraseña: solo es alcanzable dentro del entorno (ingress interno TCP). Ver docs/DECISIONS.md.
 resource redisApp 'Microsoft.App/containerApps@2024-03-01' = {
   name: redisAppName
   location: location
