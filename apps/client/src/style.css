@@ -111,13 +111,6 @@ button.primary:hover:not(:disabled) { background: linear-gradient(#37436a, #232b
 .slot-state { display: flex; align-items: center; gap: 3px; font-size: 13px; color: var(--gold); }
 .wallet { display: flex; align-items: center; justify-content: flex-end; gap: 6px; margin: 8px 0 0; color: var(--dim); }
 .wallet b { color: var(--gold-hi); }
-.roster { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 10px; }
-.hero-card { display: grid; grid-template-columns: 76px 1fr; column-gap: 8px; text-align: left; background: #0b0910; border-color: #3a2c1c; padding: 6px; }
-.hero-card.on { border-color: var(--gold-hi); background: var(--navy); }
-.hero-card img { grid-row: span 3; width: 76px; height: 122px; object-fit: contain; }
-.hero-card b { font-size: 19px; color: var(--gold); }
-.hero-card small { color: var(--bone); }
-.hero-card em { font-size: 13px; color: var(--dim); line-height: 1.15; }
 .ledger { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 10px; }
 .stats { display: flex; gap: 10px; }
 .who { font-size: 19px; color: var(--gold); }
@@ -201,3 +194,28 @@ input[type='range']:disabled { cursor: not-allowed; }
 .dock.dragging { cursor: grabbing; filter: drop-shadow(0 10px 16px #000c); z-index: 5; }
 .slider { display: flex; align-items: center; justify-content: space-between; gap: 14px; font-size: 20px; }
 .slider input { flex: 1; accent-color: #c9a05a; }
+
+/* Personajes y armas */
+.roster-strip { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 6px; margin-bottom: 10px; }
+.face { display: grid; justify-items: center; gap: 2px; padding: 4px; background: #0b0910; border: 2px solid #3a2c1c; cursor: pointer; color: var(--bone); font: inherit; font-size: 13px; }
+.face { min-width: 0; }
+.face img { width: 100%; max-width: 56px; aspect-ratio: 1; height: auto; image-rendering: pixelated; }
+.face.on { border-color: var(--gold-hi); background: var(--navy); }
+.face.locked img { filter: grayscale(.85) brightness(.55); }
+.face span { display: flex; align-items: center; gap: 3px; color: var(--gold); }
+.roster-main { display: grid; grid-template-columns: 250px 1fr; gap: 14px; }
+.hero-panel { display: grid; justify-items: center; align-content: start; gap: 5px; padding: 10px; background: #0b0910; border: 2px solid #3a2c1c; text-align: center; }
+.hero-panel .hero-big { height: 190px; object-fit: contain; filter: drop-shadow(0 4px 6px #000a); }
+.hero-panel b { font-size: 24px; color: var(--gold); }
+.hero-panel em { font-size: 14px; color: var(--dim); line-height: 1.2; }
+.hero-panel .family { display: flex; align-items: center; gap: 6px; color: var(--bone); }
+.weapon-list { display: grid; gap: 8px; align-content: start; }
+.weapon-list h3 { margin: 0; font-size: 22px; color: var(--gold); }
+.weapon-row { display: grid; grid-template-columns: 60px 1fr auto; gap: 10px; align-items: center; padding: 8px 10px; background: #0b0910; border: 2px solid #3a2c1c; }
+.weapon-row.on { border-color: var(--gold-hi); background: var(--navy); }
+.weapon-row img { width: 56px; height: 56px; object-fit: contain; image-rendering: pixelated; }
+.weapon-row div { display: grid; gap: 1px; }
+.weapon-row small { color: var(--bone); font-size: 14px; }
+.weapon-row small.poison { color: #9be07a; }
+.weapon-row small.burn { color: #ffa050; }
+.weapon-row button { min-width: 96px; }

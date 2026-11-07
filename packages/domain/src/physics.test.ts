@@ -16,7 +16,7 @@ import {
 } from './physics.js';
 import { CHARACTER_FAMILY, CHARACTER_IDS, CHARACTER_PRICE, computeDamage, powerTier, MAX_DAMAGE_PER_SHOT, STARTER_CHARACTER, WEAPONS, WEAPON_FAMILIES, WEAPON_IDS } from './weapons.js';
 
-const emptyArena: ArenaDefinition = { id: 'ashen_desert', width: 2000, obstacles: [], spawnPairs: [], maxWind: 0 };
+const emptyArena: ArenaDefinition = { id: 'ember_desert', width: 2000, obstacles: [], spawnPairs: [], maxWind: 0 };
 
 function shot(overrides: Partial<ShotInput> = {}): ShotInput {
   return {
@@ -106,7 +106,7 @@ describe('simulateShot', () => {
   });
 
   it('un obstáculo antes del objetivo detiene el proyectil', () => {
-    const arena = { ...emptyArena, obstacles: [{ x: 300, y: 0, width: 40, height: 500 }] };
+    const arena = { ...emptyArena, obstacles: [{ kind: 'column' as const, x: 300, y: 0, width: 40, height: 500 }] };
     const outcome = simulateShot(
       shot({ arena, power: 100, angleDeg: 10, target: { x: 800, y: 0, width: 48, height: 400 } }),
     );
