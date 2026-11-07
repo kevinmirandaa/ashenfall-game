@@ -122,7 +122,7 @@ Los 2 "No cumple" son de calendario y dependen de desplegar: la URL pública en 
 | A6 | Despliega a dev automáticamente | [deploy.yml](../.github/workflows/deploy.yml) tras CI en `main`, pero solo si `AUTO_DEPLOY=true` (apagado por crédito) | Cumple parcialmente | Decisión del usuario: poner `AUTO_DEPLOY=true` durante la revisión |
 | A7 | Prod con aprobación manual | `environment: prod` en [deploy.yml](../.github/workflows/deploy.yml); los revisores se configuran en GitHub ([azure-setup.md](azure-setup.md) paso 6) | No verificable aquí | Confirmar que el environment `prod` tiene revisores obligatorios |
 | A8 | Publicaciones sin cortar partidas: revisiones con división de tráfico y drenado | `activeRevisionsMode: Multiple`, revisión nueva al 0 %, smoke test y traslado ([deploy.sh](../scripts/deploy.sh)); `terminationGracePeriodSeconds: 120`; cierre 1001 y reconexión; la partida sobrevive al reinicio ([resilience.test.ts](../apps/server/src/realtime/resilience.test.ts)) | No verificable aquí | Probar un despliegue a prod con una partida en curso |
-| A9 | Rollback documentado de menos de 5 minutos (rúbrica: «rollback probado») | [rollback.sh](../scripts/rollback.sh), [azure-setup.md](azure-setup.md) §11 | Cumple parcialmente | Documentado; falta ejecutarlo y anotar el tiempo medido |
+| A9 | Rollback documentado de menos de 5 minutos (rúbrica: «rollback probado») | [rollback.sh](../scripts/rollback.sh), [azure-setup.md](azure-setup.md) §11 | Cumple | Ejecutado en prod el 7 nov 2026: 22 s de la revisión nueva a la anterior y `/health/ready` en 200; se volvió a la nueva después (SCRUM-76) |
 | A10 | Identidad administrada para todo acceso entre servicios; sin cadenas de conexión ni claves en la configuración | Identidad de usuario para ACR, Key Vault y PostgreSQL (Entra, `passwordAuth: Disabled`); cadena de Application Insights como referencia a Key Vault ([main.bicep](../infra/main.bicep), [pool.test.ts](../apps/server/src/db/pool.test.ts)). Redis sin contraseña, frontera de red (D12) | Cumple | Comprobar en Azure junto a SE9 |
 | A11 | OpenTelemetry hacia Application Insights | [telemetry/azure.ts](../apps/server/src/telemetry/azure.ts), [telemetry.ts](../apps/server/src/telemetry/telemetry.ts) | No verificable aquí | Comprobar que `customMetrics` y las trazas llegan |
 | A12 | Logs estructurados con ID de partida y de jugador, sin datos sensibles | [match-logs.ts](../apps/server/src/telemetry/match-logs.ts); [telemetry.test.ts](../apps/server/src/telemetry/telemetry.test.ts), [hardening.test.ts](../apps/server/src/security/hardening.test.ts) «logs» | Cumple | — |
@@ -160,7 +160,7 @@ El conteo del resumen sale de estas tablas: J 5, F 21, S 10, T 9, SE 12, R 5, A 
 1. ~~Desplegar la versión final en dev y prod~~ Hecho el 7 nov: dev se desplegó y probó, y se borró por el límite de un entorno por región; prod quedó arriba y su URL está en el README (E5).
 2. Crear el tag `v1.0.0` antes del 12 nov (E6).
 3. Tras desplegar, comprobar HTTPS/WSS exclusivos, Key Vault con identidad, telemetría en Application Insights y que las alertas existen (T4, SE7, SE9, A10, A11, A15).
-4. Probar un rollback con `scripts/rollback.sh prod` y anotar el tiempo (A9), y un despliegue con una partida abierta (A8).
+4. ~~Probar el rollback (A9)~~ Hecho el 7 nov: 22 s. Sigue pendiente un despliegue con una partida abierta (A8).
 5. Decidir si `AUTO_DEPLOY=true` durante la revisión (A6) y confirmar revisores obligatorios en el environment `prod` (A7).
 6. Opcional: pasar `ALERT_EMAIL` en `deploy.yml` para recibir las alertas por correo.
 
