@@ -1,6 +1,5 @@
 import {
   arenaFor,
-  ARENA_IDS,
   PROPS,
   TERRAIN_OF,
   muzzlePosition,
@@ -15,12 +14,10 @@ import {
   type WeaponEffect,
   type WeaponFamily,
   type WeaponId,
-  MONSTER_IDS,
-  WEAPON_IDS,
 } from '@ashenfall/domain';
 import Phaser from 'phaser';
 import { audio } from './audio.js';
-import { CHARACTERS, type FighterId, type Look } from './art.js';
+import { type FighterId, type Look } from './art.js';
 import { BIOME_ART, drawGround, drawTerrainBlock, GROUND_DEPTH, GROUND_HEADROOM, TERRAIN_SCALE, WORLD_LEFT, WORLD_WIDTH } from './biomes.js';
 
 const VIEW_W = 1280;
@@ -48,8 +45,6 @@ const BODY_HEIGHT: Readonly<Record<FighterId, number>> = {
   edrik: 148, sylwen: 148, borgrim: 134, aldric: 156, vaela: 148, corvus: 156, anselmo: 148, mirelle: 148, morveth: 152, rurik: 148,
   vampire: 150, werewolf: 162, witch: 148, specter: 160, spider: 118, skeleton: 150, dark_knight: 168, treant: 176, wraith: 160, golem: 176,
 };
-/** Mercenarios y monstruos: todos se cargan y se parten por la cadera igual. */
-const FIGHTER_IDS: readonly FighterId[] = [...CHARACTERS.map((hero) => hero.id), ...MONSTER_IDS];
 /** Armas que giran en el aire; el resto vuela apuntando a donde va. */
 const FIREFLY_ARENAS: ReadonlySet<string> = new Set(['graveyard', 'misty_pines', 'hamlet_ruins']);
 const FOG_ARENAS: ReadonlySet<string> = new Set(['graveyard', 'misty_pines', 'fog_ruins', 'blood_keep']);
@@ -131,7 +126,10 @@ export class ArenaScene extends Phaser.Scene {
   private anchor: { x: number; y: number } | null = null;
   private pullReady = false;
   private guideLabel: Phaser.GameObjects.Text | null = null;
-  /** Las texturas se cargan en preload: una partida que llega antes (al reanudar) espera a que termine. */
+  /**
+   * La escena está creada. Una partida que llega antes (al reanudar), o mientras se descargan sus texturas,
+   * queda en `pendingLoad` y sus eventos en `pendingEvents` hasta que todo esté listo.
+   */
   private ready = false;
   /** Sube cada vez que se reconstruye la arena: invalida colas de animación que quedaron esperando. */
   private epoch = 0;
@@ -153,25 +151,16 @@ export class ArenaScene extends Phaser.Scene {
     this.hooks = hooks;
   }
 
+  /**
+   * Nada pesado al arrancar: la pantalla de acceso y el pueblo no usan la arena. Cada partida pide en
+   * `loadMatch` solo lo suyo (dos cuerpos, un fondo, un terreno, sus armas y el atlas de obstáculos) y
+   * lo ya descargado queda en caché para las siguientes.
+   */
   preload(): void {
-    for (const id of FIGHTER_IDS) this.load.image(`body-${id}`, `/art/body-${id}.webp`);
-    for (const weaponId of WEAPON_IDS) this.load.image(`proj-${weaponId}`, `/art/proj-${weaponId}.webp`);
-    for (const [hero, poses] of Object.entries(POSES)) for (const pose of poses) this.load.image(`pose-${hero}-${pose}`, `/art/pose-${hero}-${pose}.webp`);
-    for (const id of ARENA_IDS) this.load.image(`biome-${id}`, `/art/biome-${id}.webp`);
-    // Todos los obstáculos de la hoja de referencia en un solo atlas, y los cuatro bloques de tierra.
-    this.load.atlas('obs', '/art/obs-atlas.webp', '/art/obs-atlas.json');
-    for (const name of new Set(Object.values(TERRAIN_OF))) this.load.image(`terrain-${name}`, `/art/terrain-${name}.webp`);
+    this.load.image('proj-dagger', '/art/proj-dagger.webp');
   }
 
   create(): void {
-    for (const fighter of FIGHTER_IDS) {
-      const texture = this.textures.get(`body-${fighter}`);
-      const { width, height } = texture.getSourceImage();
-      const hip = Math.round(Number(height) * HIP);
-      // Se solapan unos píxeles para que no se abra una junta al inclinarse.
-      texture.add('upper', 0, 0, 0, Number(width), hip + 8);
-      texture.add('lower', 0, 0, hip, Number(width), Number(height) - hip);
-    }
     // Un único degradado reutilizado para luces y para despegar a los personajes del fondo.
     const soft = document.createElement('canvas');
     soft.width = 128;
@@ -236,7 +225,7 @@ export class ArenaScene extends Phaser.Scene {
   loadMatch(view: PlayerMatchView, intro: boolean, looks: MatchLooks): void {
     this.view = view;
     this.epoch += 1;
-    if (!this.ready) {
+    if (!this.ready || this.fetchMissing(view, looks)) {
       this.pendingLoad = () => { this.loadMatch(view, intro, looks); };
       return;
     }
@@ -271,7 +260,7 @@ export class ArenaScene extends Phaser.Scene {
 
   /** Los eventos se animan en orden, uno tras otro, en ambos jugadores. */
   applyEvent(payload: PlayerEventPayload): void {
-    if (!this.ready) {
+    if (!this.ready || this.pendingLoad !== null) {
       this.pendingEvents.push(payload);
       return;
     }
@@ -285,8 +274,58 @@ export class ArenaScene extends Phaser.Scene {
     }
   }
 
+  /** También mientras se descargan las texturas de la partida: aún no se puede apuntar. */
   get busy(): boolean {
-    return this.playing || this.queue.length > 0;
+    return this.playing || this.queue.length > 0 || this.pendingLoad !== null;
+  }
+
+  /**
+   * Pide las texturas de esta partida que aún no están. Devuelve true si hay descargas en curso: al
+   * terminar se vuelve a intentar la partida pendiente (la última que llegó) y luego sus eventos.
+   */
+  private fetchMissing(view: PlayerMatchView, looks: MatchLooks): boolean {
+    if (this.load.isLoading()) return true;
+    let missing = 0;
+    const image = (key: string): void => {
+      if (this.textures.exists(key)) return;
+      this.load.image(key, `/art/${key}.webp`);
+      missing += 1;
+    };
+    for (const fighter of new Set([looks.you.character, looks.rival.character])) {
+      image(`body-${fighter}`);
+      for (const pose of POSES[fighter] ?? []) image(`pose-${fighter}-${pose}`);
+    }
+    for (const weaponId of new Set<WeaponId>(['dagger', view.you.weaponId, view.opponent.weaponId])) image(`proj-${weaponId}`);
+    image(`biome-${view.arenaId}`);
+    if (view.obstacles.some((obstacle) => obstacle.kind === 'terrain')) image(`terrain-${TERRAIN_OF[view.arenaId]}`);
+    // Todos los obstáculos de la hoja en un solo atlas: una petición, compartida por todas las arenas.
+    if (view.obstacles.some((obstacle) => obstacle.kind !== 'terrain') && !this.textures.exists('obs')) {
+      this.load.atlas('obs', '/art/obs-atlas.webp', '/art/obs-atlas.json');
+      missing += 1;
+    }
+    if (missing === 0) return false;
+    this.load.once(Phaser.Loader.Events.COMPLETE, () => {
+      const retry = this.pendingLoad;
+      this.pendingLoad = null;
+      retry?.();
+      // Si la partida pendiente necesitó otra descarga, sus eventos siguen esperando.
+      if (this.pendingLoad !== null) return;
+      for (const payload of this.pendingEvents.splice(0)) this.applyEvent(payload);
+      if (!this.busy) this.hooks.onAnimationsIdle();
+    });
+    this.load.start();
+    return true;
+  }
+
+  /** Parte el cuerpo por la cadera la primera vez que se usa. */
+  private splitBody(fighter: FighterId): void {
+    const texture = this.textures.get(`body-${fighter}`);
+    if (texture.has('upper')) return;
+    const { width, height } = texture.getSourceImage();
+    const hip = Math.round(Number(height) * HIP);
+    // Se solapan unos píxeles para que no se abra una junta al inclinarse.
+    texture.add('upper', 0, 0, 0, Number(width), hip + 8);
+    texture.add('lower', 0, 0, hip, Number(width), Number(height) - hip);
   }
 
   setWeapon(id: WeaponId): void {
@@ -440,6 +479,7 @@ export class ArenaScene extends Phaser.Scene {
   private createFigure(side: PlayerMatchView['you'], look: Look, name: string): void {
     const { x, y } = toScreen(side.position);
     const key = `body-${look.character}`;
+    this.splitBody(look.character);
     const hipY = -BODY_HEIGHT[look.character] * HIP;
     const lower = this.add.image(0, 0, key, 'lower').setOrigin(0.5, 1);
     const upper = this.add.image(0, 8, key, 'upper').setOrigin(0.5, 1);

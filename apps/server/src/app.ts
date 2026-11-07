@@ -1,3 +1,4 @@
+import { relative } from 'node:path';
 import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
@@ -71,6 +72,20 @@ export interface RateLimitConfig {
 }
 
 const READINESS_PER_MINUTE = 120;
+const YEAR_SECONDS = 365 * 24 * 3600;
+const ART_MAX_AGE_SECONDS = 3600;
+
+/**
+ * Caché del cliente estático. Vite pone un hash en cada nombre de /assets, así que nunca cambian:
+ * el navegador no vuelve a pedirlos. El arte no lleva hash: una hora y luego revalida con ETag (304).
+ * El HTML siempre se revalida para que un despliegue nuevo llegue en la siguiente carga.
+ */
+export function staticCacheControl(relativePath: string): string {
+  const normalized = `/${relativePath.replaceAll('\\', '/')}`;
+  if (normalized.startsWith('/assets/')) return `public, max-age=${String(YEAR_SECONDS)}, immutable`;
+  if (normalized.startsWith('/art/')) return `public, max-age=${String(ART_MAX_AGE_SECONDS)}`;
+  return 'no-cache';
+}
 const PROBLEM_JSON = 'application/problem+json';
 
 export function buildApp(dependencies: AppDependencies): FastifyInstance {
@@ -156,8 +171,19 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   });
   void app.register(swaggerUi, { routePrefix: '/docs' });
   // El cliente se sirve desde el mismo origen: sin otro servicio que pagar y sin CORS.
-  if (dependencies.clientDir !== undefined) {
-    void app.register(fastifyStatic, { root: dependencies.clientDir, decorateReply: false });
+  const { clientDir } = dependencies;
+  if (clientDir !== undefined) {
+    void app.register(fastifyStatic, {
+      root: clientDir,
+      decorateReply: false,
+      // El build deja .br y .gz junto a JS, CSS, HTML y JSON: se comprimen una vez y servirlos no cuesta CPU.
+      preCompressed: true,
+      // Una visita pide ~100 ficheros: registrar cada uno a info llenaría Log Analytics (se paga por GB) sin aportar.
+      logLevel: 'warn',
+      setHeaders: (reply, filePath) => {
+        reply.header('cache-control', staticCacheControl(relative(clientDir, filePath)));
+      },
+    });
   }
 
   const limits = dependencies.rateLimit;
@@ -180,10 +206,12 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       errorResponseBuilder: () => new ProblemError(429, 'RATE_LIMITED', 'Demasiadas peticiones'),
     });
     // No toca dependencias, así que puede quedar fuera del límite de tasa.
-    api.get('/health/live', { config: { rateLimit: false } }, () => ({ status: 'ok' }));
+    // Las sondas de la plataforma llegan cada pocos segundos: sus registros de petición (unos 0,3 GB al mes por
+    // réplica) solo costarían dinero. Un fallo de disponibilidad se sigue registrando como warn.
+    api.get('/health/live', { logLevel: 'warn', config: { rateLimit: false } }, () => ({ status: 'ok' }));
 
     // Consulta la base de datos: lleva límite propio, holgado para las sondas de la plataforma.
-    api.get('/health/ready', { config: { rateLimit: { max: READINESS_PER_MINUTE, timeWindow: '1 minute' } } }, async (request, reply) => {
+    api.get('/health/ready', { logLevel: 'warn', config: { rateLimit: { max: READINESS_PER_MINUTE, timeWindow: '1 minute' } } }, async (request, reply) => {
       try {
         await dependencies.pool.query('SELECT 1');
         await dependencies.health?.redis.ping();

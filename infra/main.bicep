@@ -34,6 +34,12 @@ var serverAppName = 'ashenfall-server-${environmentName}'
 var redisAppName = 'ashenfall-redis-${environmentName}'
 var databaseName = 'ashenfall'
 var revisionSuffix = toLower(take(replace(imageTag, '-', ''), 12))
+// Bajo carga se midieron ~100 MB de memoria (docs/load-report.md). dev usa el mínimo de Container Apps
+// (0,25 vCPU y 0,5 GiB), la mitad de coste por segundo activo; prod conserva la capacidad medida.
+var serverCpu = isProd ? '0.5' : '0.25'
+var serverMemory = isProd ? '1Gi' : '0.5Gi'
+// Montículo de Node acotado a la mitad del contenedor: el recolector actúa antes de que la plataforma lo mate por memoria.
+var serverHeapMb = isProd ? 512 : 256
 
 var roles = {
   acrPull: '7f951dda-4ed3-4680-a7ca-43fe172d538d'
@@ -177,7 +183,8 @@ resource postgres 'Microsoft.DBforPostgreSQL/flexibleServers@2024-08-01' = {
   sku: { name: 'Standard_B1ms', tier: 'Burstable' }
   properties: {
     version: '16'
-    storage: { storageSizeGB: 32 }
+    // 32 GB y 7 días son los mínimos del servicio. Sin crecimiento automático: el coste no sube sin que nadie lo decida.
+    storage: { storageSizeGB: 32, autoGrow: 'Disabled' }
     backup: { backupRetentionDays: 7, geoRedundantBackup: 'Disabled' }
     highAvailability: { mode: 'Disabled' }
     authConfig: {
@@ -227,8 +234,9 @@ resource appsEnvDiagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-pr
   name: 'to-log-analytics'
   properties: {
     workspaceId: logs.id
+    // Solo registros. Las métricas de plataforma ya están en Azure Monitor sin coste y las alertas las leen de ahí;
+    // copiarlas a Log Analytics se cobraría por GB ingerido sin aportar nada.
     logs: [{ categoryGroup: 'allLogs', enabled: true }]
-    metrics: [{ category: 'AllMetrics', enabled: true }]
   }
 }
 
@@ -264,6 +272,7 @@ resource redisApp 'Microsoft.App/containerApps@2024-03-01' = {
 
 var serverEnv = [
   { name: 'NODE_ENV', value: 'production' }
+  { name: 'NODE_OPTIONS', value: '--max-old-space-size=${serverHeapMb}' }
   { name: 'DATABASE_URL', value: 'postgres://${identity.name}@${postgres.properties.fullyQualifiedDomainName}:5432/${databaseName}?sslmode=require' }
   { name: 'AZURE_CLIENT_ID', value: identity.properties.clientId }
   { name: 'REDIS_URL', value: 'redis://${redisAppName}:6379' }
@@ -310,7 +319,7 @@ resource serverApp 'Microsoft.App/containerApps@2024-03-01' = if (deployServer) 
           name: 'server'
           image: '${acr.properties.loginServer}/ashenfall-server:${imageTag}'
           env: serverEnv
-          resources: { cpu: json('0.5'), memory: '1Gi' }
+          resources: { cpu: json(serverCpu), memory: serverMemory }
           probes: [
             { type: 'Liveness', httpGet: { path: '/health/live', port: 8080 }, periodSeconds: 10, failureThreshold: 3 }
             { type: 'Readiness', httpGet: { path: '/health/ready', port: 8080 }, periodSeconds: 5, failureThreshold: 3 }

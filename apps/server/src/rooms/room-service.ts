@@ -61,11 +61,29 @@ export class RoomService {
   }
 
   async listPublic(limit: number, offset: number): Promise<readonly RoomView[]> {
-    const { rows } = await this.pool.query<{ id: string }>(
-      `SELECT id FROM rooms WHERE status = 'open' AND visibility = 'public' ORDER BY created_at, id LIMIT $1 OFFSET $2`,
+    // Dos consultas para toda la página, no dos por sala: con 50 salas eran 101 y ocupaban el pool.
+    const { rows } = await this.pool.query<RoomRow>(
+      `SELECT * FROM rooms WHERE status = 'open' AND visibility = 'public' ORDER BY created_at, id LIMIT $1 OFFSET $2`,
       [limit, offset],
     );
-    return Promise.all(rows.map((row) => this.view(this.pool, row.id, null)));
+    if (rows.length === 0) return [];
+    const members = await this.pool.query<{ room_id: string; user_id: string; display_name: string; ready: boolean }>(
+      `SELECT m.room_id, m.user_id, u.display_name, m.ready FROM room_members m JOIN users u ON u.id = m.user_id
+       WHERE m.room_id = ANY($1::uuid[]) ORDER BY u.id`,
+      [rows.map((room) => room.id)],
+    );
+    // Quien mira el listado no es miembro: igual que view() sin espectador, sin código ni partida.
+    return rows.map((room) => ({
+      id: room.id,
+      visibility: room.visibility,
+      status: room.status,
+      capacity: room.capacity,
+      ownerId: room.owner_id,
+      members: members.rows
+        .filter((member) => member.room_id === room.id)
+        .map((member) => ({ userId: member.user_id, displayName: member.display_name, ready: member.ready })),
+      matchId: null,
+    }));
   }
 
   /** Una sala privada no se puede sondear: responde igual que si no existiera. */
