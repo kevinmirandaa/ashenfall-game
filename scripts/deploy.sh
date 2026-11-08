@@ -78,8 +78,9 @@ endstep
 # --- 5. Segunda pasada: app del servidor ---
 PREVIOUS=""
 if [ "$ENV_NAME" = "prod" ] && az containerapp show --name "$APP" --resource-group "$RG" --output none 2>/dev/null; then
-  PREVIOUS="$(az containerapp ingress traffic show --name "$APP" --resource-group "$RG" \
-    --query "[?weight==\`100\`].revisionName | [0]" --output tsv)"
+  # De la lista de revisiones: `ingress traffic show` no trae `revisionName` si el tráfico va a «la última revisión».
+  PREVIOUS="$(az containerapp revision list --name "$APP" --resource-group "$RG" \
+    --query "[?properties.trafficWeight==\`100\`].name | [0]" --output tsv)"
   [ "$PREVIOUS" = "None" ] && PREVIOUS=""
 fi
 step "Despliegue de la app (revisión ${NEW_REVISION}; tráfico previo en: ${PREVIOUS:-ninguna})"
