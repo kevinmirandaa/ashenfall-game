@@ -4,6 +4,12 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    open-pull-requests-limit: 5
+    # Los saltos de versión mayor (por ejemplo TypeScript 7 o ESLint 10) se revisan a mano, con sus pruebas, en un ticket
+    # propio: así no se acumulan pull requests que rompen el CI. Las alertas de seguridad llegan igual.
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: /
     schedule:
