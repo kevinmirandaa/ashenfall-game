@@ -1,6 +1,7 @@
 # Changelog
 
 ## Sin publicar
+- SCRUM-88: Dependabot actualiza juntos los paquetes de OpenTelemetry (actualizados por separado dejan dos copias de `@opentelemetry/api` y rompen el build) e ignora los saltos de versión mayor también en las acciones de GitHub, como `azure/login` v3 en el pipeline de despliegue.
 - SCRUM-87: se corrigen las 7 alertas de Dependabot (2 críticas en tinypool, vitest, @vitest/mocker, minimatch y @opentelemetry/core): vitest y @vitest/coverage-v8 a 5.1.0 y `overrides` para @opentelemetry/core 2.12.0 y minimatch 11.0.5 en typescript-estree. `npm audit` queda en 0 y las 294 pruebas pasan. Dependabot ignora los saltos de versión mayor, que se revisan a mano.
 - SCRUM-86: licencia PolyForm Noncommercial 1.0.0 (`LICENSE`): se puede ver, ejecutar, estudiar y modificar sin fines comerciales; no se puede usar para vender sin permiso del autor. Campo `license` en los `package.json` y sección Licencia en el README.
 - SCRUM-85: README más claro para el profesor (guía rápida con la rúbrica y dónde ver cada criterio, distintivos de CI y escaneos, resumen por temas y el juego con la historia y las reglas plegadas). Se activan las alertas de vulnerabilidades de Dependabot (0 abiertas).
