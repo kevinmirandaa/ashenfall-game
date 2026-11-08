@@ -1,6 +1,7 @@
 # Changelog
 
 ## Sin publicar
+- SCRUM-81: documentación de entrega en PDF (`entrega/Documentacion_ASHENFALL.pdf`, 23 páginas) con portada del TEC, secciones numeradas, diagramas, cifras reales, capturas, enlace al juego y al repositorio; generador en `scripts/build-documentacion-pdf.py`. El modelo de amenazas pasa de «pendiente de verificar» a lo verificado en Azure el 7 nov.
 - SCRUM-80: `docs/guia-de-juego.md` con capturas de cada pantalla y `docs/arquitectura.md` con cinco diagramas (topología en Azure, capas, flujo de una jugada, ciclo de una partida y modelo de datos). Enlazados desde el README y el índice de `docs/`.
 - SCRUM-79: Vite compila para Safari 14+, Firefox 78+ y Chrome 87+; prod con 2 réplicas mínimas; límite de un entorno de Container Apps por suscripción documentado.
 - SCRUM-78 (evidencia): prod publicado por el pipeline con 6 partidas abiertas y 2 réplicas en Azure, sin jugadas perdidas ni duplicadas y con las partidas contrastadas con su replay; resultados en `docs/load-report.md` y `docs/load/azure-prod-*.json`. La matriz de cumplimiento queda en 92 de 94 cumplidos y 2 parciales, ninguno incumplido.

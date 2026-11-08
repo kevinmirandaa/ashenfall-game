@@ -7,8 +7,8 @@ Cuentas y tokens, integridad de la partida, saldo de Marcas de Ceniza, disponibi
 
 ## Fronteras de confianza
 1. Cliente → servidor (HTTP y WebSocket): todo lo que llega es hostil hasta validarse.
-2. Servidor → PostgreSQL y Redis: red privada e identidad administrada en Azure (pendiente de desplegar).
-3. CI/CD → Azure: GitHub Actions con OIDC federado, sin secretos (`.github/workflows/deploy.yml`); prod exige aprobación manual. Sin verificar todavía contra Azure.
+2. Servidor → PostgreSQL y Redis: red privada e identidad administrada en Azure (comprobado el 7 nov 2026: PostgreSQL sin acceso público y dentro de la red virtual, Redis con ingress interno).
+3. CI/CD → Azure: GitHub Actions con OIDC federado, sin secretos (`.github/workflows/deploy.yml`); prod exige aprobación manual (el environment `prod` tiene un revisor obligatorio, comprobado el 7 nov 2026).
 
 ## Amenazas y defensas
 
@@ -40,7 +40,7 @@ Cuentas y tokens, integridad de la partida, saldo de Marcas de Ceniza, disponibi
 
 ## Riesgos aceptados
 - **La posición del rival es pública.** Es decisión de diseño (D1): el juego casi no tiene información oculta. Un cliente modificado solo obtiene lo que el jugador ya ve.
-- **Un cliente modificado puede apuntar perfecto.** Con posición, viento y física conocidos, se puede calcular el tiro ideal. No se puede evitar sin ocultar datos que el diseño muestra.
+- **Un cliente modificado puede apuntar perfecto.** Con la posición y la física conocidas, se puede calcular el tiro ideal. No se puede evitar sin ocultar datos que el diseño muestra.
 - **Bloqueo de login ajeno.** Agotar el límite por cuenta bloquea a su dueño un minuto; se prefiere a permitir fuerza bruta distribuida.
 - **Redis caído.** Los límites de plugin dejan de aplicarse para no tumbar el servicio; el de login sigue por réplica. Los tickets no se pueden emitir y no se abren conexiones nuevas.
 - **Ticket en la URL.** Puede aparecer en logs de un proxy; es de un solo uso y dura 30 s. El servidor no registra esa URL.
@@ -49,5 +49,8 @@ Cuentas y tokens, integridad de la partida, saldo de Marcas de Ceniza, disponibi
 - **Partidas entre cuentas propias.** Se pueden generar monedas jugando contra uno mismo; solo compran personajes y no hay ranking.
 - **Caída brusca de una réplica.** No registra desconexiones; las partidas terminan por timeouts de turno.
 
-## Pendiente de verificar al desplegar
-HTTPS y WSS exclusivos en el ingreso, Key Vault e identidad administrada, y que Redis y PostgreSQL no queden expuestos a internet. Nada de esto se ha comprobado todavía.
+## Verificado en Azure (7 nov 2026)
+- HTTPS y WSS exclusivos: `http://` redirige con 301, hay HSTS y un `Origin` ajeno recibe 403 en `/ws`; CORS no devuelve `Access-Control-Allow-Origin` a un origen ajeno.
+- Key Vault e identidad administrada: `jwt-secret` y la cadena de Application Insights son referencias a Key Vault con la identidad `id-ashenfall-prod`; la cadena de PostgreSQL no lleva contraseña.
+- Redis y PostgreSQL no están expuestos a internet: Redis solo tiene ingress interno y PostgreSQL tiene el acceso público desactivado y vive en una subred delegada.
+- Límite de tasa: el login devuelve 429 con `Retry-After` al repetir intentos fallidos.
