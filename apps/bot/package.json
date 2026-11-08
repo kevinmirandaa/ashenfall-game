@@ -5,7 +5,8 @@
   "description": "Bot de carga: juega partidas reales por HTTP y WebSocket y mide latencia.",
   "type": "module",
   "scripts": {
-    "load": "node dist/load.js"
+    "load": "node dist/load.js",
+    "redeploy": "node dist/redeploy.js"
   },
   "dependencies": {
     "ws": "8.22.1"
