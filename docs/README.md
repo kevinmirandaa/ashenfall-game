@@ -5,7 +5,7 @@ Toda la documentación del proyecto vive en esta carpeta. En la raíz del reposi
 Si dos documentos se contradicen, manda este orden: el enunciado del curso (`Proyecto3.pdf`, no versionado), luego [DECISIONS.md](DECISIONS.md) y por último el brief de diseño.
 
 ## Entrega
-- [../entrega/Documentacion_ASHENFALL.pdf](../entrega/Documentacion_ASHENFALL.pdf): la documentación en PDF para subir a TEC Digital (portada del TEC, secciones numeradas, enlaces al juego y al repositorio). Se genera con `scripts/build-documentacion-pdf.py` (requiere `reportlab`).
+- [../entrega/Documentacion_ASHENFALL.pdf](../entrega/Documentacion_ASHENFALL.pdf): la documentación en PDF para subir a TEC Digital (portada del TEC; documenta el servidor, su despliegue en Azure, configuración, seguridad, rendimiento y cumplimiento del enunciado; el juego va en un anexo). Se genera con `scripts/build-documentacion-pdf.py` (requiere `reportlab`).
 
 ## Jugar
 - [guia-de-juego.md](guia-de-juego.md): guía paso a paso con capturas de cada pantalla, las reglas del duelo y los personajes.

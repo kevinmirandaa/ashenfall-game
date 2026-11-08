@@ -16,6 +16,22 @@
 
 Duelo 1v1 por turnos de proyectiles, de fantasía oscura y pixel art, que se juega en el navegador. Enlace para jugar: **<https://ashenfall-server-prod.icytree-9cfd11e3.canadacentral.azurecontainerapps.io>**. Solo hace falta crear una cuenta.
 
+## Documentación del servidor
+Este repositorio es, sobre todo, un **servidor de nivel producción en Azure** para un juego por turnos; el juego es el pretexto. Lo que se evalúa y está documentado es el servidor:
+
+| Qué | Dónde |
+|---|---|
+| Documento de entrega en PDF (el servidor, su despliegue en Azure, configuración, seguridad, rendimiento y cumplimiento del enunciado) | [entrega/Documentacion_ASHENFALL.pdf](entrega/Documentacion_ASHENFALL.pdf) |
+| Arquitectura con diagramas | [docs/arquitectura.md](docs/arquitectura.md) |
+| Modelo de amenazas | [docs/threat-model.md](docs/threat-model.md) |
+| Prueba de carga, punto de quiebre y optimizaciones | [docs/load-report.md](docs/load-report.md) y [docs/optimizacion.md](docs/optimizacion.md) |
+| Azure: guía, costo y despliegue | [docs/azure-setup.md](docs/azure-setup.md) y [docs/azure-cost.md](docs/azure-cost.md) |
+| Observabilidad | [docs/observability.md](docs/observability.md) |
+| Cumplimiento del enunciado, punto por punto | [docs/cumplimiento-enunciado.md](docs/cumplimiento-enunciado.md) |
+| Contratos | [contracts/openapi.json](contracts/openapi.json) (también en `/docs` del servidor) y [contracts/asyncapi.json](contracts/asyncapi.json) |
+
+El servidor corre en Azure Container Apps (2 a 3 réplicas) con PostgreSQL, Redis, Key Vault e identidad administrada, y se despliega con Bicep y GitHub Actions; cómo correrlo en local, en menos de 10 minutos, está en [docs/jugar-en-local.md](docs/jugar-en-local.md).
+
 ## La historia
 
 Hace siglos, el mundo quedó dividido por un acontecimiento conocido como **La Caída de las Cenizas**.

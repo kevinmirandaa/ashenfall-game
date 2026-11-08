@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Genera la documentación de entrega en PDF (entrega/Documentacion_ASHENFALL.pdf).
+Genera la documentación del servidor en PDF (entrega/Documentacion_ASHENFALL.pdf).
 
 Formato: carta, Arial, portada con el logo del TEC, secciones numeradas, tablas, figuras con pie
 «Figura N.» y número de página al centro, como el resto de documentos del curso.
@@ -72,12 +72,13 @@ def P(text, style=st_body):
 
 
 def H1(text):
-    story.append(CondPageBreak(1.7 * inch))
+    story.append(CondPageBreak(3.3 * inch))
     P(text, st_h1)
 
 
-def H2(text):
-    story.append(CondPageBreak(1.7 * inch))
+def H2(text, need=2.3):
+    if not (story and isinstance(story[-1], Paragraph) and story[-1].style is st_h1):
+        story.append(CondPageBreak(need * inch))
     P(text, st_h2)
 
 
@@ -237,7 +238,7 @@ for text in ('Instituto Tecnológico de Costa Rica', 'Escuela de Ingeniería en 
 story.append(Spacer(1, 0.55 * inch))
 story.append(Paragraph('Tercer Proyecto: Servidor nivel producción en Azure para un juego por turnos', cover_b))
 story.append(Spacer(1, 0.18 * inch))
-story.append(Paragraph('ASHENFALL, servidor autoritativo para un duelo 1v1 por turnos de proyectiles', cover_c))
+story.append(Paragraph('Documentación del servidor ASHENFALL: servidor autoritativo en Azure para un duelo 1v1 por turnos', cover_c))
 story.append(Spacer(1, 0.5 * inch))
 story.append(Paragraph('<b>Estudiante:</b> Kevin Miranda Méndez', cover_c))
 story.append(Paragraph('<b>Carné</b> 2024120764', cover_c))
@@ -255,145 +256,274 @@ story.append(PageBreak())
 # 1. Introducción
 # =====================================================================
 H1('1. Introducción')
-P('Este documento presenta el diseño, la construcción y el despliegue del tercer proyecto del curso Diseño de Software: un servidor de nivel producción en Azure para un juego multijugador por turnos. El enunciado pide que cada equipo invente su propio juego y que lo que se evalúe sea el servidor: qué tan bien está construido, qué tan seguro y eficiente es y cuánto sigue los estándares de la industria. El juego es el pretexto, no el producto.')
-P('Construí <b>ASHENFALL</b>, un duelo 1v1 por turnos de proyectiles, de fantasía oscura y pixel art, que se juega en el navegador. El servidor es autoritativo: valida cada jugada, simula el tiro, decide el daño y es la única fuente de verdad. Cada partida es un registro de eventos en PostgreSQL con número de secuencia, se puede reproducir jugada por jugada y sobrevive a reinicios y a publicaciones de versiones nuevas. El servidor corre en Azure Container Apps con dos réplicas, Redis, PostgreSQL, Key Vault e identidad administrada, y se despliega con Bicep y GitHub Actions.')
-P('El documento explica el juego y cómo cumple las restricciones del enunciado, los requisitos funcionales y técnicos del servidor, la arquitectura y los patrones usados, la seguridad, el rendimiento medido, la infraestructura en Azure, las pruebas, cómo se juega y cómo se instala, y al final una revisión del cumplimiento del enunciado con sus limitaciones. Todas las cifras salen de ejecuciones reales entre el 5 y el 7 de noviembre de 2026; donde algo no se pudo medir, se dice.')
+P('Este documento describe el <b>servidor</b> que construí para el tercer proyecto del curso Diseño de Software: un servidor de nivel producción, desplegado en Azure, para un juego multijugador por turnos. Como pide el enunciado, lo que se evalúa es el servidor (qué tan bien está construido, qué tan seguro y eficiente es y cuánto sigue los estándares de la industria) y no el juego, que es solo el pretexto. Por eso la documentación explica qué servidor se hizo, dónde corre, con qué tecnologías, cómo está configurado, cómo se protege, cómo se despliega y cómo se midió, siguiendo el orden de los requisitos del enunciado. El juego se resume en el Anexo A.')
+P('El servidor se llama <b>ASHENFALL</b> y atiende duelos 1v1 por turnos. Es autoritativo: el cliente solo envía intenciones y el servidor valida cada jugada, simula el resultado y es la única fuente de verdad. Cada partida es un registro de eventos con número de secuencia en PostgreSQL, que se puede reproducir jugada por jugada y que sobrevive a reinicios y a publicaciones. Corre en Azure Container Apps con al menos dos réplicas coordinadas por Redis y PostgreSQL, lee sus secretos de Key Vault con identidad administrada y se despliega con Bicep y GitHub Actions, con aprobación manual para producción.')
 H2('1.1 Enlaces')
 table([
     ['Qué', 'Dónde'],
-    ['Juego en línea (Azure, disponible durante la revisión)', f'<link href="{URL}" color="#16163F">{URL}</link>'],
-    ['Documentación de la API REST (OpenAPI 3.1)', f'<link href="{URL}/docs" color="#16163F">{URL}/docs</link>'],
-    ['Repositorio en GitHub (público)', f'<link href="{REPO}" color="#16163F">{REPO}</link>'],
+    ['Servidor en Azure (disponible durante la revisión)', f'<link href="{URL}" color="#16163F">{URL}</link>'],
+    ['Contrato REST (OpenAPI 3.1, publicado en /docs)', f'<link href="{URL}/docs" color="#16163F">{URL}/docs</link>'],
+    ['Repositorio en GitHub', f'<link href="{REPO}" color="#16163F">{REPO}</link>'],
     ['Versión evaluada', 'Etiqueta <b>v1.0.0</b> del repositorio'],
     ['Tablero de trabajo (Jira, proyecto SCRUM)', f'<link href="{JIRA}" color="#16163F">kevinmirandaa04.atlassian.net, proyecto SCRUM</link>'],
-    ['Documentación detallada en el repositorio', 'Carpeta <font name="Courier">docs/</font>, con índice en <font name="Courier">docs/README.md</font>'],
+    ['Documentación en el repositorio', 'Carpeta <font name="Courier">docs/</font>, con índice en <font name="Courier">docs/README.md</font>'],
 ], [2.6, 3.9])
-
-# =====================================================================
-# 2. Juego
-# =====================================================================
-H1('2. Juego escogido y objetivo')
-P('<b>Historia.</b> Hace siglos, el mundo quedó dividido por un acontecimiento conocido como La Caída de las Cenizas. Las antiguas tierras dejaron de ser seguras y criaturas de las profundidades empezaron a aparecer en bosques, montañas y pueblos abandonados. En medio de ese mundo existe Ashenfall, un pequeño asentamiento comercial donde todavía se reúnen guerreros de todas las regiones, se reparan armas, se intercambian reliquias y se aceptan desafíos.')
-P('<b>El duelo.</b> Dos mercenarios se enfrentan en una arena y se turnan para disparar proyectiles con un gesto de tirachinas: arrastran hacia atrás para dar potencia y ángulo, y sueltan. Cada uno empieza con 100 puntos de vida, el turno dura 30 segundos y la partida tiene como máximo 12 rondas. Gana quien deja al rival sin vida; si se acaban las rondas gana quien conserve más vida, y con la misma vida hay empate. Nadie se mueve por su cuenta: solo se desplaza al ser impactado, retrocediendo según el daño recibido. No hay viento.')
-P('<b>Modos.</b> Buscar partida (cola rápida contra otra persona), partida privada con código de invitación y modo historia contra diez monstruos que mueve el servidor. Ganar un duelo da 100 Marcas de Ceniza; con ellas y con el nivel se compran nueve personajes más en el Arsenal, pues se empieza con Edrik. Hay siete arenas (aldea en ruinas, cementerio, desierto, pinar con niebla, puente helado, fortaleza carmesí y ruinas brumosas) y en cada partida el servidor sortea el terreno (llano, plataformas con gradas o colina) y los obstáculos.')
-P('<b>Objetivo de diseño.</b> Que el juego sirva para ejercitar los problemas reales de un servidor multijugador: muchas partidas simultáneas e independientes, orden de las jugadas, mensajes duplicados, desconexiones, varias réplicas atendiendo la misma partida, información que no debe filtrarse al rival y publicaciones sin cortar partidas.')
-
-H2('2.1 Cumplimiento de las restricciones del juego')
+H2('1.2 Dónde está cada requisito del enunciado')
 table([
-    ['Restricción del enunciado', 'Cómo la cumple ASHENFALL'],
-    ['Por turnos: la partida sabe a quién le toca', 'El estado guarda el jugador en turno y su plazo; solo ese jugador puede disparar y el temporizador de 30 s lo controla el servidor.'],
-    ['Multijugador: mínimo 2 jugadores humanos', 'Cada partida enfrenta a 2 humanos (cola rápida o sala privada). El modo historia es un extra contra un bot del servidor.'],
-    ['Original, no una recreación 1 a 1', 'Reglas propias: duelo de proyectiles con física determinista, retroceso por impacto, terreno y obstáculos sorteados, personajes comprables con nivel y dinero.'],
-    ['Reglas verificables', 'El dominio decide sin ambigüedad si una jugada es válida y cuándo termina la partida (vida, rondas, abandono); está cubierto por pruebas unitarias.'],
-    ['Información oculta (recomendada)', 'La posición del rival y la trayectoria son públicas por decisión de diseño (la cámara las muestra a ambos). Aun así hay vista por jugador: el rival nunca recibe el ángulo, la potencia ni el identificador de la jugada, y una prueba lo verifica en mensajes, REST y logs.'],
-], [2.4, 4.1])
+    ['Parte del enunciado', 'Sección'],
+    ['Requisitos funcionales del servidor (usuarios, salas, emparejamiento, turnos, conexión, fin de partida, historial, administración)', '4'],
+    ['Reglas del servidor (autoritativo, orden, idempotencia, vista por jugador, durabilidad, aislamiento, limpieza, reloj)', '5 y 8'],
+    ['Lenguaje y stack, dominio puro', '2 y 3'],
+    ['Comunicación y contratos (WSS, AsyncAPI 3.0, OpenAPI 3.1 en /docs, RFC 9457, validación, heartbeat y códigos de cierre)', '6'],
+    ['Seguridad (autenticación, autorización, límites, transporte, secretos, cadena de suministro, modelo de amenazas)', '7'],
+    ['Rendimiento y optimización (prueba de carga, capacidad y punto de quiebre, mensajes compactos, optimización medida)', '9'],
+    ['Arquitectura y despliegue en Azure (topología, Bicep, identidad, costo)', '3, 10 y 14'],
+    ['CI/CD, publicaciones sin cortar partidas y rollback', '11'],
+    ['Observabilidad (OpenTelemetry, logs, métricas, sondas, alertas)', '12'],
+    ['Pruebas y calidad', '13'],
+    ['Entregables (repositorio, README, URL pública, etiqueta v1.0.0) y rúbrica', '15 y 16'],
+], [5.4, 1.1])
 
 # =====================================================================
-# 3. Requisitos funcionales
+# 2. El servidor
 # =====================================================================
-H1('3. Requisitos funcionales del servidor')
-P('La API REST tiene 30 rutas y 33 operaciones documentadas en OpenAPI 3.1; el tiempo real usa un solo canal WebSocket documentado en AsyncAPI 3.0. La siguiente tabla relaciona cada capacidad pedida con su implementación.')
+H1('2. El servidor: qué se construyó y dónde está')
+H2('2.1 Resumen')
+table([
+    ['Aspecto', 'Detalle'],
+    ['Nombre y versión', 'ASHENFALL, versión 1.0.0 (etiqueta v1.0.0)'],
+    ['Lenguaje', 'TypeScript en modo estricto (strict: true, sin any) sobre Node.js 22 (el enunciado pide Node 20 o superior)'],
+    ['Framework HTTP', 'Fastify 5, con @fastify/helmet, @fastify/cors, @fastify/rate-limit, @fastify/swagger y @fastify/static'],
+    ['Tiempo real', 'WebSocket con la librería ws, sobre WSS; sin SignalR ni Socket.IO'],
+    ['Datos duraderos', 'PostgreSQL 16 (Flexible Server): log de eventos de cada partida, usuarios, salas, historial, tienda y auditoría'],
+    ['Estado compartido entre réplicas', 'Redis 7: difusión de eventos, presencia de los usuarios y contadores de límite de tasa'],
+    ['Contratos', 'OpenAPI 3.1 (contracts/openapi.json y /docs) y AsyncAPI 3.0 (contracts/asyncapi.json)'],
+    ['Dónde corre', 'Azure Container Apps, suscripción Azure for Students, región canadacentral, grupo de recursos rg-ashenfall-prod'],
+    ['Imagen', 'Docker multietapa sobre node:22-alpine, usuario no root, publicada en un Azure Container Registry privado'],
+    ['Infraestructura', 'Bicep (infra/main.bicep) y GitHub Actions con OIDC, sin secretos'],
+    ['Cliente de prueba', 'Phaser 3 con Vite, servido por el propio servidor desde el mismo origen (sin otro servicio que pagar y sin CORS)'],
+], [1.9, 4.6])
+H2('2.2 Estructura del repositorio')
+table([
+    ['Carpeta', 'Contenido'],
+    ['packages/domain', 'Motor de reglas puro: partida, física, turnos, arenas, vista por jugador y bot. Sin red, base de datos ni framework.'],
+    ['apps/server', 'El servidor: REST, WebSocket, PostgreSQL (migraciones SQL en migrations/), Redis y telemetría.'],
+    ['apps/bot', 'Bots reproducibles: load.ts (carga y punto de quiebre) y redeploy.ts (partidas abiertas durante una publicación).'],
+    ['apps/client', 'Cliente de prueba con Phaser.'],
+    ['contracts', 'openapi.json y asyncapi.json, generados desde el código; una prueba falla si dejan de coincidir.'],
+    ['infra', 'Bicep del ambiente completo y parámetros de dev y prod.'],
+    ['scripts', 'deploy.sh y rollback.sh de Azure, y la generación de arte y de esta documentación.'],
+    ['.github', 'Workflows de CI, despliegue, CodeQL, gitleaks y escaneo de la imagen, y la configuración de Dependabot.'],
+    ['docs', 'Documentación: decisiones, modelo de amenazas, reporte de carga, observabilidad, guía de Azure, costo y cumplimiento.'],
+], [1.5, 5.0])
+H2('2.3 Módulos del servidor (apps/server/src)')
+table([
+    ['Módulo', 'Responsabilidad'],
+    ['auth', 'Registro, login, refresh rotativo, logout, perfil; hasher Argon2id acotado; limitador de login por cuenta.'],
+    ['rooms', 'Salas públicas y privadas con código, unirse, salir, marcar listo; inicio con 2 o más listos.'],
+    ['matchmaking', 'Cola rápida: agrupa jugadores en partidas nuevas, con espera máxima configurable.'],
+    ['matches', 'MatchEngine (orden por partida), almacén de eventos, historial y replay, estadísticas, bots del servidor y sweeper de plazos.'],
+    ['realtime', 'Pasarela WebSocket: tickets de un solo uso, heartbeat, validación de mensajes, presencia, bus de eventos sobre Redis y códigos de cierre.'],
+    ['shop', 'Catálogo y compras con precios del servidor y billetera bloqueada.'],
+    ['admin', 'Partidas activas y conexiones, terminar una partida, suspender y reactivar usuarios, y auditoría.'],
+    ['security, db, telemetry, contracts', 'Cabeceras y errores 500 genéricos; pool de PostgreSQL con identidad de Entra; OpenTelemetry; esquemas de los contratos.'],
+], [1.9, 4.6])
+
+# =====================================================================
+# 3. Arquitectura
+# =====================================================================
+H1('3. Arquitectura y patrones de diseño')
+H2('3.1 Capas')
+P('El motor de reglas vive en un módulo de dominio puro (packages/domain) sin dependencias de red, base de datos ni framework, como exige el enunciado. El servidor conoce al dominio y el dominio no conoce a nadie; ESLint lo hace cumplir y no deja importar red, base de datos, reloj ni azar globales dentro del dominio. Por eso las reglas, la física y la vista por jugador se prueban sin ninguna dependencia externa.')
+drawing_figure(layers(), 'Capas del código: las dependencias solo bajan hacia el dominio puro.')
+H2('3.2 Topología en Azure', 4.2)
+P('Es la topología de referencia del enunciado. Los jugadores se conectan por HTTPS y WSS a cualquier réplica del servidor en Container Apps; el estado caliente y la difusión de eventos entre réplicas pasan por Redis; las jugadas confirmadas se guardan en PostgreSQL; los secretos se leen de Key Vault con identidad administrada. Un componente difiere de la referencia, con su justificación: Redis corre como una Container App interna en el mismo entorno en vez de Azure Cache for Redis, porque el costo de este último no cabe en el crédito de Azure for Students.')
+drawing_figure(topology(), 'Topología de producción en Azure (región canadacentral).')
+H2('3.3 Decisiones de diseño y su justificación')
+table([
+    ['Decisión', 'Por qué'],
+    ['Event sourcing: cada partida es un log de eventos con seq', 'Da durabilidad, reproducción jugada por jugada y que cualquier réplica reconstruya el estado; un reinicio no pierde nada confirmado.'],
+    ['PostgreSQL para el log y Redis solo para lo efímero', 'Lo que no se puede perder va a la base transaccional; Redis (difusión, presencia, límites) puede perder datos sin consecuencia porque el cliente recupera el estado con sync.'],
+    ['Container Apps en vez de App Service', 'Revisiones con división de tráfico, drenado y rollback de tráfico nativos, y escala por solicitudes HTTP concurrentes.'],
+    ['JWT emitidos por el propio servidor', 'El enunciado lo permite; evita depender de un proveedor externo y permite tokens de 15 minutos con refresh rotativo.'],
+    ['Mensajes en JSON', 'Con los campos mínimos, unos 302 bytes por mensaje de media (sección 9.4); MessagePack no compensa la complejidad adicional.'],
+    ['Cliente servido por el mismo servidor', 'Mismo origen: sin CORS abierto y sin un segundo servicio que pagar.'],
+    ['Un solo Container Apps Environment', 'Azure for Students permite uno por suscripción (sección 10.7); prod es el único ambiente desplegado.'],
+], [2.6, 3.9])
+H2('3.4 Patrones usados')
+table([
+    ['Patrón', 'Dónde y para qué'],
+    ['Comando y decisión pura', 'Un comando (disparar, agotar tiempo, desconectar, reconectar) entra al dominio, que devuelve una decisión: aplicada con sus eventos, duplicada o rechazada con un código tipado.'],
+    ['Cola por partida y control optimista', 'Fila por partida en cada réplica y clave primaria (match_id, seq) entre réplicas, con hasta 5 reintentos al perder un conflicto.'],
+    ['Publicación y suscripción', 'Bus de eventos sobre Redis: cada réplica entrega a sus conexiones locales los eventos ya confirmados.'],
+    ['Proyección por jugador', 'toPlayerView y toPlayerEvent proyectan estado y eventos a lo que cada jugador puede ver.'],
+    ['Inyección de dependencias', 'El azar (RandomSource criptográficamente seguro), el reloj y la base de datos entran desde afuera, lo que permite probar con simulaciones.'],
+    ['Barrido de plazos sin líder', 'Todas las réplicas barren los plazos vencidos; si dos coinciden, el dominio rechaza el comando repetido y (match_id, seq) deja confirmar uno solo.'],
+], [1.9, 4.6])
+H2('3.5 Flujo de una jugada')
+bullets([
+    'El cliente envía <font name="Courier">shoot</font> con actionId, expectedVersion, arma, ángulo y potencia.',
+    'La pasarela valida el esquema, el tamaño (máximo 4 KiB) y la tasa de mensajes antes de que lleguen al dominio; un mensaje inválido se rechaza sin cerrar la partida.',
+    'El motor encola la jugada en la fila de la partida, carga el log desde PostgreSQL y reproduce el estado.',
+    'El dominio decide: ¿es su turno?, ¿la versión es vigente?, ¿el actionId ya se aplicó?',
+    'Si se aplica, se insertan los eventos con clave (match_id, seq); si otra réplica ganó ese seq, se relee y se decide de nuevo (hasta 5 veces).',
+    'Los eventos confirmados se publican por Redis; cada réplica los entrega con la vista de cada jugador y el tirador recibe su ack.',
+])
+H2('3.6 Ciclo de vida de una partida', 3.2)
+drawing_figure(lifecycle(), 'Ciclo de vida de una partida.')
+P('Los plazos de cada partida están en PostgreSQL (matches.next_deadline_ms) y todas las réplicas barren los vencidos, así que un reinicio no pierde temporizadores. Si un turno se agota, el jugador pierde el turno sin daño; dos turnos agotados seguidos cuentan como abandono. Al desconectarse, el jugador tiene 60 segundos para volver y recibe el estado actual; si no vuelve, pierde por abandono. El resultado se guarda una vez y no cambia.')
+H2('3.7 Modelo de datos')
+table([
+    ['Tabla', 'Contenido'],
+    ['users, refresh_tokens', 'Cuentas (con rol y estado de suspensión) y refresh tokens: solo se guarda el hash, con familia para detectar reutilización.'],
+    ['matches, match_players, match_events, match_results', 'La partida, sus participantes, el log de eventos con clave (match_id, seq) y el resultado inmutable.'],
+    ['rooms, room_members, matchmaking_queue', 'Salas con código de invitación, sus miembros y la cola rápida con expiración.'],
+    ['wallets, wallet_transactions, cosmetic_catalog, player_cosmetics', 'Monedas, movimientos y catálogo de personajes comprables (los nombres de las dos últimas son heredados del diseño inicial).'],
+    ['story_progress, admin_audit_logs', 'Progreso del modo historia y auditoría de las acciones de administración (autor, motivo y fecha).'],
+], [2.6, 3.9])
+P('Las migraciones son ocho scripts SQL numerados (migrations/001 a 008) que se aplican al arrancar el servidor.')
+
+# =====================================================================
+# 4. Requisitos funcionales
+# =====================================================================
+H1('4. Requisitos funcionales del servidor')
+P('Los nombres de endpoints y mensajes los define el equipo en sus contratos. La API REST tiene 30 rutas y 33 operaciones; el tiempo real usa un canal WebSocket (/ws) con 7 tipos de mensaje.')
 table([
     ['Capacidad', 'Qué hace', 'Implementación'],
-    ['Usuarios', 'Registro, inicio y cierre de sesión, renovación del token y perfil.', 'POST /v1/auth/register, login, refresh y logout; GET /v1/me. JWT de 15 minutos con refresh token rotativo; contraseñas con Argon2id.'],
-    ['Salas', 'Crear partida pública o privada con código, listar, unirse, salir y marcar «listo».', 'POST y GET /v1/rooms, join, join-by-code, leave y ready. Inicia solo con 2 jugadores listos y la capacidad se respeta aunque varios se unan a la vez (prueba de concurrencia).'],
+    ['Usuarios', 'Registro, inicio y cierre de sesión, renovación del token y perfil.', 'POST /v1/auth/register, login, refresh y logout; GET /v1/me. JWT de 15 minutos con refresh token rotativo de 30 días; contraseñas con Argon2id.'],
+    ['Salas', 'Crear partida pública o privada con código, listar, unirse, salir y marcar «listo».', 'POST y GET /v1/rooms, GET /v1/rooms/{id}, join, join-by-code, leave y ready. Inicia solo con 2 jugadores listos y la capacidad se respeta aunque varios se unan a la vez (prueba de concurrencia).'],
     ['Emparejamiento', 'Cola rápida que agrupa jugadores en partidas nuevas.', 'POST, GET y DELETE /v1/matchmaking. Un jugador nunca queda en dos partidas; espera máxima de 60 s, configurable con MATCHMAKING_MAX_WAIT_MS.'],
-    ['Turnos', 'Enviar jugada, recibir el nuevo estado y saber a quién le toca.', 'Mensaje shoot por WebSocket. Solo juega quien tiene el turno; la jugada inválida recibe un error tipado (NOT_YOUR_TURN, STALE_VERSION…); el temporizador de 30 s tiene como acción por defecto perder el turno.'],
-    ['Conexión', 'Detectar caídas, reconectar y recuperar el estado.', 'Heartbeat ping/pong, ticket de un solo uso, snapshot al reconectar y periodo de gracia de 60 s configurable (RECONNECT_GRACE_MS); al vencer, abandono.'],
-    ['Fin de partida', 'Declarar ganador o empate y registrar el resultado.', 'El resultado se guarda una vez y no cambia (tabla match_results); GET /v1/matches/{id}/replay reproduce la partida jugada por jugada.'],
-    ['Historial', 'Partidas jugadas y resultados por usuario.', 'GET /v1/me/matches, paginado; el replay y el detalle solo los ve un participante (404 idéntico al de un recurso inexistente).'],
+    ['Turnos', 'Enviar jugada, recibir el nuevo estado y saber a quién le toca.', 'Mensaje shoot por WebSocket. Solo juega quien tiene el turno; la jugada inválida recibe un error tipado (NOT_YOUR_TURN, STALE_VERSION, TURN_EXPIRED…); el temporizador de 30 s tiene como acción por defecto perder el turno.'],
+    ['Conexión', 'Detectar caídas, reconectar y recuperar el estado.', 'Heartbeat ping/pong cada 15 s, ticket de un solo uso, snapshot al reconectar y periodo de gracia de 60 s configurable (RECONNECT_GRACE_MS); al vencer, abandono.'],
+    ['Fin de partida', 'Declarar ganador o empate y registrar el resultado.', 'El resultado se guarda una vez y no cambia (match_results); GET /v1/matches/{id}/replay reproduce la partida jugada por jugada.'],
+    ['Historial', 'Partidas jugadas y resultados por usuario.', 'GET /v1/me/matches, paginado; el replay solo lo ve un participante (404 idéntico al de un recurso inexistente).'],
     ['Administración', 'Ver partidas activas y conexiones, terminar una partida, suspender un usuario.', 'GET /v1/admin/matches, POST terminate, suspend y unsuspend, GET /v1/admin/audit. Solo el rol administrador; cada acción queda auditada con autor, motivo y fecha.'],
 ], [1.1, 2.0, 3.4])
 
-H2('3.1 Reglas del servidor')
+# =====================================================================
+# 5. Reglas del servidor
+# =====================================================================
+H1('5. Reglas del servidor')
 table([
     ['Regla del enunciado', 'Cómo se cumple'],
-    ['Servidor autoritativo', 'El cliente envía ángulo y potencia, nunca resultados. El dominio simula el tiro y decide el daño.'],
+    ['Servidor autoritativo', 'El cliente envía ángulo y potencia, nunca resultados. El dominio simula el tiro con una física determinista y versionada (PHYSICS_VERSION) y decide el daño.'],
     ['Orden por partida y número de secuencia', 'Las jugadas de una partida se procesan una a una (fila por partida en cada réplica) y cada evento lleva un seq. Entre réplicas, la clave primaria (match_id, seq) deja confirmar a una sola; la otra relee el log y decide de nuevo. Una jugada sobre una versión vieja se rechaza (STALE_VERSION).'],
-    ['Idempotencia', 'Cada jugada lleva un actionId generado por el cliente. Si se reenvía, el servidor responde con un ack marcado duplicate y no la aplica dos veces.'],
-    ['Vista por jugador', 'Cada evento se proyecta a la vista de su destinatario. Ningún mensaje, endpoint ni log filtra el ángulo, la potencia ni el actionId del rival.'],
+    ['Idempotencia', 'Cada jugada lleva un actionId generado por el cliente y guardado en el evento. Si se reenvía, el servidor responde con un ack marcado duplicate y no la aplica dos veces; el mismo actionId usado por otro jugador se rechaza (ACTION_ID_CONFLICT).'],
+    ['Vista por jugador', 'Cada evento se proyecta a la vista de su destinatario. Ningún mensaje, endpoint ni log filtra el ángulo, la potencia ni el actionId del rival (prueba en mensajes, REST y logs).'],
     ['Durabilidad', 'El estado se reconstruye siempre desde PostgreSQL; ninguna jugada confirmada vive solo en memoria. Si una réplica se reinicia o se publica una versión nueva, las partidas continúan.'],
-    ['Aislamiento', 'Un fallo en una partida no bloquea la fila de otra ni tumba el proceso: errores contenidos por mensaje y por partida.'],
-    ['Limpieza', 'Los plazos de cada partida están en PostgreSQL y todas las réplicas barren los vencidos; las partidas inactivas terminan, las salas sin iniciar se cierran a la hora y la cola filtra por expiración.'],
-    ['Reloj y azar del servidor', 'Temporizadores y sorteos (terreno, obstáculos) se resuelven en el servidor con un generador criptográficamente seguro que se inyecta al dominio.'],
+    ['Aislamiento', 'Un fallo en una partida no bloquea la fila de otra ni tumba el proceso: errores contenidos por mensaje y por partida, con una prueba de log dañado en una partida sin afectar a las demás.'],
+    ['Limpieza', 'Los plazos están en PostgreSQL y todas las réplicas barren los vencidos; las partidas inactivas terminan, las salas sin iniciar se cierran a la hora y la cola filtra por expiración.'],
+    ['Reloj y azar del servidor', 'Temporizadores y sorteos (terreno, obstáculos) se resuelven en el servidor con un generador criptográficamente seguro (crypto) que se inyecta al dominio.'],
 ], [1.9, 4.6])
 
 # =====================================================================
-# 4. Arquitectura
+# 6. Contratos
 # =====================================================================
-H1('4. Arquitectura y patrones de diseño')
-H2('4.1 Tecnologías')
+H1('6. Comunicación y contratos')
+H2('6.1 API REST (OpenAPI 3.1)')
+P('Usuarios, salas, emparejamiento, historial, tienda y administración están en OpenAPI 3.1, publicada en /docs con Swagger UI y generada desde el código: una prueba falla si el contrato y las rutas dejan de coincidir. Las 30 rutas se reparten así:')
 table([
-    ['Elemento', 'Tecnología'],
-    ['Lenguaje', 'TypeScript en modo estricto (strict, sin any) sobre Node.js 22'],
-    ['Servidor', 'Fastify 5, WebSocket con la librería ws, validación con esquemas TypeBox'],
-    ['Datos', 'PostgreSQL 16 (eventos y datos duraderos) y Redis 7 (difusión, presencia y límites de tasa)'],
-    ['Seguridad', 'Argon2id, JWT firmados, refresh token rotativo, ticket de un solo uso para el WebSocket'],
-    ['Contratos', 'OpenAPI 3.1 (en /docs), AsyncAPI 3.0, errores RFC 9457 Problem Details'],
-    ['Cliente de prueba', 'Phaser 3 con Vite, servido por el propio servidor'],
-    ['Pruebas y calidad', 'Vitest, ESLint con typescript-eslint estricto, tsc, CodeQL, gitleaks, Trivy y Dependabot'],
-    ['Infraestructura', 'Azure Container Apps, PostgreSQL Flexible Server, Key Vault, Container Registry, Application Insights; Bicep y GitHub Actions'],
+    ['Grupo', 'Rutas'],
+    ['Sondas', 'GET /health/live, GET /health/ready'],
+    ['Autenticación y perfil', 'POST /v1/auth/register, login, refresh, logout; GET /v1/me; POST /v1/me/character; POST /v1/ws-ticket'],
+    ['Salas y cola', 'POST y GET /v1/rooms; GET /v1/rooms/{id}; POST join, leave, ready y /v1/rooms/join-by-code; POST, GET y DELETE /v1/matchmaking'],
+    ['Partidas e historial', 'GET /v1/me/match, GET /v1/me/matches, GET /v1/matches/{id}/replay, GET /v1/me/stats, GET /v1/me/story, POST /v1/matches/bot'],
+    ['Tienda', 'GET /v1/shop/catalog, POST /v1/shop/purchases, GET /v1/me/inventory'],
+    ['Administración', 'GET /v1/admin/matches, POST /v1/admin/matches/{id}/terminate, POST /v1/admin/users/{id}/suspend y unsuspend, GET /v1/admin/audit'],
 ], [1.7, 4.8])
-
-H2('4.2 Capas')
-P('El motor de reglas vive en un módulo de dominio puro (packages/domain) sin dependencias de red, base de datos ni framework. El servidor conoce al dominio y el dominio no conoce a nadie; ESLint hace cumplir esa regla y no deja importar red, base de datos, reloj ni azar globales dentro del dominio. Por eso las reglas, la física y la vista por jugador se prueban sin ninguna dependencia externa.')
-drawing_figure(layers(), 'Capas del código: las dependencias solo bajan hacia el dominio puro.')
-
-H2('4.3 Topología en Azure')
-P('Los jugadores se conectan por HTTPS y WSS a cualquier réplica del servidor. El estado caliente y la difusión de eventos entre réplicas pasan por Redis, las jugadas confirmadas se guardan en PostgreSQL y los secretos se leen de Key Vault con identidad administrada. PostgreSQL no tiene acceso público: vive en una subred delegada de una red virtual; Redis solo tiene ingress interno.')
-drawing_figure(topology(), 'Topología de producción en Azure (región canadacentral).')
-
-H2('4.4 Patrones usados')
+H2('6.2 Errores: RFC 9457 Problem Details')
+P('Todos los errores de la API tienen el formato de Problem Details, con un código propio estable. Respuesta real del servidor a un registro sin correo:')
+code('{"type":"https://ashenfall.invalid/problems/validation-failed",\n "title":"La petición no cumple el esquema","status":400,\n "code":"VALIDATION_FAILED","instance":"/v1/auth/register",\n "errors":[{"path":"","message":"must have required property \'email\'"}]}')
+P('Los límites de tasa responden 429 con la cabecera Retry-After, y un error interno (500) devuelve un Problem Details genérico, sin detalles internos.')
+H2('6.3 Protocolo en tiempo real (AsyncAPI 3.0)')
+P('Un solo canal WebSocket seguro (wss://) con mensajes versionados (campo v, hoy 1) documentados en AsyncAPI 3.0 con su esquema, ejemplos y errores posibles. No hay polling para saber si cambió el turno: el servidor empuja cada evento. El enunciado permite WebSocket directo; se usa la librería ws sin intermediarios.')
 table([
-    ['Patrón', 'Dónde y para qué'],
-    ['Event sourcing', 'Cada partida es un log de eventos ordenados por seq; el estado es el resultado de reproducirlo (decide, evolve y replay en el dominio). Da durabilidad, reproducción jugada por jugada y recuperación tras reinicios.'],
-    ['Comando y decisión pura', 'Un comando (disparar, agotar tiempo, desconectar) entra al dominio, que devuelve una decisión: aplicada con sus eventos, duplicada o rechazada con un código tipado.'],
-    ['Cola por partida y control optimista', 'Fila por partida en cada réplica y clave (match_id, seq) entre réplicas, con hasta 5 reintentos al perder un conflicto.'],
-    ['Publicación y suscripción', 'Bus de eventos sobre Redis: cada réplica entrega a sus conexiones locales los eventos ya confirmados. Si se pierde un mensaje, el cliente detecta el hueco en seq y pide el estado con sync.'],
-    ['Vista por jugador (proyección)', 'toPlayerView y toPlayerEvent proyectan estado y eventos a lo que cada jugador puede ver.'],
-    ['Inyección de dependencias', 'El azar (RandomSource), el reloj y la base de datos entran al dominio y a los servicios desde afuera, lo que permite probarlos con simulaciones.'],
-    ['Barrido de plazos sin líder', 'Todas las réplicas barren los plazos vencidos; si dos coinciden, el dominio rechaza el comando repetido y la clave de secuencia deja confirmar uno solo.'],
-], [1.9, 4.6])
-
-H2('4.5 Flujo de una jugada')
-bullets([
-    'El cliente envía <font name="Courier">shoot</font> con actionId, expectedVersion, arma, ángulo y potencia.',
-    'La pasarela valida el esquema, el tamaño y la tasa de mensajes antes de que lleguen al dominio; un mensaje inválido se rechaza sin cerrar la partida.',
-    'El motor encola la jugada en la fila de la partida, carga el log desde PostgreSQL y reproduce el estado.',
-    'El dominio decide: ¿es su turno?, ¿la versión es vigente?, ¿el actionId ya se aplicó?',
-    'Si se aplica, se insertan los eventos con clave (match_id, seq); si otra réplica ganó ese seq, se relee y se decide de nuevo.',
-    'Los eventos confirmados se publican por Redis; cada réplica los entrega con la vista de cada jugador y el tirador recibe su ack.',
-])
-
-H2('4.6 Ciclo de vida de una partida')
-drawing_figure(lifecycle(), 'Ciclo de vida de una partida.')
-P('Los plazos de cada partida están en PostgreSQL (matches.next_deadline_ms) y todas las réplicas barren los vencidos, así que un reinicio no pierde temporizadores. Si un turno se agota, el jugador pierde el turno sin daño; dos turnos agotados seguidos cuentan como abandono. Al desconectarse, el jugador tiene 60 segundos para volver y recibe el estado actual; si no vuelve, pierde por abandono.')
-
-# =====================================================================
-# 5. Contratos
-# =====================================================================
-H1('5. Contratos y protocolo')
-P('<b>REST.</b> Usuarios, salas, emparejamiento, historial, tienda y administración están en OpenAPI 3.1, publicada en /docs. Los errores siguen RFC 9457 (Problem Details) con un código propio, por ejemplo VALIDATION_FAILED. Los límites de tasa responden 429 con la cabecera Retry-After.')
-P('<b>WebSocket.</b> Un solo canal con mensajes versionados (campo v) documentados en AsyncAPI 3.0: del cliente, shoot y sync; del servidor, welcome, snapshot, event, ack y error. Cada mensaje tiene esquema, ejemplos y errores posibles. La conexión se autentica en el handshake con un ticket de un solo uso de 30 segundos; sin ticket válido se cierra.')
+    ['Mensaje', 'Dirección', 'Contenido'],
+    ['shoot', 'cliente → servidor', 'matchId, actionId (UUID del cliente), expectedVersion, weaponId, angleDeg, power'],
+    ['sync', 'cliente → servidor', 'matchId; pide un snapshot si el cliente detecta un hueco en seq'],
+    ['welcome', 'servidor → cliente', 'userId, al autenticar el handshake'],
+    ['snapshot', 'servidor → cliente', 'Vista completa de la partida para ese jugador (al conectar, reconectar o sync)'],
+    ['event', 'servidor → cliente', 'seq, tiempo y un evento (match_started, shot_resolved, turn_started, turn_timed_out, player_disconnected, player_reconnected, match_finished)'],
+    ['ack', 'servidor → cliente', 'actionId, seq y duplicate (true si ya se había aplicado)'],
+    ['error', 'servidor → cliente', 'code tipado y, si aplica, el actionId'],
+], [0.9, 1.4, 4.2])
+P('Ejemplos del formato de los mensajes (valores ilustrativos):')
+code('→ {"v":1,"type":"shoot","matchId":"…","actionId":"3b13d35a-…","expectedVersion":14,\n    "weaponId":"dagger","angleDeg":45,"power":60}\n← {"v":1,"type":"ack","actionId":"3b13d35a-…","seq":16,"duplicate":false}\n← {"v":1,"type":"error","code":"STALE_VERSION","actionId":"3b13d35a-…"}')
+P('Códigos de error tipados de WebSocket: INVALID_MESSAGE, RATE_LIMITED, INTERNAL_ERROR, MATCH_NOT_FOUND, MATCH_FINISHED, NOT_YOUR_TURN, STALE_VERSION, TURN_EXPIRED, INVALID_WEAPON, INVALID_ANGLE, INVALID_POWER y ACTION_ID_CONFLICT.', st_left)
+H2('6.4 Validación de mensajes')
+P('Cada mensaje entrante se valida contra su esquema (tipos, rangos y tamaño máximo de 4 KiB, aplicado también por la propia librería ws con maxPayload) antes de llegar al dominio; los campos extra se rechazan. Un mensaje inválido recibe un error INVALID_MESSAGE y no cierra la conexión ni la partida. En REST, el cuerpo máximo es de 16 KiB y cada ruta valida su cuerpo con el esquema del contrato.')
+H2('6.5 Heartbeat, cierre ordenado y códigos de cierre')
+P('El servidor envía ping cada 15 s y cierra la conexión si no recibe pong; en un apagado ordenado cierra las conexiones con el código 1001 y el cliente reconecta con un ticket nuevo. La presencia de cada usuario se renueva con cada heartbeat y caduca a los 45 s.')
 table([
     ['Código de cierre', 'Significado'],
     ['1001', 'Cierre ordenado del servidor (publicación o reinicio): el cliente reconecta.'],
     ['4003', 'Usuario suspendido por un administrador.'],
-    ['4008', 'Demasiadas conexiones para ese usuario.'],
+    ['4008', 'Demasiadas conexiones para ese usuario (máximo 3).'],
     ['4009', 'Se perdió el heartbeat.'],
     ['4029', 'Demasiados mensajes por segundo: límite de tasa por conexión.'],
 ], [1.4, 5.1])
-P('Los contratos se generan desde el código y una prueba falla si dejan de coincidir con él: contracts/openapi.json y contracts/asyncapi.json están sincronizados con las rutas y los mensajes reales.')
 
 # =====================================================================
-# 6. Seguridad
+# 7. Seguridad
 # =====================================================================
-H1('6. Seguridad')
-P('El modelo de amenazas completo (activos, fronteras de confianza, amenazas con su defensa y su prueba, y riesgos aceptados) está en docs/threat-model.md. Resumen de las defensas principales:')
+H1('7. Seguridad')
+H2('7.1 Autenticación')
+bullets([
+    '<b>Tokens:</b> JWT firmados con HS256 y emitidos por el propio servidor (lo permite el enunciado), con emisor y audiencia verificados y el algoritmo fijado (un token con alg: none se rechaza). El token de acceso dura <b>15 minutos</b>.',
+    '<b>Refresh token rotativo:</b> dura 30 días y solo se guarda su hash. Cada renovación entrega uno nuevo y reutilizar uno ya usado revoca toda la familia.',
+    '<b>Contraseñas:</b> Argon2id con 19 MiB de memoria, 2 iteraciones y paralelismo 1 (configuración mínima recomendada por OWASP). El hasher admite una contraseña a la vez y una fila de 32; si se llena, el servidor responde 503 en vez de agotar CPU y memoria a las partidas en curso. El login hace una verificación señuelo si el correo no existe, para no revelar qué cuentas existen.',
+    '<b>Secreto de firma:</b> mínimo 32 caracteres, leído de Key Vault; el servidor se niega a arrancar sin él y no tiene ningún valor por defecto.',
+    '<b>WebSocket:</b> se autentica en el handshake con un <b>ticket de un solo uso</b> de 30 segundos (POST /v1/ws-ticket, guardado en Redis y consumido al conectar). Sin un ticket válido, la conexión se cierra.',
+])
+H2('7.2 Autorización')
+bullets([
+    'Solo los participantes actúan en su partida: las salas, partidas y replays ajenos responden 404, idéntico al de un recurso inexistente, para que no se pueda sondear.',
+    'Solo juega quien tiene el turno: el dominio valida turno y versión en cada mensaje shoot.',
+    'Solo el administrador usa /v1/admin: el rol se lee de la base de datos en cada petición y ninguna ruta de la API lo concede (se asigna con una herramienta de línea de comandos); cada acción de administración queda auditada.',
+    'Un usuario suspendido pierde sus conexiones en todas las réplicas (código 4003).',
+])
+H2('7.3 Límites')
+table([
+    ['Límite', 'Valor', 'Configuración'],
+    ['Tasa global de HTTP', '600 peticiones por minuto, por usuario (token válido) o por IP', 'RATE_LIMIT_GLOBAL_PER_MINUTE'],
+    ['Tasa de rutas de autenticación', '20 por minuto por IP', 'RATE_LIMIT_AUTH_PER_MINUTE'],
+    ['Intentos de login por cuenta', '10 por minuto, en cualquier IP', 'RATE_LIMIT_LOGIN_PER_MINUTE'],
+    ['Respuesta al exceder', 'HTTP 429 con Retry-After', 'ProblemError RATE_LIMITED'],
+    ['Mensajes por conexión WebSocket', '20 por segundo; al triplicarlo se cierra con 4029', 'Pasarela'],
+    ['Tamaño máximo de mensaje', '4 KiB en WebSocket y 16 KiB en el cuerpo HTTP', 'maxPayload y bodyLimit'],
+    ['Conexiones por usuario', '3, contadas entre todas las réplicas con Redis', 'Pasarela y presencia'],
+    ['Sonda /health/ready', '120 por minuto', 'Para no saturar la base con las sondas'],
+], [2.0, 3.0, 1.5])
+P('Los contadores viven en Redis, así que el límite vale entre réplicas; si Redis cae, el límite de login sigue por réplica.', st_left)
+H2('7.4 Transporte')
+bullets([
+    '<b>Solo HTTPS y WSS:</b> el ingress de Container Apps tiene allowInsecure en false y redirige <font name="Courier">http://</font> con 301; el servidor corre con ENFORCE_HTTPS=1 (la CSP solo permite wss:) y con TRUST_PROXY=1 para ver la IP real tras el ingress.',
+    '<b>Cabeceras de seguridad</b> con @fastify/helmet: Strict-Transport-Security (max-age de un año, includeSubDomains), Content-Security-Policy (default-src, script-src y connect-src solo del mismo origen, object-src none, frame-ancestors del mismo origen, upgrade-insecure-requests), X-Content-Type-Options nosniff y las demás de helmet.',
+    '<b>CORS restringido:</b> ALLOWED_ORIGINS está vacío en producción (el cliente se sirve del mismo origen), así que ningún origen ajeno recibe Access-Control-Allow-Origin; métodos GET, POST y DELETE y cabeceras authorization y content-type.',
+    '<b>Origen del WebSocket restringido:</b> un handshake con un Origin ajeno recibe 403.',
+])
+H2('7.5 Secretos e identidad administrada')
+bullets([
+    'El secreto de los JWT (jwt-secret) y la cadena de Application Insights están en Key Vault; el Container App los lee como referencias de secreto con la identidad administrada id-ashenfall-prod, que tiene solo los roles Key Vault Secrets User (sobre el Key Vault) y AcrPull (sobre el registro).',
+    'PostgreSQL se accede con un token de Microsoft Entra de esa misma identidad: la autenticación por contraseña está desactivada y la cadena de conexión no lleva clave. Redis no tiene contraseña porque solo tiene ingress interno y vive dentro del entorno.',
+    'Ninguna clave ni cadena de conexión está en la configuración en texto plano (se comprobó con az containerapp show: solo las referencias a Key Vault) ni en el repositorio: gitleaks revisa el historial completo en cada cambio.',
+    'El pipeline entra a Azure con OIDC federado (sin secretos): una identidad administrada ashenfall-github con credenciales federadas para los environments dev y prod de GitHub.',
+])
+H2('7.6 Cadena de suministro')
+table([
+    ['Control', 'Configuración'],
+    ['Dependabot', 'Revisa cada semana las dependencias npm y las acciones de GitHub y abre pull requests.'],
+    ['CodeQL (análisis de código)', 'En cada pull request, en cada push a main y cada lunes.'],
+    ['gitleaks (secretos)', 'En cada pull request y push; revisa todo el historial con --exit-code 1.'],
+    ['Trivy (imagen del contenedor)', 'En cada pull request, push y cada lunes; falla si hay vulnerabilidades CRITICAL.'],
+    ['Imagen del contenedor', 'Multietapa; se ejecuta como el usuario no root «node»; se eliminan npm y corepack de la imagen final para quitar dependencias vulnerables de la base; HEALTHCHECK a /health/live.'],
+], [2.1, 4.4])
+H2('7.7 Modelo de amenazas')
+P('El modelo completo (activos, fronteras de confianza, amenazas por STRIDE, defensa y prueba) está en docs/threat-model.md. Resumen:')
 table([
     ['Amenaza', 'Defensa', 'Prueba'],
-    ['Fuerza bruta de contraseñas', 'Límite por IP y por cuenta; Argon2id; verificación señuelo si el correo no existe', 'rate-limit.test.ts, auth.test.ts'],
-    ['Robo de refresh token', 'Rotación; reutilizar uno revoca la familia; solo se guarda el hash', 'auth.test.ts'],
+    ['Fuerza bruta de contraseñas', 'Límite por IP y por cuenta; Argon2id; verificación señuelo', 'rate-limit.test.ts, auth.test.ts'],
+    ['Robo o reutilización de refresh token', 'Rotación; reutilizar uno revoca la familia; solo se guarda el hash', 'auth.test.ts'],
     ['JWT falsificado', 'Algoritmo fijo; emisor y audiencia verificados', 'auth.test.ts'],
     ['Secuestro del WebSocket desde otra web', 'Ticket de un solo uso de 30 s y orígenes restringidos', 'gateway.test.ts'],
     ['Enviar daño o resultados', 'El esquema rechaza campos extra; el servidor calcula todo', 'gateway.test.ts'],
@@ -401,34 +531,57 @@ table([
     ['Reenviar una jugada', 'actionId idempotente y clave (match_id, seq)', 'gateway.test.ts, resilience.test.ts'],
     ['Ver datos del rival o partidas ajenas', 'Vista por jugador; 404 idéntico al de un recurso inexistente', 'view.test.ts, history.test.ts'],
     ['Duplicar monedas o fijar un precio', 'Precio del servidor, billetera bloqueada y claves únicas', 'shop.test.ts, event-store.test.ts'],
-    ['Inundar la API o el WebSocket', 'Límites por usuario e IP (429 con Retry-After), tamaño máximo de mensaje, tasa por conexión y conexiones por usuario', 'rate-limit.test.ts, gateway.test.ts'],
+    ['Inundar la API o el WebSocket', 'Límites por usuario e IP, tamaño máximo, tasa por conexión y conexiones por usuario', 'rate-limit.test.ts, gateway.test.ts'],
     ['Pico de logins que agota CPU o memoria', 'Argon2id acotado con fila y respuesta 503', 'password-hasher.test.ts'],
     ['Usar funciones de administrador', 'Rol leído de la base en cada petición; ninguna ruta lo concede; auditoría', 'admin.test.ts'],
     ['Secreto en el repositorio o en logs', 'gitleaks en CI; sin valores por defecto; logs sin cabeceras ni cuerpos', 'CI, hardening.test.ts'],
     ['Imagen o dependencias comprometidas', 'Usuario no root; Trivy, CodeQL y Dependabot en CI', 'CI'],
 ], [1.9, 3.1, 1.5])
-H2('6.1 Secretos, identidad y transporte')
+H2('7.8 No filtración de información oculta')
+P('El juego casi no tiene información oculta: la posición del rival y la trayectoria son públicas dentro de la partida por decisión de diseño (la cámara las muestra a ambos), y el enunciado marca la información oculta como recomendada, no obligatoria. Aun así hay una vista por jugador: el rival nunca recibe el ángulo, la potencia ni el actionId de una jugada, ni por WebSocket, ni por REST (el replay), ni en los logs, y hay pruebas que lo verifican en cada canal.')
+H2('7.9 Riesgos aceptados')
 bullets([
-    'El secreto de los JWT vive en Key Vault y la aplicación lo lee con su identidad administrada; no hay ningún secreto en el repositorio ni en texto plano en la configuración.',
-    'PostgreSQL se accede con identidad de Microsoft Entra (contraseña desactivada); la cadena de conexión no trae clave.',
-    'El despliegue desde GitHub usa OIDC federado, sin secretos guardados en el repositorio.',
-    'Solo HTTPS y WSS: <font name="Courier">http://</font> redirige con 301, hay HSTS, CSP y nosniff; CORS y los orígenes del WebSocket están restringidos (un origen ajeno recibe 403).',
-])
-H2('6.2 Riesgos aceptados')
-bullets([
-    'La posición del rival es pública por decisión de diseño; un cliente modificado solo obtiene lo que el jugador ya ve, aunque podría calcular el tiro perfecto.',
+    'Un cliente modificado puede calcular el tiro perfecto, porque la posición y la física son públicas por diseño.',
     'Agotar el límite de login por cuenta bloquea a su dueño un minuto; se prefiere a permitir fuerza bruta distribuida.',
-    'Con Redis caído, los límites de tasa por plugin dejan de aplicarse para no tumbar el servicio y no se pueden emitir tickets nuevos.',
+    'Con Redis caído, los límites por plugin dejan de aplicarse para no tumbar el servicio y no se pueden emitir tickets nuevos.',
+    'El ticket viaja en la URL del handshake: es de un solo uso y dura 30 s, y el servidor no registra esa URL.',
     'Una réplica que cae de golpe no registra desconexiones; sus partidas terminan por los plazos de turno.',
+])
+H2('7.10 Verificado en Azure (7 de noviembre de 2026)')
+bullets([
+    '<font name="Courier">http://</font> responde 301; hay HSTS y CSP; un Origin ajeno en /ws recibe 403 y no recibe cabecera CORS.',
+    'El login devuelve 429 con Retry-After tras repetir intentos fallidos.',
+    'Los secretos del Container App son referencias a Key Vault con identidad administrada; la cadena de PostgreSQL no lleva contraseña.',
+    'PostgreSQL tiene el acceso público desactivado y vive en una subred delegada; Redis solo tiene ingress interno.',
+    'El environment prod de GitHub tiene un revisor obligatorio y el despliegue del 7 de noviembre esperó su aprobación.',
 ])
 
 # =====================================================================
-# 7. Rendimiento
+# 8. Sesiones y concurrencia
 # =====================================================================
-H1('7. Rendimiento y optimización')
-P('La prueba de carga es reproducible: el bot de apps/bot juega partidas reales por HTTP y WebSocket y mide el tiempo desde que se envía una jugada hasta que ambos jugadores reciben el resultado. Las metas del enunciado son p95 menor a 200 ms, ninguna jugada perdida o duplicada y error menor a 1 %. Las pruebas locales se hicieron con una réplica limitada a 1 CPU y 1 GB, con PostgreSQL y Redis sin límite y el bot en la misma máquina (5 de noviembre de 2026).')
-H2('7.1 Ritmo normal: un disparo por segundo y partida')
-P('Sin jugadas perdidas ni duplicadas y sin errores en ningún escalón.')
+H1('8. Sesiones y concurrencia')
+table([
+    ['Problema', 'Solución en el servidor'],
+    ['Muchas partidas simultáneas sin interferir', 'Cada partida tiene su propia fila de comandos y su propio log; un fallo se contiene por partida. Se midieron 800 partidas simultáneas en una réplica sin degradación (sección 9).'],
+    ['Jugadas simultáneas', 'Una sola se confirma por (match_id, seq); la otra se relee y se decide contra el estado nuevo, por lo que llega como rechazo tipado si ya no procede.'],
+    ['Mensajes duplicados', 'actionId idempotente: el reenvío devuelve ack con duplicate en true.'],
+    ['Mensajes fuera de orden o sobre estado viejo', 'expectedVersion frente a la versión del estado: STALE_VERSION; el cliente pide sync.'],
+    ['Varias instancias atendiendo la misma partida', 'Cualquier réplica reconstruye el estado desde PostgreSQL; el bus de Redis reparte los eventos y, si un mensaje se pierde, el cliente detecta el hueco en seq.'],
+    ['Temporizadores', 'El plazo de cada partida está en PostgreSQL; todas las réplicas barren los vencidos sin líder; el bot del servidor decide también por ese barrido.'],
+    ['Desconexión y reconexión', 'Presencia por usuario en Redis; al reconectar, el servidor envía un snapshot. La desconexión solo cuenta si el usuario no tiene ninguna conexión en ninguna réplica, y un cierre tardío no pisa a la conexión nueva.'],
+    ['Abandono', 'Al vencer la gracia de 60 s, o con dos turnos agotados seguidos, la partida termina por abandono.'],
+    ['Reinicios y publicaciones', 'Ninguna jugada confirmada vive solo en memoria; las revisiones nuevas reciben el tráfico solo cuando pasan su prueba de salud, y las conexiones se cierran de forma ordenada (1001).'],
+    ['Limpieza', 'Partidas inactivas expiran por los plazos; salas sin iniciar se cierran a la hora; la cola filtra por expiración; el barrido de limpieza corre cada 30 s.'],
+], [2.2, 4.3])
+P('La resiliencia se probó en tres niveles: pruebas automáticas de concurrencia, reinicio y aislamiento (resilience.test.ts, gateway.test.ts, event-store.test.ts); un bot que reinicia un servidor local a media partida (6 reconexiones y 98 de 98 jugadas confirmadas y coincidentes con el replay); y las corridas en Azure de la sección 9.5, incluida una publicación de revisión con partidas abiertas.')
+
+# =====================================================================
+# 9. Rendimiento
+# =====================================================================
+H1('9. Rendimiento y optimización')
+P('La prueba de carga es reproducible: el bot de apps/bot juega partidas reales por HTTP y WebSocket y mide el tiempo desde que se envía una jugada hasta que ambos jugadores reciben el resultado. Las metas del enunciado son p95 menor a 200 ms, ninguna jugada perdida o duplicada y error menor a 1 %. Las pruebas locales se hicieron con una réplica limitada a 1 CPU y 1 GB, con PostgreSQL y Redis sin límite y el bot en la misma máquina (5 de noviembre de 2026). Los comandos para reproducirlas están en docs/load-report.md.')
+H2('9.1 Ritmo normal: un disparo por segundo y partida')
+P('Sin jugadas perdidas ni duplicadas y sin errores en ningún escalón: se cumplen las tres metas.')
 table([
     ['Partidas', 'Conexiones', 'Jugadas', 'Jugadas/s', 'p50', 'p95', 'p99', 'CPU réplica', 'Memoria máx.'],
     ['25', '50', '300', '23', '9 ms', '15 ms', '16 ms', '11 %', '53 MB'],
@@ -437,33 +590,32 @@ table([
     ['200', '400', '2 400', '184', '3 ms', '9 ms', '24 ms', '15 %', '61 MB'],
     ['400', '800', '4 800', '369', '2 ms', '5 ms', '7 ms', '21 %', '66 MB'],
     ['800', '1 600', '9 600', '737', '2 ms', '7 ms', '17 ms', '33 %', '75 MB'],
-], [0.72, 0.95, 0.62, 0.75, 0.48, 0.48, 0.48, 0.85, 0.95])
-P('Entre 400 y 800 partidas, el consumo es de unos 0,03 puntos de CPU y 0,02 MB por partida activa (la memoria incluye lo que el proceso ya tenía reservado, así que es una aproximación).')
-H2('7.2 Punto de quiebre')
-P('Con diez disparos por segundo y partida, para saturar sin crear miles de cuentas. Ninguna jugada se perdió ni duplicó, tampoco al degradarse.')
+], [0.7, 0.9, 0.72, 0.78, 0.46, 0.46, 0.46, 0.85, 0.93])
+H2('9.2 Capacidad: CPU y memoria por partida y punto de quiebre')
+P('Entre 400 y 800 partidas, el consumo es de unos <b>0,03 puntos de CPU y 0,02 MB por partida activa</b> (la memoria incluye lo que el proceso ya tenía reservado, así que es una aproximación). Para el punto de quiebre se usaron diez disparos por segundo y partida, para saturar sin crear miles de cuentas; ninguna jugada se perdió ni duplicó, tampoco al degradarse.')
 table([
     ['Partidas', 'Jugadas/s', 'p50', 'p95', 'p99', 'CPU réplica', 'CPU PostgreSQL', 'Meta p95'],
     ['200', '1 692', '7 ms', '43 ms', '52 ms', '51 %', '46 %', 'Cumple'],
     ['400', '1 781', '119 ms', '198 ms', '225 ms', '66 %', '95 %', 'En el límite'],
     ['800', '1 845', '327 ms', '428 ms', '453 ms', '98 %', '80 %', 'No cumple'],
 ], [0.75, 0.8, 0.65, 0.65, 0.65, 0.95, 1.2, 0.85])
-P('Una réplica deja de cumplir la meta alrededor de <b>1 800 jugadas por segundo</b>. A un disparo por segundo y partida se midió sin degradación hasta 800 partidas; extrapolando, el tope rondaría 1 700 partidas, pero esa cifra no se midió.')
-H2('7.3 Optimizaciones medidas')
+P('<b>Una réplica deja de cumplir la meta de latencia alrededor de 1 800 jugadas por segundo</b>, y el rendimiento apenas sube a partir de ahí. A un disparo por segundo y partida se midió sin degradación hasta 800 partidas por réplica; extrapolando, el tope rondaría 1 700 partidas, pero esa cifra no se midió.')
+H2('9.3 Optimizaciones medidas (antes y después)')
 table([
     ['Medida', 'Antes', 'Después'],
-    ['p95 de las jugadas con 100 clientes enviando logins fallidos sin parar (Argon2id acotado a una contraseña a la vez)', '202 ms', '109 ms'],
+    ['p95 de las jugadas con 100 partidas y 100 clientes enviando logins fallidos sin parar (Argon2id acotado a una contraseña a la vez)', '202 ms', '109 ms'],
     ['Preparar 100 partidas con sus 200 cuentas (Argon2id con parámetros mínimos de OWASP)', '57 s', '5 s'],
     ['Idas y vueltas a PostgreSQL por jugada', '7', '5'],
     ['Jugadas por segundo en saturación (400 y 800 partidas, dos ejecuciones)', '1 593 a 1 647', '1 754 a 1 839'],
     ['Listado de salas públicas (50 salas)', '101 consultas, p95 7,5 ms', '2 consultas, p95 1,1 ms'],
-    ['Descarga de un jugador nuevo hasta empezar una partida', '105 peticiones, 3,84 MB', '47 peticiones, 1,29 MB'],
-    ['Imagen Docker (disco)', '565 MB', '387 MB'],
     ['Consultas a PostgreSQL en reposo', '4,42 transacciones/s', '2,76 transacciones/s'],
+    ['Imagen Docker (disco)', '565 MB', '387 MB'],
+    ['Descarga de un jugador nuevo hasta empezar una partida', '105 peticiones, 3,84 MB', '47 peticiones, 1,29 MB'],
 ], [3.9, 1.3, 1.3])
 P('Coste aceptado de la primera optimización: una sola réplica procesa unos 20 logins por segundo en un pico, así que en un ataque algunos usuarios reciben 503 y deben reintentar; se prefiere a poner en riesgo las partidas en curso. El detalle de cada cambio está en docs/optimizacion.md.')
-H2('7.4 Mensajes compactos')
-P('El WebSocket usa JSON con los campos mínimos y trayectorias en enteros muestreados: unos 302 bytes por mensaje de media; el estado completo solo viaja al conectar o al pedir sync, y el resto del tiempo se envían solo los eventos nuevos.')
-H2('7.5 Mediciones en Azure (7 de noviembre de 2026)')
+H2('9.4 Mensajes compactos')
+P('El WebSocket usa JSON con los campos mínimos y trayectorias en enteros muestreados: unos <b>302 bytes por mensaje</b> de media. El estado completo solo viaja al conectar o al pedir sync; el resto del tiempo se envían solo los eventos nuevos, proyectados a lo que cada jugador puede ver.')
+H2('9.5 Mediciones en Azure (7 de noviembre de 2026)')
 P('Contra la URL pública de producción, con el bot en un portátil en Costa Rica, por lo que las latencias de extremo a extremo incluyen el viaje por internet hasta Canadá.')
 table([
     ['Prueba', 'Partidas en paralelo', 'Duración', 'Jugadas confirmadas', 'Partidas contrastadas', 'Perdidas / duplicadas / errores'],
@@ -474,55 +626,128 @@ table([
 bullets([
     'Cada partida se contrastó con su replay del servidor: toda jugada confirmada figura una sola vez.',
     'Las jugadas se repartieron entre las réplicas: 261 y 257 en las dos nuevas y 240 en la anterior, con partidas cuyos jugadores quedaban en réplicas distintas.',
-    'La métrica del servidor ashenfall.shot.latency (desde que llega la jugada hasta repartirla), leída en Application Insights, dio media de 15,6 ms en una primera carga corta (91 jugadas, máximo de 61 ms) y de 17,7 y 17,9 ms en las dos réplicas nuevas; el máximo en estas últimas fue de 203 ms en una jugada.',
+    'La métrica del servidor ashenfall.shot.latency, leída en Application Insights, dio media de 15,6 ms en una primera carga corta (91 jugadas, máximo de 61 ms) y de 17,7 y 17,9 ms en las dos réplicas nuevas; el máximo en estas últimas fue de 203 ms en una jugada.',
     'De extremo a extremo con internet de por medio, una carga corta dio p50 de 141 ms y p95 de 216 ms: el p95 supera 200 ms por el viaje desde Costa Rica, no por el servidor.',
     'No se midió el punto de quiebre dentro de Azure; el de una réplica está medido en local.',
 ])
 
 # =====================================================================
-# 8. Azure
+# 10. Azure
 # =====================================================================
-H1('8. Azure, infraestructura como código y CI/CD')
-H2('8.1 Recursos')
+H1('10. Despliegue en Azure')
+H2('10.1 Recursos desplegados')
+P('Todo está en el grupo de recursos <b>rg-ashenfall-prod</b>, región <b>canadacentral</b>, suscripción Azure for Students. Los nombres con sufijo (3fiowy) los genera el Bicep a partir del grupo de recursos para que sean únicos.')
 table([
-    ['Recurso', 'Configuración'],
-    ['Container Apps (servidor)', 'Revisiones múltiples con división de tráfico; prod con 2 a 3 réplicas de 0,5 vCPU y 1 GiB; sondas /health/live y /health/ready'],
-    ['Container Apps (Redis)', '0,25 vCPU y 0,5 GiB, ingress solo interno'],
-    ['PostgreSQL Flexible Server', 'Burstable B1ms, 32 GB, sin alta disponibilidad, subred delegada, acceso público desactivado, autenticación con Entra'],
-    ['Key Vault', 'jwt-secret y cadena de Application Insights, leídos con identidad administrada'],
-    ['Container Registry', 'SKU Basic, imagen del servidor etiquetada con el sha del commit'],
-    ['Application Insights y Log Analytics', 'OpenTelemetry; retención de 30 días; 3 alertas (reinicios, CPU de PostgreSQL y latencia)'],
-    ['Identidad administrada', 'Una identidad de usuario para ACR, Key Vault y PostgreSQL; ninguna clave en la configuración'],
-], [2.1, 4.4])
-P('Todos los recursos están en Bicep (infra/main.bicep) y un ambiente nuevo se levanta con una sola ejecución del pipeline. Los requisitos previos (identidad de GitHub con credenciales federadas, roles en la suscripción y registro de proveedores) se hacen una vez desde el portal y están en docs/azure-setup.md.')
-H2('8.2 Pipeline')
-bullets([
-    '<b>CI</b> (GitHub Actions) en cada pull request: build, linter, pruebas, validación de contratos, CodeQL, gitleaks, escaneo de la imagen con Trivy; Dependabot para dependencias.',
-    '<b>Despliegue</b> con inicio de sesión OIDC sin secretos: crea el grupo de recursos, la infraestructura base, construye y publica la imagen en ACR, crea jwt-secret en Key Vault si no existe y despliega la aplicación.',
-    '<b>Publicaciones sin cortar partidas:</b> la revisión nueva nace al 0 % del tráfico, se prueba por su propia URL (smoke test) y solo entonces recibe el 100 %; la revisión anterior queda activa para el rollback y las más viejas se desactivan, con 120 s de gracia para cerrar conexiones de forma ordenada.',
-    '<b>Prod con aprobación manual:</b> el environment prod exige un revisor; el trabajo espera su aprobación antes de empezar.',
-    '<b>Rollback:</b> scripts/rollback.sh pasa el 100 % del tráfico a la revisión anterior. Se probó en producción el 7 de noviembre de 2026 y tardó <b>22 segundos</b>, con /health/ready en 200 durante el cambio (meta: menos de 5 minutos).',
-])
-H2('8.3 Límite de la suscripción y decisión')
-P('Azure for Students permite un solo entorno de Container Apps por suscripción (el despliegue falla con el error MaxNumberOfGlobalEnvironmentsInSubExceeded; se comprobó incluso con dev en otra región). Por eso dev y prod no pueden existir a la vez. Dev se desplegó desde cero con el pipeline, se probó y se borró para dejar sitio a prod; el despliegue automático a dev (AUTO_DEPLOY) queda apagado. El Bicep y el pipeline de dev siguen en el repositorio y funcionan en una suscripción sin ese límite, con dev automático tras cada CI verde y prod con aprobación manual. Con dev borrado, el pipeline admite lanzar solo prod.', st_left)
+    ['Recurso (nombre real)', 'Tipo', 'Configuración'],
+    ['ashenfall-server-prod', 'Container App', 'El servidor: 0,5 vCPU y 1 GiB, de 2 a 3 réplicas, revisiones múltiples, ingress externo HTTPS en el puerto 8080'],
+    ['ashenfall-redis-prod', 'Container App', 'Redis 7: 0,25 vCPU y 0,5 GiB, 1 réplica fija, ingress interno'],
+    ['cae-ashenfall-prod', 'Container Apps Environment', 'Entorno compartido, dentro de la subred snet-apps; registros enviados a Log Analytics'],
+    ['psql-ashenfall-prod-3fiowy', 'PostgreSQL Flexible Server', 'Versión 16, Standard_B1ms (Burstable), 32 GB sin crecimiento automático, backup de 7 días, sin alta disponibilidad, autenticación solo con Entra, acceso público desactivado'],
+    ['vnet-ashenfall-prod', 'Red virtual', 'Subredes snet-apps (Container Apps) y snet-postgres (delegada a PostgreSQL), con zona DNS privada ashenfall-prod.private.postgres.database.azure.com'],
+    ['kv-ash-prod-3fiowy', 'Key Vault', 'SKU standard, autorización por roles (RBAC); contiene jwt-secret y la cadena de Application Insights'],
+    ['acrashenfallprod3fiowy', 'Container Registry', 'SKU Basic; la imagen se etiqueta con los primeros 12 caracteres del sha del commit'],
+    ['id-ashenfall-prod', 'Identidad administrada (usuario)', 'Roles AcrPull sobre el registro y Key Vault Secrets User sobre el Key Vault; administrador de Entra en PostgreSQL'],
+    ['log-ashenfall-prod', 'Log Analytics', 'SKU PerGB2018, retención de 30 días, tope de 1 GB al día'],
+    ['appi-ashenfall-prod', 'Application Insights', 'Basado en el espacio de trabajo; recibe las métricas y trazas de OpenTelemetry'],
+    ['alert-restarts-prod, alert-postgres-cpu-prod, alert-latency-prod', 'Reglas de alerta', 'Tres alertas (sección 12.3)'],
+], [1.9, 1.5, 3.1])
+H2('10.2 Configuración del servidor en Container Apps')
+table([
+    ['Parámetro', 'Valor'],
+    ['Recursos por réplica', '0,5 vCPU y 1 GiB de memoria; NODE_OPTIONS=--max-old-space-size=512 para acotar el heap de Node'],
+    ['Réplicas', 'Mínimo 2 y máximo 3; regla de escala HTTP con 50 solicitudes concurrentes, sondeo cada 30 s y enfriamiento de 300 s'],
+    ['Revisiones', 'Modo Multiple: la revisión nueva nace sin tráfico, se prueba y luego recibe el 100 %'],
+    ['Sonda de vida', 'GET /health/live cada 10 s, falla tras 3 intentos'],
+    ['Sonda de disponibilidad', 'GET /health/ready cada 5 s, falla tras 3 intentos; comprueba PostgreSQL y Redis'],
+    ['Apagado ordenado', 'terminationGracePeriodSeconds de 120 s para cerrar conexiones con el código 1001'],
+    ['Ingress', 'Externo, puerto 8080, allowInsecure en false (HTTP redirige con 301), WebSocket habilitado'],
+], [2.0, 4.5])
+H2('10.3 Variables de entorno')
+table([
+    ['Variable', 'Valor o procedencia'],
+    ['NODE_ENV, OTEL_SERVICE_NAME', 'production; ashenfall-server'],
+    ['DATABASE_URL', 'postgres://id-ashenfall-prod@psql-ashenfall-prod-3fiowy.postgres.database.azure.com:5432/ashenfall?sslmode=require (sin contraseña: se usa un token de Entra)'],
+    ['AZURE_CLIENT_ID', 'Identificador de la identidad administrada con la que se pide el token de Entra'],
+    ['REDIS_URL', 'redis://ashenfall-redis-prod:6379 (nombre interno del Container App)'],
+    ['JWT_SECRET', 'Referencia al secreto jwt-secret de Key Vault'],
+    ['APPLICATIONINSIGHTS_CONNECTION_STRING', 'Referencia al secreto appinsights-connection-string de Key Vault'],
+    ['TRUST_PROXY, ENFORCE_HTTPS', '1 y 1'],
+    ['ALLOWED_ORIGINS', 'Vacío: solo mismo origen'],
+    ['RATE_LIMIT_*, MATCHMAKING_MAX_WAIT_MS, RECONNECT_GRACE_MS', 'Valores por defecto de la sección 7.3 y de 60 s'],
+], [2.6, 3.9])
+H2('10.4 Red')
+P('El servidor es la única pieza con ingress externo. Redis solo es accesible desde dentro del entorno por su nombre interno. PostgreSQL no tiene acceso público: solo se llega desde la red virtual, mediante la subred delegada y la zona DNS privada; la identidad administrada se autentica con Microsoft Entra.')
+H2('10.5 Identidad y roles')
+table([
+    ['Identidad', 'Para qué', 'Roles'],
+    ['id-ashenfall-prod (administrada, de usuario)', 'Acceso del servidor a los demás servicios, sin claves', 'AcrPull sobre el registro; Key Vault Secrets User sobre el Key Vault; administrador de Entra en PostgreSQL'],
+    ['ashenfall-github (administrada, de usuario)', 'Despliegue desde GitHub Actions con OIDC, sin secretos', 'Contributor y Role Based Access Control Administrator sobre la suscripción; credenciales federadas para los environments dev y prod de GitHub'],
+], [2.0, 2.2, 2.3])
+H2('10.6 Infraestructura como código')
+P('Todos los recursos están en Bicep (infra/main.bicep, con infra/dev.bicepparam y infra/prod.bicepparam) y un ambiente nuevo se levanta con una sola ejecución del pipeline: crea el grupo de recursos, la infraestructura base, construye y publica la imagen, crea el secreto y despliega la aplicación. Los requisitos previos (la identidad de GitHub con sus credenciales federadas, los roles en la suscripción y el registro de proveedores de recursos) se hacen una sola vez desde el portal y están en docs/azure-setup.md. El 7 de noviembre de 2026 el pipeline creó dev y prod desde grupos de recursos vacíos.')
+H2('10.7 Límite de la suscripción y decisión')
+P('Azure for Students permite un solo entorno de Container Apps por suscripción (el despliegue falla con el error MaxNumberOfGlobalEnvironmentsInSubExceeded; se comprobó incluso con dev en otra región). Por eso dev y prod no pueden existir a la vez. Dev se desplegó desde cero con el pipeline, se probó y se borró para dejar sitio a prod; el despliegue automático a dev (variable AUTO_DEPLOY) queda apagado. El Bicep y el pipeline de dev siguen en el repositorio y funcionan en una suscripción sin ese límite, con dev automático tras cada CI verde y prod con aprobación manual. Con dev borrado, el pipeline admite lanzar solo prod (casilla solo_prod).', st_left)
 
 # =====================================================================
-# 9. Observabilidad
+# 11. CI/CD
 # =====================================================================
-H1('9. Observabilidad')
+H1('11. Integración y entrega continuas')
+H2('11.1 Pipeline de integración')
+P('En cada pull request y en cada push a main, GitHub Actions ejecuta, con PostgreSQL 16 y Redis 7 reales como servicios:', st_left)
+bullets([
+    '<b>build</b> de dominio, servidor, bot y cliente; <b>typecheck</b> con tsc en modo estricto; <b>linter</b> (ESLint con typescript-eslint estricto y las reglas de pureza del dominio);',
+    '<b>pruebas</b> (294 pruebas), que incluyen la <b>validación de contratos</b>: OpenAPI y AsyncAPI deben coincidir con el código;',
+    '<b>escaneo de seguridad</b>: CodeQL (código), gitleaks (secretos), Trivy (imagen del contenedor) y Dependabot (dependencias), como flujos propios;',
+    'la imagen se construye en cada cambio para escanearla, y se publica en el registro de Azure en el despliegue.',
+])
+H2('11.2 Pipeline de despliegue (deploy.yml y scripts/deploy.sh)')
+bullets([
+    '<b>Disparo:</b> tras un CI verde en main (el despliegue automático a dev se controla con AUTO_DEPLOY) o a mano con workflow_dispatch.',
+    '<b>Dev</b> se despliega automáticamente; <b>prod</b> usa el environment prod de GitHub, que exige un revisor: el trabajo espera su aprobación antes de empezar.',
+    '<b>Inicio de sesión:</b> azure/login con OIDC, sin secretos guardados.',
+    '<b>Pasos de deploy.sh:</b> crear el grupo de recursos; desplegar la infraestructura base (registro, Key Vault, PostgreSQL, Redis); construir y publicar la imagen en el registro con el sha como etiqueta; crear jwt-secret en Key Vault si no existe (el valor nunca se imprime); desplegar la aplicación; hacer la prueba de humo; trasladar el tráfico; desactivar revisiones antiguas.',
+])
+H2('11.3 Publicaciones sin cortar partidas')
+bullets([
+    'La revisión nueva nace con el <b>0 % del tráfico</b> y se prueba por su propia URL (/health/ready) antes de recibir nada.',
+    'Solo entonces recibe el <b>100 %</b>; la revisión anterior queda activa como destino de rollback y las más viejas se desactivan (<b>drenado</b>).',
+    'Al desactivar una revisión, sus réplicas reciben la señal de apagado y disponen de 120 s para cerrar las conexiones de forma ordenada (código 1001); los clientes reconectan con un ticket nuevo y reciben el estado actual, y como el estado está en PostgreSQL ninguna partida se pierde.',
+    '<b>Evidencia:</b> el 7 de noviembre de 2026 se publicó una revisión nueva de prod con el pipeline mientras 6 partidas del bot seguían en juego: 0 jugadas perdidas, 0 duplicadas, 0 errores, con las partidas contrastadas con su replay (sección 9.5).',
+])
+H2('11.4 Rollback')
+P('scripts/rollback.sh pasa el 100 % del tráfico a la revisión anterior con un solo cambio de tráfico, sin construir nada. Lo mismo se puede hacer desde el portal (Gestión de revisiones). Se <b>probó en producción</b> el 7 de noviembre de 2026: tardó <b>22 segundos</b> y /health/ready respondió 200 durante el cambio; la meta del enunciado es menos de 5 minutos. Si la causa es un esquema de base de datos incompatible, el rollback de tráfico no revierte migraciones.')
+
+# =====================================================================
+# 12. Observabilidad
+# =====================================================================
+H1('12. Observabilidad')
+H2('12.1 OpenTelemetry hacia Application Insights')
+P('El servidor usa el SDK de OpenTelemetry con los exportadores de Azure Monitor y la cadena de conexión de Application Insights (leída de Key Vault). Las métricas se exportan cada 60 s y las trazas se muestrean al 10 % para controlar el costo; el cliente de telemetría es opcional en local y en las pruebas.')
+H2('12.2 Métricas propias, trazas y logs')
 table([
     ['Elemento', 'Detalle'],
-    ['Métricas propias (OpenTelemetry → Application Insights)', 'ashenfall.matches.active (partidas activas, en todas las réplicas), ashenfall.connections, ashenfall.shots (jugadas; la tasa por segundo se calcula al consultar) y ashenfall.shot.latency (latencia por jugada).'],
-    ['Trazas', 'Un span por comando (match.shoot, match.turn_timeout, match.player_disconnected…) con ashenfall.match_id y ashenfall.player_id; se comprobó en Application Insights.'],
-    ['Logs estructurados', 'Con el id de la partida y del jugador y el id de traza para cruzarlos; sin cuerpos ni cabeceras de autorización.'],
-    ['Sondas', '/health/live (el proceso responde) y /health/ready (PostgreSQL y Redis disponibles).'],
-    ['Alertas', 'Tres alertas activas en Azure: reinicios del contenedor, CPU de PostgreSQL y latencia.'],
-], [2.1, 4.4])
+    ['Partidas activas', 'ashenfall.matches.active: partidas en curso en todas las réplicas'],
+    ['Conexiones', 'ashenfall.connections: conexiones WebSocket en cada réplica'],
+    ['Jugadas por segundo', 'ashenfall.shots: contador de jugadas confirmadas; la tasa por segundo se calcula al consultar'],
+    ['Latencia por jugada', 'ashenfall.shot.latency: histograma en ms, desde que llega la jugada hasta repartirla, con límites alrededor de la meta de 200 ms'],
+    ['Trazas', 'Un span por comando (match.shoot, match.turn_timeout, match.player_disconnected…) con los atributos ashenfall.match_id y ashenfall.player_id; se comprobó en Application Insights'],
+    ['Logs estructurados', 'JSON con el id de la partida y del jugador y el id de traza para cruzar logs y trazas; sin cuerpos ni cabeceras de autorización; las sondas y los estáticos no se registran por petición'],
+], [1.9, 4.6])
+H2('12.3 Sondas y alertas', 3.4)
+table([
+    ['Alerta o sonda', 'Condición'],
+    ['/health/live', 'El proceso responde (sonda de vida del Container App y HEALTHCHECK de la imagen)'],
+    ['/health/ready', 'PostgreSQL y Redis disponibles (sonda de disponibilidad); limitada a 120 por minuto'],
+    ['alert-restarts-prod (severidad 1)', 'Reinicios del contenedor mayores que 0 (suma), cada 5 min sobre 15 min'],
+    ['alert-postgres-cpu-prod (severidad 2)', 'CPU de PostgreSQL mayor que 80 % (promedio), cada 5 min sobre 15 min'],
+    ['alert-latency-prod (severidad 2)', 'Consulta sobre ashenfall.shot.latency: promedio mayor que 200 ms en 15 min'],
+], [2.4, 4.1])
+P('Las tres alertas están activas en Azure. Si se pasa el parámetro alertEmail al Bicep se les asocia un grupo de acción por correo; hoy solo se ven en el portal. Que una alerta dispare no se ha visto.')
 
 # =====================================================================
-# 10. Pruebas
+# 13. Pruebas
 # =====================================================================
-H1('10. Pruebas y calidad')
+H1('13. Pruebas y calidad')
 P('Hay 294 pruebas en 24 archivos (resultado del 7 de noviembre de 2026), que CI ejecuta en cada pull request junto con el linter y la revisión de tipos. Las pruebas de integración usan PostgreSQL y Redis reales.')
 table([
     ['Tipo de prueba', 'Qué cubre', 'Archivos'],
@@ -534,52 +759,12 @@ table([
     ['Compras y recompensas', 'Compras concurrentes y recompensa duplicada', 'shop, event-store'],
     ['Observabilidad y estáticos', 'Métricas, trazas y servicio de ficheros precomprimidos', 'telemetry, static, config'],
 ], [1.5, 3.5, 1.5])
-P('Además de las pruebas automáticas hay dos bots reproducibles: <font name="Courier">apps/bot/src/load.ts</font> (carga y punto de quiebre) y <font name="Courier">apps/bot/src/redeploy.ts</font> (partidas abiertas con clientes que se reconectan y reenvían con el mismo actionId, contrastadas con el replay). Probé este último reiniciando un servidor local a media partida: 6 reconexiones y 98 de 98 jugadas confirmadas y coincidentes con el replay.')
+P('Además hay dos bots reproducibles: <font name="Courier">apps/bot/src/load.ts</font> (carga y punto de quiebre) y <font name="Courier">apps/bot/src/redeploy.ts</font> (partidas abiertas con clientes que se reconectan y reenvían con el mismo actionId, contrastadas con el replay).')
 
 # =====================================================================
-# 11. Cómo jugar
+# 14. Costo
 # =====================================================================
-H1('11. Cómo jugar')
-P('Se necesita solo un navegador; en el móvil se juega en horizontal y, si se sostiene en vertical, el juego pide girar el dispositivo. Para crear una cuenta basta un correo y una contraseña de al menos 10 caracteres.')
-figure(IMG / '01-acceso.jpg', 'Pantalla de acceso: crear cuenta o entrar.', 5.2)
-figure(IMG / '02-pueblo.jpg', 'El pueblo de Ashenfall: barra inferior con Personajes, Jugar y Perfil, el Arsenal, el Historial y los ajustes.', 5.2)
-P('<b>Elegir cómo pelear.</b> El botón Jugar ofrece buscar partida (cola rápida contra otra persona, con espera máxima de un minuto), modo historia (un monstruo del servidor) y partida privada (crear sala y compartir el código, o unirse con el código de un amigo).')
-figure(IMG / '03-jugar.jpg', 'Menú Jugar.', 5.0)
-figure(IMG / '04-modo-historia.jpg', 'Modo historia: diez monstruos que se desbloquean en orden.', 5.0)
-P('<b>El duelo.</b> Arriba se ven la vida de cada uno, de quién es el turno, los segundos restantes y la ronda; abajo, el arma y la potencia. Para disparar se mantiene pulsado el botón del ratón (o el dedo) y se arrastra hacia atrás, lejos del rival: cuanto más lejos, más fuerza, y subir o bajar el cursor cambia la altura. Una guía de puntos muestra la trayectoria con la potencia y el ángulo en porcentaje. Al soltar se dispara; Esc o el clic derecho cancelan el apuntado.')
-figure(IMG / '09-arena-apuntar.jpg', 'Arena con la guía de puntería, el turno, la vida y la potencia.', 5.4)
-bullets([
-    'Nadie se mueve a voluntad: solo se retrocede al recibir un impacto, según el daño. No hay viento y los obstáculos frenan los proyectiles.',
-    'Si se agota el tiempo se pierde el turno; dos turnos agotados seguidos cuentan como abandono.',
-    'Si alguien se desconecta tiene un minuto para volver y recibe el estado actual de la partida.',
-    'Ganar da 100 Marcas de Ceniza; perder o empatar no da nada. Cada partida suma 10 de experiencia y 30 más si se gana; cada nivel pide 80, hasta el nivel 20.',
-])
-figure(IMG / '06-perfil.jpg', 'Perfil: personaje, nivel, experiencia, victorias, derrotas y empates.', 4.9)
-figure(IMG / '05-arsenal.jpg', 'Arsenal: los nueve personajes que se compran con nivel y Marcas de Ceniza.', 5.0)
-P('Se empieza con Edrik, el Errante. El Arsenal vende a Sylwen (nivel 2, 500), Borgrim (3, 600), Aldric (4, 700), Mirelle (5, 700), Rurik (6, 800), Vaela (7, 900), Anselmo (8, 900), Corvus (9, 1 000) y Morveth (10, 1 200); cada uno usa siempre su propia arma. En Ajustes se controla el volumen de la música y de los efectos y está el correo para reportar problemas.')
-figure(IMG / '08-ajustes.jpg', 'Ajustes: volumen, correo de contacto y cierre de sesión.', 4.9)
-
-# =====================================================================
-# 12. Instalación
-# =====================================================================
-H1('12. Instalación y uso')
-H2('12.1 Jugar en línea')
-P(f'Abrir <link href="{URL}" color="#16163F">{URL}</link> en un navegador y crear una cuenta. La documentación de la API está en <link href="{URL}/docs" color="#16163F">{URL}/docs</link>. Para probar un duelo entre humanos con una sola persona, abrir el juego en dos navegadores (o en una ventana normal y otra privada) con una cuenta distinta en cada uno.', st_left)
-H2('12.2 Correr en local (menos de 10 minutos)')
-P('Solo se necesita Docker Desktop abierto; no hace falta Node ni configurar secretos.')
-code('git clone ' + REPO + '.git\ncd ashenfall-game\ndocker compose up --build')
-P('Levanta PostgreSQL, Redis y el servidor; las migraciones se aplican al arrancar. El juego queda en http://localhost:8080, la API en http://localhost:8080/docs y las sondas en /health/live y /health/ready. La imagen del servidor se construye sin caché en alrededor de un minuto en un Mac con Docker Desktop (medido el 7 de noviembre; depende de la red).')
-H2('12.3 Correr las pruebas')
-code('npm ci\ndocker compose up -d --wait postgres redis\nnpm test')
-P('Otros comandos: <font name="Courier">npm run lint</font>, <font name="Courier">npm run typecheck</font>, <font name="Courier">npm run build</font> y <font name="Courier">npm run test:coverage</font>. La prueba de carga con el bot está explicada en docs/load-report.md.')
-H2('12.4 Administración')
-P('Ninguna ruta de la API concede el rol de administrador. Para dárselo a una cuenta ya registrada:')
-code('docker compose exec server node apps/server/dist/db/grant-admin-cli.js correo@ejemplo.com')
-
-# =====================================================================
-# 13. Costo
-# =====================================================================
-H1('13. Costo estimado en Azure')
+H1('14. Costo estimado en Azure')
 P('Es una estimación con precios de lista consultados el 5 de noviembre de 2026 (región northeurope, USD), no una factura; los precios cambian por región. Supuestos: mes de 30 días, sin descontar cuotas gratuitas y sin tráfico de salida. Detalle y supuestos en docs/azure-cost.md.')
 table([
     ['Recurso', 'Configuración', 'USD por mes'],
@@ -590,63 +775,114 @@ table([
     ['Log Analytics, Key Vault y alertas', 'Retención de 30 días, tope de 1 GB al día', 'desde 0; peor caso 69 en logs'],
     ['<b>Total aproximado de prod</b>', 'Sin almacenamiento de PostgreSQL ni logs', '<b>~47 a ~115</b>'],
 ], [2.0, 2.6, 1.9])
-P('Azure for Students suele dar 100 USD de crédito (confirmarlo en el portal), así que el costo es ajustado: se redujo con contenedores de tamaño mínimo, sin copiar métricas de plataforma a Log Analytics y sin registrar las sondas. Dev no se mantiene encendido: se borra tras probar. Pasado el periodo de revisión se recomienda borrar el grupo de recursos de producción para no gastar crédito.')
+P('Azure for Students suele dar 100 USD de crédito (confirmarlo en el portal), así que el costo es ajustado. Medidas aplicadas: contenedores de tamaño mínimo, heap de Node acotado, sin copiar métricas de plataforma a Log Analytics, sin registrar las sondas ni los estáticos, y trazas muestreadas al 10 %. Los recursos de dev se apagan o escalan a cero cuando no se usan (el servidor de dev tiene mínimo de 0 réplicas, y dev se borra tras probar). Pasado el periodo de revisión se recomienda borrar el grupo de recursos de producción para no gastar crédito.')
 
 # =====================================================================
-# 14. Planeación
+# 15. Correr y probar
 # =====================================================================
-H1('14. Planeación y proceso')
-P('El trabajo se organizó con el flujo que pide el curso: un ticket de Jira por tarea (proyecto SCRUM), una rama por ticket, commits con la clave del ticket, un pull request por ticket y los estados de Jira movidos a medida que avanzaba cada uno. Hay diez épicas (SCRUM-5 a SCRUM-14) y más de 50 pull requests fusionados.')
+H1('15. Cómo correr y probar el servidor')
+H2('15.1 En Azure')
+P(f'El servidor está disponible en <link href="{URL}" color="#16163F">{URL}</link>; la documentación de la API en <link href="{URL}/docs" color="#16163F">{URL}/docs</link> y las sondas en /health/live y /health/ready.', st_left)
+H2('15.2 En local (menos de 10 minutos)')
+P('Solo se necesita Docker Desktop abierto; no hace falta Node ni configurar secretos (con ASHENFALL_DEV_SECRETS=1 el compose genera una clave JWT aleatoria al arrancar).')
+code('git clone ' + REPO + '.git\ncd ashenfall-game\ndocker compose up --build')
+P('Levanta PostgreSQL, Redis y el servidor; las migraciones se aplican al arrancar. El servidor queda en http://localhost:8080, la API en /docs y las sondas en /health/live y /health/ready. La imagen se construye sin caché en alrededor de un minuto en un Mac con Docker Desktop (medido el 7 de noviembre; depende de la red). Los puertos solo se publican en 127.0.0.1.')
+H2('15.3 Pruebas y carga')
+code('npm ci\ndocker compose up -d --wait postgres redis\nnpm test\n\nnpm run build\nnode apps/bot/dist/load.js --steps 25,50,100 --think-ms 1000 --shots 12')
+P('Otros comandos: npm run lint, npm run typecheck y npm run test:coverage. La prueba de carga completa y el punto de quiebre están explicados en docs/load-report.md.')
+H2('15.4 Administración')
+P('Ninguna ruta de la API concede el rol de administrador. Para dárselo a una cuenta ya registrada:')
+code('docker compose exec server node apps/server/dist/db/grant-admin-cli.js correo@ejemplo.com')
+
+# =====================================================================
+# 16. Cumplimiento
+# =====================================================================
+H1('16. Cumplimiento del enunciado')
+P('La matriz completa, con 94 requisitos, su evidencia (código, prueba, documento, workflow o Bicep) y su estado, está en docs/cumplimiento-enunciado.md. Resultado: <b>92 requisitos cumplidos, 2 cumplidos parcialmente y ninguno incumplido</b>. La tabla siguiente sigue el orden del enunciado.')
+H2('16.1 Requisitos técnicos y de despliegue')
 table([
-    ['Épica', 'Contenido'],
-    ['SCRUM-5 Fundación del repo y flujo de trabajo', 'Repositorio, ramas, convenciones, CI inicial'],
-    ['SCRUM-6 Dominio puro del duelo', 'Reglas, turnos, física, pruebas del dominio'],
-    ['SCRUM-7 API REST y usuarios', 'Registro, sesiones, salas, historial, administración'],
-    ['SCRUM-8 Tiempo real por WebSocket', 'Protocolo, ticket, heartbeat, validación de mensajes'],
-    ['SCRUM-9 Persistencia y multi-réplica', 'Log de eventos, Redis, orden e idempotencia entre réplicas'],
-    ['SCRUM-10 Seguridad', 'Argon2id, JWT, límites de tasa, modelo de amenazas'],
-    ['SCRUM-11 Cliente del juego', 'Cliente de prueba con Phaser, pueblo, arena, tienda'],
-    ['SCRUM-12 Azure, IaC y CI/CD', 'Bicep, GitHub Actions, identidad, publicaciones y rollback'],
-    ['SCRUM-13 Observabilidad', 'OpenTelemetry, métricas propias, sondas, alertas'],
-    ['SCRUM-14 Rendimiento y entrega', 'Prueba de carga, optimizaciones, documentación y etiqueta v1.0.0'],
-], [2.7, 3.8])
-P('En la etapa final se hicieron, cada una con su ticket y su pull request: personajes comprables con nivel y dinero (SCRUM-62 a 66), terreno y obstáculos aleatorios por partida (67), correcciones de las pruebas del usuario (68), QA y limpieza (69), optimización medida (70), auditoría contra el enunciado (72), despliegue de producción (73), README con la historia y cómo jugar (74), publicación solo a prod y rollback probado (75 y 76), verificación en Azure y soporte móvil (77 a 79), guía de juego y arquitectura (80) y esta documentación (81). Las decisiones de arquitectura y de juego están en docs/DECISIONS.md.')
-
-# =====================================================================
-# 15. Cumplimiento
-# =====================================================================
-H1('15. Cumplimiento del enunciado')
-P('La matriz completa, con 94 requisitos, su evidencia (código, prueba, documento, workflow o Bicep) y su estado, está en docs/cumplimiento-enunciado.md. Resultado: <b>92 requisitos cumplidos, 2 cumplidos parcialmente y ninguno incumplido</b>. Resumen por criterio de la rúbrica:')
+    ['Requisito del enunciado', 'Cómo se cumple', 'Estado', 'Sección'],
+    ['Lenguaje con tipado estático y modo estricto', 'TypeScript strict: true, sin any (ESLint), Node 22', 'Cumple', '2'],
+    ['Motor de reglas en un módulo de dominio puro', 'packages/domain, sin red, base de datos ni framework (regla de ESLint)', 'Cumple', '3.1'],
+    ['WebSocket seguro (wss://), sin polling del turno', 'ws sobre WSS; el servidor empuja cada evento', 'Cumple', '6.3'],
+    ['Protocolo versionado documentado con AsyncAPI 3.0', 'contracts/asyncapi.json: 7 mensajes con esquema, ejemplos y errores', 'Cumple', '6.3'],
+    ['API REST con OpenAPI 3.1 publicada en /docs', '30 rutas; Swagger UI en /docs', 'Cumple', '6.1'],
+    ['Errores RFC 9457 Problem Details', 'Todos los errores, con código propio', 'Cumple', '6.2'],
+    ['Cada mensaje validado antes del dominio; inválido no cierra la partida', 'Esquemas con tipos, rangos y 4 KiB; error INVALID_MESSAGE', 'Cumple', '6.4'],
+    ['Heartbeat y cierre ordenado con códigos documentados', 'Ping/pong cada 15 s; códigos 1001, 4003, 4008, 4009 y 4029', 'Cumple', '6.5'],
+    ['JWT firmados, contraseñas Argon2id, WebSocket autenticado en el handshake', 'JWT HS256 de 15 min; Argon2id; ticket de un solo uso de 30 s', 'Cumple', '7.1'],
+    ['Autorización en cada endpoint y mensaje', 'Participantes, turno y rol administrador', 'Cumple', '7.2'],
+    ['Límites de tasa por usuario y conexión (429 con Retry-After), tamaño y conexiones', 'Valores de la tabla 7.3', 'Cumple', '7.3'],
+    ['Solo HTTPS y WSS, CORS y orígenes restringidos, cabeceras de seguridad', 'Ingress sin HTTP, helmet, CORS vacío, Origin ajeno rechazado', 'Cumple', '7.4'],
+    ['Secretos en Key Vault con identidad administrada; ninguno en el repositorio', 'Referencias a Key Vault; gitleaks en CI', 'Cumple', '7.5'],
+    ['Escaneo de dependencias, código y secretos; imagen no root sin críticas', 'Dependabot, CodeQL, gitleaks y Trivy; usuario node', 'Cumple', '7.6'],
+    ['Prueba de carga con metas p95 < 200 ms, sin pérdidas ni duplicados, error < 1 %', 'Bot reproducible; p95 de 15 ms o menos hasta 800 partidas', 'Cumple', '9.1'],
+    ['CPU y memoria por partida y punto de quiebre', '0,03 puntos de CPU y 0,02 MB por partida; quiebre ~1 800 jugadas/s', 'Cumple', '9.2'],
+    ['Mensajes compactos', 'JSON mínimo, 302 bytes de media', 'Cumple', '9.4'],
+    ['Al menos una optimización con números antes y después', 'Dos, con cifras', 'Cumple', '9.3'],
+    ['Infraestructura como código; ambiente nuevo con una ejecución del pipeline', 'Bicep; dev y prod creados desde cero por el pipeline', 'Cumple', '10.6'],
+    ['CI/CD con build, linter, pruebas, contratos y escaneo; dev automático, prod manual', 'GitHub Actions; prod con revisor obligatorio. Dev automático solo si la suscripción lo permite', 'Cumple parcialmente', '10.7 y 11'],
+    ['Publicaciones sin cortar partidas', 'Revisiones con tráfico al 0 %, drenado y cierre 1001; probado con partidas abiertas', 'Cumple', '11.3'],
+    ['Rollback documentado de menos de 5 minutos', 'rollback.sh; probado en prod: 22 s', 'Cumple', '11.4'],
+    ['Identidad administrada; sin cadenas de conexión ni claves', 'Identidad de usuario para ACR, Key Vault y PostgreSQL (Entra)', 'Cumple', '7.5 y 10.5'],
+    ['Observabilidad: OpenTelemetry, logs con id de partida y jugador, métricas propias, sondas, 2 o más alertas', 'Application Insights; 4 métricas; 2 sondas; 3 alertas', 'Cumple', '12'],
+    ['Costo dentro del crédito, con estimación mensual; dev apagado o a cero', 'Estimación de ~47 a ~115 USD/mes para prod; dev borrado tras probar', 'Cumple', '14'],
+    ['Repositorio con código, IaC, pipelines, contratos, pruebas, bots y cliente', 'Todo en el repositorio de GitHub', 'Cumple', '2.2'],
+    ['README: correr en menos de 10 minutos, pruebas y URL pública', 'README, docker compose up y URL de Azure', 'Cumple', '15'],
+    ['Versión etiquetada v1.0.0 y documentación', 'Etiqueta v1.0.0 y este documento', 'Cumple', '—'],
+], [2.3, 2.5, 0.9, 0.8])
+H2('16.2 Rúbrica')
 table([
     ['Criterio (peso)', 'Evidencia principal', 'Estado'],
-    ['Arquitectura y calidad de construcción (20 %)', 'Dominio puro aislado y verificado por ESLint; capas; TypeScript estricto sin any; arquitectura documentada con diagramas', 'Cumple'],
+    ['Arquitectura y calidad de construcción (20 %)', 'Dominio puro aislado y verificado por ESLint; capas; TypeScript estricto sin any; decisiones documentadas con diagramas', 'Cumple'],
     ['Sesiones y concurrencia (20 %)', 'Orden por partida, idempotencia, reconexión, abandono, plazos en PostgreSQL, varias réplicas probadas en Azure, publicación con partidas abiertas sin pérdidas', 'Cumple'],
     ['Seguridad (20 %)', 'Autenticación y autorización por partida en HTTP y WebSocket, validación de cada mensaje, límites de tasa, sin filtración al rival, secretos en Key Vault, modelo de amenazas, sin secretos en el repositorio', 'Cumple'],
-    ['Rendimiento y optimización (15 %)', 'Prueba de carga reproducible; p95 de 15 ms o menos hasta 800 partidas en local; punto de quiebre medido (~1 800 jugadas/s por réplica); dos optimizaciones con cifras; mediciones en Azure', 'Cumple'],
-    ['Despliegue en Azure, IaC y CI/CD (10 %)', 'Bicep, pipeline con OIDC, identidad administrada, prod con aprobación, publicaciones sin cortes, rollback de 22 s, ambiente levantado desde cero por el pipeline', 'Cumple (dev automático parcial por el límite de la suscripción)'],
-    ['Estándares, contratos y pruebas (10 %)', 'OpenAPI 3.1 y AsyncAPI 3.0 sincronizados con el código, Problem Details, 294 pruebas unitarias, de integración, concurrencia, seguridad y resiliencia en verde en CI', 'Cumple'],
-    ['Documentación y observabilidad (5 %)', 'Este documento y la carpeta docs/; logs y trazas con id de partida y jugador; cuatro métricas propias; sondas; tres alertas', 'Cumple'],
+    ['Rendimiento y optimización (15 %)', 'Prueba de carga reproducible que cumple las metas; punto de quiebre medido; dos optimizaciones con cifras; mediciones en Azure', 'Cumple'],
+    ['Despliegue en Azure, IaC y CI/CD (10 %)', 'Bicep, pipeline con OIDC, identidad administrada, prod con aprobación, publicaciones sin cortes, rollback de 22 s, ambiente levantado desde cero', 'Cumple (dev automático parcial por el límite de la suscripción)'],
+    ['Estándares, contratos y pruebas (10 %)', 'OpenAPI 3.1 y AsyncAPI 3.0 sincronizados con el código, Problem Details, 294 pruebas en verde en CI', 'Cumple'],
+    ['Documentación y observabilidad (5 %)', 'Este documento y docs/; logs y trazas con id de partida y jugador; cuatro métricas propias; sondas; tres alertas', 'Cumple'],
 ], [1.9, 3.5, 1.1])
 
 # =====================================================================
-# 16. Limitaciones
+# 17. Limitaciones
 # =====================================================================
-H1('16. Limitaciones y trabajo futuro')
+H1('17. Limitaciones y trabajo futuro')
 bullets([
     '<b>Dev automático:</b> Azure for Students permite un solo entorno de Container Apps por suscripción, así que dev y prod no pueden coexistir y el despliegue automático a dev quedó apagado. Es el único requisito que cumple parcialmente por una restricción externa.',
-    '<b>Información oculta:</b> es opcional en el enunciado; la posición del rival y la trayectoria son públicas por diseño. Sí hay vista por jugador y prueba de no filtración.',
     '<b>Latencia en Azure:</b> la carga se hizo desde internet y en escalones pequeños (hasta 8 partidas). La latencia medida en el servidor es baja (media de unos 17 ms), pero el punto de quiebre solo está medido en local y habría que repetirlo dentro de Azure con carga alta.',
-    '<b>Navegadores:</b> el cliente se probó en Chromium, en un navegador de escritorio y en emulación móvil horizontal. Safari y Firefox no se pudieron probar con navegadores reales; el código se compila para Safari 14 o superior, Firefox 78 y Chrome 87.',
-    '<b>Cliente:</b> el cliente es de prueba; no tiene nota. El móvil solo se juega en horizontal.',
-    '<b>Mejoras posibles:</b> alertas por correo (el parámetro existe y falta pasarlo en el pipeline), un rastreo de dependencias con las actualizaciones mayores de Dependabot (TypeScript 7, ESLint 10 y Vitest 5 están pendientes de revisar) y medir el punto de quiebre dentro de Azure.',
+    '<b>Alertas:</b> existen y están activas, pero no se ha visto que disparen, y no tienen un grupo de acción por correo (el parámetro alertEmail existe y falta pasarlo en el pipeline).',
+    '<b>Información oculta:</b> es opcional en el enunciado; la posición del rival y la trayectoria son públicas por diseño. Sí hay vista por jugador y prueba de no filtración.',
+    '<b>Polling:</b> el turno nunca se consulta por polling (todo evento se empuja por WebSocket); el cliente de prueba solo consulta cada cierto tiempo la lista de miembros de una sala privada antes de que empiece la partida, porque el contrato de salas no emite eventos.',
+    '<b>Navegadores:</b> el cliente de prueba se probó en Chromium y en emulación móvil; Safari y Firefox no se pudieron probar con navegadores reales, aunque el código se compila para Safari 14 o superior, Firefox 78 y Chrome 87.',
+    '<b>Mejoras posibles:</b> medir el punto de quiebre dentro de Azure, revisar las actualizaciones mayores de Dependabot (TypeScript 7, ESLint 10 y Vitest 5) y usar Azure Cache for Redis si el crédito lo permite.',
 ])
 
 # =====================================================================
-# 17. Conclusión
+# 18. Conclusión
 # =====================================================================
-H1('17. Conclusión')
-P('ASHENFALL cumple lo que pide el proyecto: un servidor autoritativo, seguro y observable, con muchas partidas simultáneas e independientes, orden e idempotencia de las jugadas, reconexión y abandono, varias réplicas coordinadas por PostgreSQL y Redis, y publicaciones sin cortar partidas, desplegado en Azure con infraestructura como código, identidad administrada y un pipeline con aprobación manual a producción. Las cifras de rendimiento y de resiliencia salen de ejecuciones reales y reproducibles con los bots incluidos en el repositorio, y donde algo no se pudo comprobar o la suscripción lo impide se dice en este documento.')
-P(f'El juego está disponible en <link href="{URL}" color="#16163F">{URL}</link> durante el periodo de revisión, y el código, la infraestructura, los pipelines, los contratos, las pruebas, los bots y la documentación están en <link href="{REPO}" color="#16163F">{REPO}</link>, en la versión etiquetada v1.0.0.', st_left)
+H1('18. Conclusión')
+P('El servidor de ASHENFALL cumple lo que pide el proyecto: es autoritativo, seguro y observable; atiende muchas partidas simultáneas e independientes con orden e idempotencia de las jugadas, reconexión y abandono; funciona con varias réplicas coordinadas por PostgreSQL y Redis; y se publica sin cortar partidas, con rollback en segundos. Está desplegado en Azure con infraestructura como código, identidad administrada, secretos en Key Vault y un pipeline con aprobación manual a producción. Las cifras de rendimiento y de resiliencia salen de ejecuciones reales y reproducibles con los bots del repositorio, y donde algo no se pudo comprobar o la suscripción lo impide se dice en este documento.')
+P(f'El servidor está en <link href="{URL}" color="#16163F">{URL}</link> durante el periodo de revisión, y el código, la infraestructura, los pipelines, los contratos, las pruebas, los bots y la documentación están en <link href="{REPO}" color="#16163F">{REPO}</link>, en la versión etiquetada v1.0.0.', st_left)
+
+# =====================================================================
+# Anexo A. El juego
+# =====================================================================
+story.append(PageBreak())
+H1('Anexo A. El juego que usa el servidor')
+P('El enunciado deja el juego a criterio del equipo y solo exige unas restricciones; el juego no tiene nota. Esta sección resume el juego para entender los mensajes del servidor. La historia, las reglas y una guía con capturas están en el README y en docs/guia-de-juego.md.')
+P('<b>ASHENFALL</b> es un duelo 1v1 por turnos de proyectiles, de fantasía oscura, que se juega en el navegador. Cada jugador empieza con 100 puntos de vida, el turno dura 30 segundos y la partida tiene como máximo 12 rondas. Se dispara con un gesto de tirachinas (arrastrar hacia atrás para dar potencia y ángulo y soltar). Nadie se mueve por su cuenta: solo se retrocede al recibir un impacto, según el daño. Gana quien deja al rival sin vida; si se acaban las rondas gana quien conserve más vida, y con la misma vida hay empate. Hay siete arenas, y en cada partida el servidor sortea el terreno y los obstáculos. Ganar da 100 Marcas de Ceniza, con las que se compran nueve personajes más en el Arsenal; hay además un modo historia contra diez monstruos que mueve el servidor.')
+H2('A.1 Restricciones del enunciado')
+table([
+    ['Restricción', 'Cómo la cumple'],
+    ['Por turnos', 'El estado guarda el jugador en turno y su plazo; el temporizador de 30 s lo controla el servidor.'],
+    ['Multijugador (mínimo 2 humanos)', 'Cada partida enfrenta a 2 humanos (cola rápida o sala privada); el modo historia es un extra contra un bot del servidor.'],
+    ['Original', 'Reglas propias: física de proyectiles determinista, retroceso por impacto, terreno y obstáculos sorteados, personajes comprables.'],
+    ['Reglas verificables', 'El dominio decide sin ambigüedad si una jugada es válida y cuándo termina la partida; hay pruebas unitarias.'],
+    ['Información oculta (recomendada)', 'Posición y trayectoria públicas por decisión de diseño; la vista por jugador oculta ángulo, potencia y actionId del rival.'],
+], [2.0, 4.5])
+figure(IMG / '02-pueblo.jpg', 'El pueblo de Ashenfall, pantalla principal del cliente de prueba.', 2.9)
+figure(IMG / '09-arena-apuntar.jpg', 'Arena durante un duelo, con la guía de puntería, el turno, la vida y la potencia.', 2.9)
+
 
 
 def build():
