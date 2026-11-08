@@ -52,7 +52,7 @@ El servidor es la única pieza con ingress externo. Redis solo es accesible desd
 
 | Control | Configuración |
 |---|---|
-| Dependabot | Revisa cada semana las dependencias npm y las acciones de GitHub y abre pull requests. |
+| Dependabot | Alertas de vulnerabilidades activadas (0 abiertas tras SCRUM-87) y revisión semanal de dependencias npm y acciones de GitHub; los saltos de versión mayor se revisan a mano. |
 | CodeQL (análisis de código) | En cada pull request, en cada push a `main` y cada lunes. |
 | gitleaks (secretos) | En cada pull request y push; revisa todo el historial con `--exit-code 1`. |
 | Trivy (imagen del contenedor) | En cada pull request, push y cada lunes; falla si hay vulnerabilidades CRITICAL. |
