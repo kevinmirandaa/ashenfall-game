@@ -1,36 +1,167 @@
 <p align="center">
-  <img src="apps/client/public/art/emblem.webp" alt="Emblema de Ashenfall: un mercenario encapuchado dentro de un círculo de espadas" width="240" />
+  <img src="apps/client/public/art/emblem.webp" alt="Emblema de Ashenfall: un mercenario encapuchado dentro de un círculo de espadas" width="200" />
 </p>
 
 <h1 align="center">ASHENFALL</h1>
 
-<p align="center"><em>Apunta. Dispara. Sobrevive.</em></p>
+<p align="center"><b>Servidor de nivel producción en Azure para un juego por turnos</b><br/><em>Apunta. Dispara. Sobrevive.</em></p>
 
 <p align="center">
-  <a href="https://ashenfall-server-prod.icytree-9cfd11e3.canadacentral.azurecontainerapps.io"><b>▶ Jugar ahora</b></a>
+  <a href="https://ashenfall-server-prod.icytree-9cfd11e3.canadacentral.azurecontainerapps.io"><b>▶ Servidor en Azure</b></a>
   &nbsp;·&nbsp;
-  <a href="docs/jugar-en-local.md">Jugar en local</a>
+  <a href="https://ashenfall-server-prod.icytree-9cfd11e3.canadacentral.azurecontainerapps.io/docs">API (OpenAPI)</a>
   &nbsp;·&nbsp;
-  <a href="https://ashenfall-server-prod.icytree-9cfd11e3.canadacentral.azurecontainerapps.io/docs">API</a>
+  <a href="entrega/Documentacion_ASHENFALL.pdf">Documentación en PDF</a>
+  &nbsp;·&nbsp;
+  <a href="#parte-2--el-juego">Jugar</a>
 </p>
 
-Duelo 1v1 por turnos de proyectiles, de fantasía oscura y pixel art, que se juega en el navegador. Enlace para jugar: **<https://ashenfall-server-prod.icytree-9cfd11e3.canadacentral.azurecontainerapps.io>**. Solo hace falta crear una cuenta.
+ASHENFALL es un **servidor autoritativo** que aloja muchas partidas simultáneas e independientes de un duelo 1v1 por turnos, y mantiene el estado de cada una consistente aunque los jugadores se desconecten, reintenten acciones o una instancia se reinicie. Está desplegado en Azure Container Apps y es el centro de este repositorio; el juego (con cliente web y arte) es el pretexto para ejercitarlo. Este README tiene dos partes:
+
+1. **[El servidor](#parte-1--el-servidor)**: qué es, cómo está hecho, cómo se protege, cómo se despliega, cómo se mide y cómo se corre.
+2. **[El juego](#parte-2--el-juego)**: la historia, cómo se juega y el enlace para probarlo.
+
+El servidor está en **<https://ashenfall-server-prod.icytree-9cfd11e3.canadacentral.azurecontainerapps.io>** y la versión evaluada es la etiqueta **v1.0.0**.
+
+---
+
+# Parte 1 · El servidor
+
+## De un vistazo
+
+| Aspecto | Detalle |
+|---|---|
+| Lenguaje | TypeScript en modo estricto (sin `any`) sobre Node.js 22 |
+| Servidor | Fastify 5; REST documentada con OpenAPI 3.1 en `/docs`; WebSocket seguro (`wss://`) documentado con AsyncAPI 3.0 |
+| Datos | PostgreSQL 16 (log de eventos de cada partida) y Redis 7 (difusión entre réplicas, presencia y límites de tasa) |
+| Dominio | Motor de reglas **puro** en `packages/domain`: sin red, base de datos ni framework |
+| Azure | Container Apps (2 a 3 réplicas), PostgreSQL Flexible Server en red privada, Key Vault, Container Registry, Application Insights; región `canadacentral` |
+| Identidad | Identidad administrada: ninguna clave ni cadena de conexión en la configuración; PostgreSQL con Microsoft Entra |
+| Infraestructura | Bicep ([infra/](infra/)) y GitHub Actions con OIDC, sin secretos; prod con aprobación manual |
+| Publicaciones | Revisiones con división de tráfico, drenado de conexiones y rollback de **22 s** (medido en producción) |
+| Rendimiento | p95 de 15 ms o menos hasta 800 partidas en una réplica; quiebre en ~1 800 jugadas/s; 0 jugadas perdidas o duplicadas |
+| Pruebas | 294 pruebas en 24 archivos (dominio, API, WebSocket, concurrencia, seguridad y resiliencia) en verde en CI |
+
+## Cómo funciona
+
+El cliente solo envía **intenciones** («disparar con este ángulo y esta potencia»). El servidor las valida contra las reglas y el estado actual, simula el resultado y guarda cada hecho como un **evento con número de secuencia** en PostgreSQL. El estado de una partida es siempre el resultado de reproducir sus eventos, así que cualquier réplica puede atenderla, la partida se puede reproducir jugada por jugada y un reinicio no pierde nada confirmado.
+
+```mermaid
+flowchart LR
+  B1[Navegador A] -- "HTTPS / WSS" --> S1
+  B2[Navegador B] -- "HTTPS / WSS" --> S2
+  subgraph Azure["Azure (rg-ashenfall-prod, canadacentral)"]
+    subgraph CAE["Container Apps Environment"]
+      S1["Servidor — réplica 1"]
+      S2["Servidor — réplica 2"]
+      R[("Redis<br/>difusión y presencia")]
+    end
+    PG[("PostgreSQL<br/>eventos, usuarios, salas")]
+    KV["Key Vault<br/>secretos"]
+    AI["Application Insights<br/>métricas, trazas, alertas"]
+  end
+  S1 <--> R
+  S2 <--> R
+  S1 --> PG
+  S2 --> PG
+  S1 -. identidad administrada .-> KV
+  S2 -. identidad administrada .-> KV
+  S1 -- OpenTelemetry --> AI
+  S2 -- OpenTelemetry --> AI
+```
+
+Más diagramas (capas, flujo de una jugada, ciclo de vida de una partida, modelo de datos) en [docs/arquitectura.md](docs/arquitectura.md).
+
+## Seguridad
+
+- **Autenticación:** JWT firmados (HS256, 15 minutos) con refresh token rotativo (reutilizar uno revoca la familia); contraseñas con **Argon2id**; el WebSocket se autentica en el handshake con un **ticket de un solo uso** de 30 segundos.
+- **Autorización** en cada endpoint y mensaje: solo los participantes actúan en su partida, solo juega quien tiene el turno, solo el administrador usa `/v1/admin` y cada acción queda auditada.
+- **Validación** de cada mensaje contra su esquema (tipos, rangos y 4 KiB máximo) antes de llegar al dominio; un mensaje inválido no cierra la partida.
+- **Límites:** tasa por usuario e IP (HTTP 429 con `Retry-After`), 20 mensajes por segundo por conexión y 3 conexiones por usuario.
+- **Vista por jugador:** el rival nunca recibe el ángulo, la potencia ni el `actionId` de una jugada, ni por WebSocket, ni por REST, ni en los logs.
+- **Transporte:** solo HTTPS y WSS (HSTS, CSP, `nosniff`), CORS cerrado y orígenes del WebSocket restringidos.
+- **Secretos:** en Key Vault, leídos con identidad administrada; ninguno en el repositorio.
+- **Cadena de suministro:** Dependabot, CodeQL, gitleaks y Trivy en CI; la imagen corre como usuario no root.
+
+Detalle completo, con los valores exactos, en [docs/seguridad.md](docs/seguridad.md) y el [modelo de amenazas](docs/threat-model.md). La política para reportar un problema está en [SECURITY.md](SECURITY.md).
+
+## Sesiones y concurrencia
+
+- **Orden por partida:** las jugadas de una partida se procesan una a una y cada evento lleva un `seq`; entre réplicas, la clave primaria `(match_id, seq)` deja confirmar a una sola.
+- **Idempotencia:** cada jugada lleva un `actionId`; reenviarla devuelve un `ack` con `duplicate` y no se aplica dos veces.
+- **Reconexión y abandono:** heartbeat, snapshot al reconectar y periodo de gracia de 60 s configurable; plazos de turno en PostgreSQL, barridos por todas las réplicas.
+- **Durabilidad y aislamiento:** nada confirmado vive solo en memoria; un fallo en una partida no afecta a las demás.
+
+## Azure y entrega continua
+
+- **Infraestructura como código:** todos los recursos en [infra/main.bicep](infra/main.bicep); un ambiente nuevo se levanta con una sola ejecución del pipeline.
+- **CI** ([.github/workflows](.github/workflows)): build, tipos, linter, 294 pruebas con PostgreSQL y Redis reales, validación de contratos, CodeQL, gitleaks y Trivy.
+- **Despliegue** con OIDC y sin secretos: dev automático (cuando la suscripción lo permite) y **prod con aprobación manual**. La revisión nueva nace al 0 % del tráfico, se prueba y recibe el 100 %.
+- **Rollback** con `scripts/rollback.sh`: 22 segundos en producción.
+- **Observabilidad:** OpenTelemetry hacia Application Insights, logs con el id de partida y jugador, 4 métricas propias, sondas `/health/live` y `/health/ready` y 3 alertas.
+
+Guía paso a paso y límites de la suscripción de estudiante en [docs/azure-setup.md](docs/azure-setup.md); costo estimado en [docs/azure-cost.md](docs/azure-cost.md).
+
+## Rendimiento
+
+El bot de [apps/bot](apps/bot) juega partidas reales y mide la latencia por jugada. En una réplica de 1 CPU: p95 de 15 ms o menos hasta 800 partidas simultáneas, unos 0,03 puntos de CPU y 0,02 MB por partida activa, y punto de quiebre cerca de 1 800 jugadas por segundo. En Azure, 3 corridas con partidas reales y una publicación de revisión en medio dieron 0 jugadas perdidas, 0 duplicadas y 0 errores. Resultados, optimizaciones con cifras antes y después y cómo reproducirlo: [docs/load-report.md](docs/load-report.md) y [docs/optimizacion.md](docs/optimizacion.md).
+
+## Correr el servidor en local (menos de 10 minutos)
+Solo necesitas Docker Desktop abierto; no hace falta Node ni configurar secretos.
+```bash
+git clone https://github.com/kevinmirandaa/ashenfall-game.git
+cd ashenfall-game
+docker compose up --build
+```
+Levanta PostgreSQL, Redis y el servidor, con las migraciones aplicadas. El servidor queda en http://localhost:8080, la API en http://localhost:8080/docs y las sondas en `/health/live` y `/health/ready`.
+
+Para correr las pruebas (requiere Node 22):
+```bash
+npm ci
+docker compose up -d --wait postgres redis
+npm test
+```
+Más comandos (lint, tipos, carga, cuenta de administrador) en [docs/jugar-en-local.md](docs/jugar-en-local.md).
 
 ## Documentación del servidor
-Este repositorio es, sobre todo, un **servidor de nivel producción en Azure** para un juego por turnos; el juego es el pretexto. Lo que se evalúa y está documentado es el servidor:
 
 | Qué | Dónde |
 |---|---|
-| Documento de entrega en PDF (el servidor, su despliegue en Azure, configuración, seguridad, rendimiento y cumplimiento del enunciado) | [entrega/Documentacion_ASHENFALL.pdf](entrega/Documentacion_ASHENFALL.pdf) |
+| Documento de entrega en PDF (servidor, Azure, configuración, seguridad, rendimiento y cumplimiento del enunciado) | [entrega/Documentacion_ASHENFALL.pdf](entrega/Documentacion_ASHENFALL.pdf) |
 | Arquitectura con diagramas | [docs/arquitectura.md](docs/arquitectura.md) |
-| Modelo de amenazas | [docs/threat-model.md](docs/threat-model.md) |
+| Seguridad y modelo de amenazas | [docs/seguridad.md](docs/seguridad.md) y [docs/threat-model.md](docs/threat-model.md) |
+| Contratos | [contracts/openapi.json](contracts/openapi.json) (también en `/docs`) y [contracts/asyncapi.json](contracts/asyncapi.json) |
 | Prueba de carga, punto de quiebre y optimizaciones | [docs/load-report.md](docs/load-report.md) y [docs/optimizacion.md](docs/optimizacion.md) |
 | Azure: guía, costo y despliegue | [docs/azure-setup.md](docs/azure-setup.md) y [docs/azure-cost.md](docs/azure-cost.md) |
 | Observabilidad | [docs/observability.md](docs/observability.md) |
 | Cumplimiento del enunciado, punto por punto | [docs/cumplimiento-enunciado.md](docs/cumplimiento-enunciado.md) |
-| Contratos | [contracts/openapi.json](contracts/openapi.json) (también en `/docs` del servidor) y [contracts/asyncapi.json](contracts/asyncapi.json) |
+| Decisiones de arquitectura | [docs/DECISIONS.md](docs/DECISIONS.md) |
+| Índice completo y cambios por ticket | [docs/README.md](docs/README.md) y [CHANGELOG.md](CHANGELOG.md) |
 
-El servidor corre en Azure Container Apps (2 a 3 réplicas) con PostgreSQL, Redis, Key Vault e identidad administrada, y se despliega con Bicep y GitHub Actions; cómo correrlo en local, en menos de 10 minutos, está en [docs/jugar-en-local.md](docs/jugar-en-local.md).
+## Estructura del repositorio
+
+```
+SERVIDOR
+packages/domain/   Motor de reglas puro: partida, física, turnos, arenas, vista por jugador y bot.
+apps/server/       Fastify: REST, WebSocket, PostgreSQL (migraciones en migrations/), Redis, telemetría.
+apps/bot/          Bots reproducibles: carga y punto de quiebre (load.ts) y publicación con partidas abiertas (redeploy.ts).
+contracts/         OpenAPI 3.1 y AsyncAPI 3.0, generados desde el código.
+infra/             Bicep del ambiente completo (Container Apps, PostgreSQL, Redis, Key Vault, ACR, alertas).
+scripts/           Despliegue y rollback en Azure; generación de la documentación en PDF.
+.github/           CI, despliegue dev/prod, CodeQL, gitleaks, escaneo de la imagen y Dependabot.
+docs/              Toda la documentación: ver docs/README.md.
+entrega/           Documentación en PDF para TEC Digital.
+
+JUEGO
+apps/client/       Cliente web de prueba (Phaser 3 y Vite), servido por el propio servidor.
+scripts/build-*.py Generación del arte del cliente a partir de references/ (no versionadas).
+```
+
+---
+
+# Parte 2 · El juego
+
+Duelo 1v1 por turnos de proyectiles, de fantasía oscura y pixel art, que se juega en el navegador contra otra persona o contra monstruos. **Juega aquí:** <https://ashenfall-server-prod.icytree-9cfd11e3.canadacentral.azurecontainerapps.io>. Solo hace falta crear una cuenta. Una guía con capturas está en [docs/guia-de-juego.md](docs/guia-de-juego.md).
 
 ## La historia
 
@@ -83,36 +214,3 @@ Para probar un duelo entre humanos tú solo, abre el juego en dos navegadores (o
 - Cada partida suma experiencia (10 por partida, 30 más por victoria; 80 por nivel, hasta el nivel 20).
 - Empiezas con **Edrik**. Los otros nueve personajes se compran en el Arsenal con nivel y Marcas. Cada uno usa siempre su propia arma.
 - Hay siete arenas: aldea en ruinas, cementerio, desierto, pinar con niebla, puente helado, fortaleza carmesí y ruinas brumosas.
-
-## Guía con capturas
-Una guía paso a paso con imágenes de cada pantalla, los personajes y sus precios: [docs/guia-de-juego.md](docs/guia-de-juego.md).
-
-## Jugar en local
-¿Prefieres correrlo en tu equipo? Con Docker Desktop basta un comando: [docs/jugar-en-local.md](docs/jugar-en-local.md).
-
-## Sobre el proyecto
-ASHENFALL es un proyecto académico en el que se evalúa el **servidor**: el juego es la excusa para ejercitar sesiones y concurrencia, seguridad, rendimiento, Azure y contratos.
-
-- El cliente solo envía intenciones (ángulo y potencia); el servidor simula el tiro, decide el daño y es la única fuente de verdad.
-- Cada partida es un log de eventos en PostgreSQL con número de secuencia: se reproduce jugada por jugada y sobrevive a reinicios.
-- Jugadas ordenadas e idempotentes, varias réplicas coordinadas por PostgreSQL y Redis, y una vista por jugador que nunca filtra el ángulo, la potencia ni el `actionId` del rival.
-- TypeScript estricto (sin `any`) sobre Node 22, Fastify 5, WebSocket (`ws`) con ticket de un solo uso, PostgreSQL 16, Redis 7, Argon2id y JWT, OpenTelemetry hacia Application Insights. Imagen Docker sin usuario root. Azure Container Apps con identidad administrada y Key Vault, desplegado con Bicep y GitHub Actions.
-
-```
-packages/domain/   Motor de reglas puro: partida, física, armas, arenas, vista por jugador y bot. Sin red, BD ni framework.
-apps/server/       Fastify: REST, WebSocket, PostgreSQL (migraciones en migrations/), Redis, telemetría.
-apps/client/       Cliente con Phaser 3 y Vite, servido por el propio servidor.
-apps/bot/          Bot de carga: juega partidas reales por HTTP y WebSocket y mide la latencia.
-contracts/         OpenAPI 3.1 y AsyncAPI 3.0 generados desde el código.
-infra/             Bicep del ambiente completo (Container Apps, PostgreSQL, Redis, Key Vault, ACR, alertas).
-scripts/           Despliegue y rollback en Azure; generación del arte desde references/.
-docs/              Toda la documentación: ver docs/README.md.
-.github/           CI, despliegue dev/prod, CodeQL, gitleaks, escaneo de la imagen y Dependabot.
-```
-
-## Documentación
-- Arquitectura con diagramas (topología en Azure, capas, flujo de una jugada, ciclo de una partida, datos): [docs/arquitectura.md](docs/arquitectura.md).
-- Cómo cumple el servidor cada requisito del enunciado, con su evidencia y lo pendiente: [docs/cumplimiento-enunciado.md](docs/cumplimiento-enunciado.md).
-- Índice completo: [docs/README.md](docs/README.md): decisiones de arquitectura, modelo de amenazas, reporte de carga, observabilidad, guía y costo de Azure.
-- Cambios por ticket: [CHANGELOG.md](CHANGELOG.md).
-- Pruebas y comandos de desarrollo: [docs/jugar-en-local.md](docs/jugar-en-local.md#desarrollo-y-pruebas).

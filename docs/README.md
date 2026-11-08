@@ -1,42 +1,46 @@
 # Documentación de ASHENFALL
 
-Toda la documentación del proyecto vive en esta carpeta. En la raíz del repositorio solo quedan, por convención, [README.md](../README.md) (historia, cómo jugar y enlace al juego), [CHANGELOG.md](../CHANGELOG.md) (cambios por ticket) y `CLAUDE.md` (contexto para el asistente).
+Toda la documentación del proyecto vive en esta carpeta. En la raíz quedan, por convención, el [README](../README.md) (el servidor primero y el juego después), [SECURITY.md](../SECURITY.md) (política de seguridad), [CHANGELOG.md](../CHANGELOG.md) (cambios por ticket) y `CLAUDE.md` (contexto para el asistente).
 
 Si dos documentos se contradicen, manda este orden: el enunciado del curso (`Proyecto3.pdf`, no versionado), luego [DECISIONS.md](DECISIONS.md) y por último el brief de diseño.
 
-## Entrega
-- [../entrega/Documentacion_ASHENFALL.pdf](../entrega/Documentacion_ASHENFALL.pdf): la documentación en PDF para subir a TEC Digital (portada del TEC; documenta el servidor, su despliegue en Azure, configuración, seguridad, rendimiento y cumplimiento del enunciado; el juego va en un anexo). Se genera con `scripts/build-documentacion-pdf.py` (requiere `reportlab`).
+Lo que se evalúa en este proyecto es el **servidor**; por eso este índice tiene dos partes: la del servidor (casi toda la documentación) y la del juego.
 
-## Jugar
-- [guia-de-juego.md](guia-de-juego.md): guía paso a paso con capturas de cada pantalla, las reglas del duelo y los personajes.
-- [jugar-en-local.md](jugar-en-local.md): correr el juego en tu equipo con Docker, y comandos de desarrollo y pruebas.
+# Parte 1 · El servidor
 
-## Cumplimiento
+## Para empezar
+- [../entrega/Documentacion_ASHENFALL.pdf](../entrega/Documentacion_ASHENFALL.pdf): la documentación en PDF para subir a TEC Digital. Documenta el servidor, su despliegue en Azure, su configuración, su seguridad, el rendimiento y el cumplimiento del enunciado; el juego va en un anexo. Se genera con `scripts/build-documentacion-pdf.py` (requiere `reportlab`).
 - [cumplimiento-enunciado.md](cumplimiento-enunciado.md): matriz de cada requisito del enunciado con su evidencia (código, prueba, documento, workflow o Bicep), su estado y lo que queda pendiente.
 
 ## Arquitectura y decisiones
 - [arquitectura.md](arquitectura.md): topología en Azure, capas del código, flujo de una jugada, ciclo de vida de una partida, modelo de datos, seguridad y observabilidad, con diagramas.
 - [DECISIONS.md](DECISIONS.md): decisiones de arquitectura y de juego (D1 a D15) y cambios de diseño por ticket. SCRUM-66 reemplaza lo anterior sobre armas, pociones, viento y cosméticos.
-- [ASHENFALL_MASTER_BRIEF.md](ASHENFALL_MASTER_BRIEF.md): brief original de diseño, arte y arquitectura. Es histórico: describe edificios, pociones, cosméticos y viento que ya no existen; para el estado actual vale DECISIONS.md.
 
 ## Contratos
 - `contracts/openapi.json` (OpenAPI 3.1, también publicado en `/docs` del servidor) y `contracts/asyncapi.json` (AsyncAPI 3.0, WebSocket). Se generan desde el código y las pruebas fallan si no coinciden; para regenerarlos: `UPDATE_CONTRACTS=1 npx vitest run`.
 
 ## Seguridad
+- [seguridad.md](seguridad.md): autenticación, autorización, validación, límites, transporte, secretos e identidad administrada, red, cadena de suministro y lo verificado en Azure, con los valores reales de configuración.
 - [threat-model.md](threat-model.md): activos, fronteras de confianza, amenazas con su defensa y su prueba, riesgos aceptados.
+- [../SECURITY.md](../SECURITY.md): cómo reportar un problema.
 
 ## Rendimiento
 - [load-report.md](load-report.md): prueba de carga reproducible, punto de quiebre, optimización medida (antes y después) y pruebas en Azure con publicación de una revisión nueva y varias réplicas (`apps/bot/src/redeploy.ts`).
 - [optimizacion.md](optimizacion.md): peso de descarga del cliente, compresión y caché, CPU y consultas del servidor, imagen Docker y coste en Azure, con cifras antes y después.
-- [load/](load/): resultados crudos de esas ejecuciones (`before.json`, `break.json`, `storm.json`, `opt-quiebre-*.json`).
+- [load/](load/): resultados crudos de esas ejecuciones (`before.json`, `break.json`, `storm.json`, `opt-quiebre-*.json`, `azure-prod-*.json`).
 
 ## Observabilidad
 - [observability.md](observability.md): métricas propias, trazas, logs correlacionados por partida, sondas y alertas.
 
 ## Azure, IaC y CI/CD
-- [azure-setup.md](azure-setup.md): preparar Azure y GitHub desde el portal, desplegar, apagar, borrar y hacer rollback.
+- [azure-setup.md](azure-setup.md): preparar Azure y GitHub desde el portal, desplegar, apagar, borrar y hacer rollback; incluye el límite de un entorno de Container Apps por suscripción de estudiante.
 - [azure-cost.md](azure-cost.md): costo mensual estimado y cómo mantenerlo dentro del crédito de Azure for Students.
 - Código: `infra/` (Bicep), `.github/workflows/` (CI, despliegue, CodeQL, gitleaks y escaneo de imagen), `scripts/deploy.sh` y `scripts/rollback.sh`.
 
-## Arte
-- `scripts/build-art.py`, `build-town.py`, `build-obstacles.py` y `build-ui.py` regeneran `apps/client/public/art` a partir de las imágenes de `references/` (no versionadas). Requieren Pillow.
+## Correr y probar el servidor
+- [jugar-en-local.md](jugar-en-local.md): correr el servidor en tu equipo con Docker y comandos de desarrollo, pruebas, carga y administración.
+
+# Parte 2 · El juego
+- [guia-de-juego.md](guia-de-juego.md): guía paso a paso con capturas de cada pantalla, las reglas del duelo y los personajes.
+- [ASHENFALL_MASTER_BRIEF.md](ASHENFALL_MASTER_BRIEF.md): brief original de diseño, arte y arquitectura. Es histórico: describe edificios, pociones, cosméticos y viento que ya no existen; para el estado actual vale DECISIONS.md.
+- Arte: `scripts/build-art.py`, `build-town.py`, `build-obstacles.py` y `build-ui.py` regeneran `apps/client/public/art` a partir de las imágenes de `references/` (no versionadas). Requieren Pillow.
