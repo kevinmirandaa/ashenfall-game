@@ -327,7 +327,8 @@ resource serverApp 'Microsoft.App/containerApps@2024-03-01' = if (deployServer) 
         }
       ]
       scale: {
-        minReplicas: isProd ? 1 : 0
+        // Prod mantiene dos réplicas: una publicación o un reinicio de una de ellas no deja el servicio sin atender y las partidas viven en PostgreSQL y Redis, no en la réplica.
+        minReplicas: isProd ? 2 : 0
         maxReplicas: isProd ? 3 : 1
         rules: isProd
           ? [{ name: 'http-concurrency', http: { metadata: { concurrentRequests: '50' } } }]

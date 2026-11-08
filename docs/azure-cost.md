@@ -28,7 +28,7 @@ Mes de 30 días (2 592 000 s; PostgreSQL con 730 h). "Reposo" = réplica encendi
 | PostgreSQL, backup | 7 días (mínimo), sin geo-redundancia | 0,095 por GB por encima de lo incluido | igual |
 | ACR Basic | SKU mínimo | 5,00 | 5,00 |
 | Redis (Container App) | 0,25 vCPU, 0,5 GiB, 1 réplica fija | 5,8 (reposo) a 19,4 (activo) | 5,8 a 19,4 |
-| Servidor | prod 0,5 vCPU y 1 GiB, 1 a 3 réplicas; dev 0,25 vCPU y 0,5 GiB, 0 a 1 | 11,7 (reposo) a 38,9 (activo) por réplica | 0 a cero réplicas; ~2,7 con 100 h activas (antes ~5,4) |
+| Servidor | prod 0,5 vCPU y 1 GiB, 2 a 3 réplicas; dev 0,25 vCPU y 0,5 GiB, 0 a 1 | 11,7 (reposo) a 38,9 (activo) por réplica | 0 a cero réplicas; ~2,7 con 100 h activas (antes ~5,4) |
 | Log Analytics | 30 días de retención, tope 1 GB/día | desde 0; peor caso 69 | igual |
 | Application Insights | 10 % de trazas muestreadas en el código, métricas cada 60 s | incluido en Log Analytics | igual |
 | Key Vault, VNet, identidad, alertas (3) | estándar | ~0 | ~0 |
