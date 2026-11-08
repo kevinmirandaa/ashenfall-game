@@ -1,6 +1,7 @@
 # Changelog
 
 ## Sin publicar
+- SCRUM-80: `docs/guia-de-juego.md` con capturas de cada pantalla y `docs/arquitectura.md` con cinco diagramas (topología en Azure, capas, flujo de una jugada, ciclo de una partida y modelo de datos). Enlazados desde el README y el índice de `docs/`.
 - SCRUM-79: Vite compila para Safari 14+, Firefox 78+ y Chrome 87+; prod con 2 réplicas mínimas; límite de un entorno de Container Apps por suscripción documentado.
 - SCRUM-78 (evidencia): prod publicado por el pipeline con 6 partidas abiertas y 2 réplicas en Azure, sin jugadas perdidas ni duplicadas y con las partidas contrastadas con su replay; resultados en `docs/load-report.md` y `docs/load/azure-prod-*.json`. La matriz de cumplimiento queda en 92 de 94 cumplidos y 2 parciales, ninguno incumplido.
 - SCRUM-78: se comprobó que Azure for Students permite un solo entorno de Container Apps por suscripción (no solo por región): dev no puede convivir con prod, `AUTO_DEPLOY` queda en `false` y se documenta. Prod pasa a 2 réplicas mínimas. `apps/bot/src/redeploy.ts`: partidas abiertas con clientes que se reconectan y reenvían con el mismo `actionId`, contrastadas con el `replay` del servidor, para probar publicaciones sin cortes. `deploy.sh` toma la revisión previa de la lista de revisiones, como `rollback.sh`.

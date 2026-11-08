@@ -68,6 +68,9 @@ Para probar un duelo entre humanos tú solo, abre el juego en dos navegadores (o
 - Empiezas con **Edrik**. Los otros nueve personajes se compran en el Arsenal con nivel y Marcas. Cada uno usa siempre su propia arma.
 - Hay siete arenas: aldea en ruinas, cementerio, desierto, pinar con niebla, puente helado, fortaleza carmesí y ruinas brumosas.
 
+## Guía con capturas
+Una guía paso a paso con imágenes de cada pantalla, los personajes y sus precios: [docs/guia-de-juego.md](docs/guia-de-juego.md).
+
 ## Jugar en local
 ¿Prefieres correrlo en tu equipo? Con Docker Desktop basta un comando: [docs/jugar-en-local.md](docs/jugar-en-local.md).
 
@@ -92,6 +95,7 @@ docs/              Toda la documentación: ver docs/README.md.
 ```
 
 ## Documentación
+- Arquitectura con diagramas (topología en Azure, capas, flujo de una jugada, ciclo de una partida, datos): [docs/arquitectura.md](docs/arquitectura.md).
 - Cómo cumple el servidor cada requisito del enunciado, con su evidencia y lo pendiente: [docs/cumplimiento-enunciado.md](docs/cumplimiento-enunciado.md).
 - Índice completo: [docs/README.md](docs/README.md): decisiones de arquitectura, modelo de amenazas, reporte de carga, observabilidad, guía y costo de Azure.
 - Cambios por ticket: [CHANGELOG.md](CHANGELOG.md).
