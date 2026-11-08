@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { parseArgs } from 'node:util';
 import { WebSocket } from 'ws';
@@ -19,6 +19,7 @@ const { values } = parseArgs({
     'think-ms': { type: 'string', default: '10000' },
     out: { type: 'string', default: 'load-results/redeploy.json' },
     label: { type: 'string', default: '' },
+    'stop-file': { type: 'string', default: '' },
   },
 });
 
@@ -28,6 +29,8 @@ const THINK_MS = Number(values['think-ms']);
 const DEADLINE = Date.now() + Number(values.minutes) * 60_000;
 const ACK_TIMEOUT_MS = 6_000;
 const MAX_ATTEMPTS = 12;
+/** Si existe este fichero, cada hueco termina su partida en curso y no empieza otra: permite cerrar la prueba cuando se quiera. */
+const stopRequested = (): boolean => values['stop-file'] !== '' && existsSync(values['stop-file']);
 
 interface View {
   matchId: string;
@@ -231,7 +234,7 @@ async function playSlot(): Promise<PlayedMatch[]> {
   await a.connect();
   await b.connect();
   const played: PlayedMatch[] = [];
-  while (Date.now() < DEADLINE) {
+  while (Date.now() < DEADLINE && !stopRequested()) {
     a.finished = false;
     b.finished = false;
     a.ackedActions = new Set();

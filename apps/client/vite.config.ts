@@ -47,6 +47,8 @@ export default defineConfig({
   },
   plugins: [precompress()],
   build: {
+    // Navegadores de hace unos años (Safari 14 o iOS 14 en adelante, Firefox 78, Chrome 87): sin esto Vite emite campos de clase ES2022.
+    target: ['es2020', 'safari14', 'firefox78', 'chrome87', 'edge88'],
     chunkSizeWarningLimit: 1500,
     rollupOptions: {
       output: {
