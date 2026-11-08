@@ -1,6 +1,6 @@
 # Documentación de ASHENFALL
 
-Toda la documentación del proyecto vive en esta carpeta. En la raíz quedan, por convención, el [README](../README.md) (el servidor primero y el juego después), [SECURITY.md](../SECURITY.md) (política de seguridad), [CHANGELOG.md](../CHANGELOG.md) (cambios por ticket) y `CLAUDE.md` (contexto para el asistente).
+Toda la documentación del proyecto vive en esta carpeta. En la raíz quedan, por convención, el [README](../README.md) (el servidor primero y el juego después), [SECURITY.md](../SECURITY.md) (política de seguridad), [LICENSE](../LICENSE) (licencia PolyForm Noncommercial 1.0.0), [CHANGELOG.md](../CHANGELOG.md) (cambios por ticket) y `CLAUDE.md` (contexto para el asistente).
 
 Si dos documentos se contradicen, manda este orden: el enunciado del curso (`Proyecto3.pdf`, no versionado), luego [DECISIONS.md](DECISIONS.md) y por último el brief de diseño.
 

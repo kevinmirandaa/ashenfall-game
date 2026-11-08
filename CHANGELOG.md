@@ -1,6 +1,7 @@
 # Changelog
 
 ## Sin publicar
+- SCRUM-86: licencia PolyForm Noncommercial 1.0.0 (`LICENSE`): se puede ver, ejecutar, estudiar y modificar sin fines comerciales; no se puede usar para vender sin permiso del autor. Campo `license` en los `package.json` y sección Licencia en el README.
 - SCRUM-85: README más claro para el profesor (guía rápida con la rúbrica y dónde ver cada criterio, distintivos de CI y escaneos, resumen por temas y el juego con la historia y las reglas plegadas). Se activan las alertas de vulnerabilidades de Dependabot (0 abiertas).
 - SCRUM-84: el PDF de entrega pasa de 34 a 12 páginas: texto en Arial 12 normal, títulos y subtítulos en negrita y más grandes, portada en Arial 12 negrita con la disposición de la referencia, y una tabla con los 51 requisitos del enunciado y su estado.
 - SCRUM-83: el README se divide en la parte del servidor (primero: de un vistazo, cómo funciona, seguridad, sesiones, Azure y CI/CD, rendimiento, cómo correrlo, documentación y estructura) y la parte del juego. Nuevos `docs/seguridad.md` (seguridad con los valores reales de configuración) y `SECURITY.md`. El índice de `docs/` se organiza por servidor y juego.
