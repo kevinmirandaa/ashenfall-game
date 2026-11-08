@@ -77,6 +77,7 @@ class Client {
   id = '';
   token = '';
   refreshToken = '';
+  private tokenAt = 0;
   private socket: WebSocket | null = null;
   private open = false;
   private version = 0;
@@ -96,13 +97,25 @@ class Client {
     });
     this.token = body.accessToken;
     this.refreshToken = body.refreshToken;
+    this.tokenAt = Date.now();
     this.id = (await request<{ id: string }>('GET', '/v1/me', this.token)).id;
+  }
+
+  /** El token de acceso dura 15 minutos: se renueva con el de refresco (rotativo) antes de que caduque. */
+  async fresh(): Promise<string> {
+    if (Date.now() - this.tokenAt > 8 * 60_000) {
+      const body = await request<{ accessToken: string; refreshToken: string }>('POST', '/v1/auth/refresh', null, { refreshToken: this.refreshToken });
+      this.token = body.accessToken;
+      this.refreshToken = body.refreshToken;
+      this.tokenAt = Date.now();
+    }
+    return this.token;
   }
 
   async connect(): Promise<void> {
     for (let attempt = 1; ; attempt += 1) {
       try {
-        const { ticket } = await request<{ ticket: string }>('POST', '/v1/ws-ticket', this.token);
+        const { ticket } = await request<{ ticket: string }>('POST', '/v1/ws-ticket', await this.fresh());
         const socket = new WebSocket(`${WS_BASE}?ticket=${ticket}`);
         this.socket = socket;
         socket.on('message', (data: Buffer) => {
@@ -221,7 +234,7 @@ class Client {
 
 interface PlayedMatch {
   matchId: string;
-  token: string;
+  client: Client;
   acked: number;
   ambiguous: number;
 }
@@ -241,14 +254,14 @@ async function playSlot(): Promise<PlayedMatch[]> {
     a.ambiguousActions = new Set();
     b.ackedActions = new Set();
     b.ambiguousActions = new Set();
-    const room = await request<{ id: string; inviteCode: string }>('POST', '/v1/rooms', a.token, { visibility: 'private' });
-    await request('POST', '/v1/rooms/join-by-code', b.token, { inviteCode: room.inviteCode });
+    const room = await request<{ id: string; inviteCode: string }>('POST', '/v1/rooms', await a.fresh(), { visibility: 'private' });
+    await request('POST', '/v1/rooms/join-by-code', await b.fresh(), { inviteCode: room.inviteCode });
     const started = Promise.all([
       a.waitFor((message) => message.type === 'event' && message.event?.payload.type === 'match_started', 15_000),
       b.waitFor((message) => message.type === 'event' && message.event?.payload.type === 'match_started', 15_000),
     ]);
-    await request('POST', `/v1/rooms/${room.id}/ready`, a.token, { ready: true });
-    await request('POST', `/v1/rooms/${room.id}/ready`, b.token, { ready: true });
+    await request('POST', `/v1/rooms/${room.id}/ready`, await a.fresh(), { ready: true });
+    await request('POST', `/v1/rooms/${room.id}/ready`, await b.fresh(), { ready: true });
     await started;
     stats.matchesStarted += 1;
     const matchId = a.matchId;
@@ -264,7 +277,7 @@ async function playSlot(): Promise<PlayedMatch[]> {
     }
     if (a.finished || b.finished) {
       stats.matchesFinished += 1;
-      played.push({ matchId, token: a.token, acked: a.ackedActions.size + b.ackedActions.size, ambiguous: a.ambiguousActions.size + b.ambiguousActions.size });
+      played.push({ matchId, client: a, acked: a.ackedActions.size + b.ackedActions.size, ambiguous: a.ambiguousActions.size + b.ambiguousActions.size });
       await sleep(500);
     }
     // Si se acabó el tiempo a medias, la partida queda abierta y el barrido la termina al cerrar.
@@ -276,9 +289,9 @@ async function playSlot(): Promise<PlayedMatch[]> {
 async function verify(played: PlayedMatch[]): Promise<{ lost: number; duplicated: number; checked: number }> {
   let lost = 0;
   let duplicated = 0;
-  for (const { matchId, token, acked, ambiguous: maybe } of played) {
+  for (const { matchId, client, acked, ambiguous: maybe } of played) {
     try {
-      const replay = await request<ReplayBody>('GET', `/v1/matches/${matchId}/replay`, token);
+      const replay = await request<ReplayBody>('GET', `/v1/matches/${matchId}/replay`, await client.fresh());
       const applied = replay.events.filter((event) => event.payload.type === 'shot_resolved').length;
       if (applied < acked) lost += acked - applied;
       if (applied > acked + maybe) duplicated += applied - acked - maybe;

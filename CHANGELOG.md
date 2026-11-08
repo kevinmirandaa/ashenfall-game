@@ -1,6 +1,8 @@
 # Changelog
 
 ## Sin publicar
+- SCRUM-79: Vite compila para Safari 14+, Firefox 78+ y Chrome 87+; prod con 2 réplicas mínimas; límite de un entorno de Container Apps por suscripción documentado.
+- SCRUM-78 (evidencia): prod publicado por el pipeline con 6 partidas abiertas y 2 réplicas en Azure, sin jugadas perdidas ni duplicadas y con las partidas contrastadas con su replay; resultados en `docs/load-report.md` y `docs/load/azure-prod-*.json`. La matriz de cumplimiento queda en 92 de 94 cumplidos y 2 parciales, ninguno incumplido.
 - SCRUM-78: se comprobó que Azure for Students permite un solo entorno de Container Apps por suscripción (no solo por región): dev no puede convivir con prod, `AUTO_DEPLOY` queda en `false` y se documenta. Prod pasa a 2 réplicas mínimas. `apps/bot/src/redeploy.ts`: partidas abiertas con clientes que se reconectan y reenvían con el mismo `actionId`, contrastadas con el `replay` del servidor, para probar publicaciones sin cortes. `deploy.sh` toma la revisión previa de la lista de revisiones, como `rollback.sh`.
 - SCRUM-77: verificación en prod contra el enunciado (WSS y orígenes, 429 con `Retry-After`, Key Vault con identidad administrada, 3 alertas activas, revisor obligatorio de prod, métricas y spans en Application Insights, carga con el bot) con la matriz al día. Móvil: aviso de girar el dispositivo en vertical, ajustes táctiles y `uuid()` de respaldo para navegadores sin `crypto.randomUUID`.
 - SCRUM-76: rollback probado en prod (22 s). `scripts/rollback.sh` no detectaba la revisión actual cuando el tráfico iba a la última revisión y «volvía» a la misma; ahora la toma de la lista de revisiones.

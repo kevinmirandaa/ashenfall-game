@@ -71,3 +71,22 @@ Cada jugada pasa de 7 a 5 idas y vueltas a PostgreSQL (eventos en un solo `INSER
 
 ## Mensajes compactos
 JSON con los campos mínimos y trayectorias en enteros muestreados: **unos 302 bytes por mensaje** de media.
+
+## Pruebas en Azure (prod, 7 nov 2026)
+Medidas contra la URL pública de prod (`canadacentral`) con el bot desde un portátil en Costa Rica, así que las latencias de extremo a extremo incluyen el viaje por internet. Los resultados crudos están en `docs/load/azure-prod-*.json`.
+
+**Carga corta (`apps/bot/src/load.ts`, 2 partidas, 12 jugadas):** 0 perdidas, 0 duplicadas, 0 errores; p50 141 ms y p95 216 ms de extremo a extremo (el p95 supera 200 ms por el viaje por internet, no por el servidor). La métrica del propio servidor `ashenfall.shot.latency` (desde que llega la jugada hasta repartirla), leída en Application Insights, dio 91 jugadas con media de 15,6 ms y máximo de 61 ms.
+
+**Partidas largas con reconexión (`apps/bot/src/redeploy.ts`):** el bot juega varias partidas a la vez, se reconecta solo con un ticket nuevo, reenvía una jugada sin respuesta con el mismo `actionId` y, al terminar, compara cada partida con su `GET /v1/matches/{id}/replay`: toda jugada confirmada debe figurar una sola vez.
+
+| Prueba | Partidas en paralelo | Duración | Jugadas confirmadas | Partidas contrastadas | Perdidas | Duplicadas | Errores |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Control, 1 réplica | 6 | 11,2 min | 473 | 18 | 0 | 0 | 0 |
+| Durante la publicación de la revisión con 2 réplicas | 6 | 6,9 min | 288 | 12 | 0 | 0 | 0 |
+| Sobre las 2 réplicas nuevas | 8 | 7,1 min | 518 | 16 | 0 | 0 | 0 |
+
+**Publicación con partidas abiertas (A8):** el segundo ensayo cruzó el despliegue de prod hecho por el pipeline (revisión nueva al 0 %, smoke test y traslado de tráfico al 100 %) con 6 partidas en juego, sin cortes. Las conexiones del bot siguieron en la revisión anterior, que se mantiene activa para el rollback y se desactiva en el despliegue siguiente; el cierre ordenado (1001) con reconexión se probó en local: reiniciar el servidor a media partida con 3 partidas abiertas produjo 6 reconexiones y 98 de 98 jugadas confirmadas y coincidentes con el `replay`.
+
+**Varias réplicas (E14):** con la revisión nueva, Application Insights (`ashenfall.shots` por réplica) registró 261 y 257 jugadas en las dos réplicas nuevas y 240 en la anterior, con partidas cuyos jugadores quedaban en réplicas distintas coordinadas por PostgreSQL y Redis. Latencia en el servidor en las réplicas nuevas: media 17,7 y 17,9 ms; máximo 127 y 203 ms (una jugada pasó de 200 ms).
+
+**Límites de esta medición:** un solo escalón pequeño (hasta 8 partidas), desde internet y con el bot en un portátil; no se midió el punto de quiebre en Azure (el de una réplica está medido en local, arriba). Probar con carga alta dentro de Azure gastaría crédito.

@@ -1,0 +1,20 @@
+{
+  "label": "prod-2-replicas",
+  "url": "https://ashenfall-server-prod.icytree-9cfd11e3.canadacentral.azurecontainerapps.io",
+  "slots": 8,
+  "minutes": 7.147116666666666,
+  "reconnections": 0,
+  "resends": 0,
+  "ackedShots": 518,
+  "duplicateAcks": 0,
+  "ambiguousShots": 0,
+  "shotsSent": 518,
+  "matchesFinished": 16,
+  "matchesStarted": 24,
+  "errors": 0,
+  "errorKinds": {},
+  "replayChecked": 16,
+  "lost": 0,
+  "duplicated": 0,
+  "ok": true
+}

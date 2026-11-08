@@ -10,13 +10,13 @@ Auditoría del 7 nov 2026 (SCRUM-72) contra `Proyecto3.pdf` (6 páginas, no vers
 
 | Estado | Requisitos |
 |---|---:|
-| Cumple | 88 |
-| Cumple parcialmente | 4 |
+| Cumple | 92 |
+| Cumple parcialmente | 2 |
 | No cumple | 0 |
-| No verificable aquí | 2 |
+| No verificable aquí | 0 |
 | **Total** | **94** |
 
-No queda ningún requisito sin cumplir. Los pendientes son comprobaciones que no se han hecho (A8 y E14, que exigen tocar prod con partidas abiertas o más réplicas) y decisiones del usuario (A6, A17, E15).
+No queda ningún requisito sin cumplir. Lo único parcial son J5 (la información oculta es opcional y se justificó) y A6 (Azure for Students permite un solo entorno de Container Apps por suscripción, así que dev no puede convivir con prod).
 
 ## 1. El juego (restricciones, sin nota)
 
@@ -121,7 +121,7 @@ No queda ningún requisito sin cumplir. Los pendientes son comprobaciones que no
 | A5 | El pipeline publica la imagen en el registro | `docker push` a ACR en [deploy.sh](../scripts/deploy.sh), dentro del workflow `Deploy` | Cumple | Se publica en el job de despliegue, no en CI |
 | A6 | Despliega a dev automáticamente | [deploy.yml](../.github/workflows/deploy.yml) tras CI en `main`, pero solo si `AUTO_DEPLOY=true` (apagado por crédito) | Cumple parcialmente | Azure for Students permite un solo entorno de Container Apps por suscripción: con prod desplegado, dev no puede existir y `AUTO_DEPLOY=true` solo haría fallar el job de dev (se comprobó el 7 nov). Funciona en una suscripción sin ese límite ([azure-setup.md](azure-setup.md) §1) |
 | A7 | Prod con aprobación manual | `environment: prod` en [deploy.yml](../.github/workflows/deploy.yml); los revisores se configuran en GitHub ([azure-setup.md](azure-setup.md) paso 6). El environment `prod` tiene como revisor obligatorio a la cuenta del propietario (comprobado con la API de GitHub); el despliegue del 7 nov esperó su aprobación | Cumple | — |
-| A8 | Publicaciones sin cortar partidas: revisiones con división de tráfico y drenado | `activeRevisionsMode: Multiple`, revisión nueva al 0 %, smoke test y traslado ([deploy.sh](../scripts/deploy.sh)); `terminationGracePeriodSeconds: 120`; cierre 1001 y reconexión; la partida sobrevive al reinicio ([resilience.test.ts](../apps/server/src/realtime/resilience.test.ts)) | No verificable aquí | Probar un despliegue a prod con una partida en curso |
+| A8 | Publicaciones sin cortar partidas: revisiones con división de tráfico y drenado | `activeRevisionsMode: Multiple`, revisión nueva al 0 %, smoke test y traslado ([deploy.sh](../scripts/deploy.sh)); `terminationGracePeriodSeconds: 120`; cierre 1001 y reconexión; la partida sobrevive al reinicio ([resilience.test.ts](../apps/server/src/realtime/resilience.test.ts)). El 7 nov se publicó una revisión nueva de prod con el pipeline mientras 6 partidas del bot seguían en juego: 0 jugadas perdidas, 0 duplicadas, 0 errores, partidas contrastadas con su replay ([load-report.md](load-report.md)) | Cumple | El drenado con cierre 1001 se probó en local, no en Azure |
 | A9 | Rollback documentado de menos de 5 minutos (rúbrica: «rollback probado») | [rollback.sh](../scripts/rollback.sh), [azure-setup.md](azure-setup.md) §11 | Cumple | Ejecutado en prod el 7 nov 2026: 22 s de la revisión nueva a la anterior y `/health/ready` en 200; se volvió a la nueva después (SCRUM-76) |
 | A10 | Identidad administrada para todo acceso entre servicios; sin cadenas de conexión ni claves en la configuración | Identidad de usuario para ACR, Key Vault y PostgreSQL (Entra, `passwordAuth: Disabled`); cadena de Application Insights como referencia a Key Vault ([main.bicep](../infra/main.bicep), [pool.test.ts](../apps/server/src/db/pool.test.ts)). Redis sin contraseña, frontera de red (D12) | Cumple | Comprobar en Azure junto a SE9 |
 | A11 | OpenTelemetry hacia Application Insights | [telemetry/azure.ts](../apps/server/src/telemetry/azure.ts), [telemetry.ts](../apps/server/src/telemetry/telemetry.ts). Comprobado en Application Insights el 7 nov: `customMetrics` con `ashenfall.connections`, `ashenfall.matches.active`, `ashenfall.shot.latency` y `ashenfall.shots`, y spans `match.shoot` con `ashenfall.match_id` y `ashenfall.player_id` | Cumple | — |
@@ -149,19 +149,15 @@ No queda ningún requisito sin cumplir. Los pendientes son comprobaciones que no
 | E11 | Pruebas unitarias, de integración, concurrencia, seguridad y resiliencia en verde en CI | 294 pruebas en local; CI en verde en la última PR | Cumple | — |
 | E12 | Logs y trazas correlacionados por partida | `traceId` en los logs con span activo; spans con `ashenfall.match_id` ([telemetry.test.ts](../apps/server/src/telemetry/telemetry.test.ts)) | Cumple | — |
 | E13 | Concurrencia en compras y recompensas (pedido en CLAUDE.md, cubre «jugadas duplicadas» y la integridad del saldo) | [shop.test.ts](../apps/server/src/shop/shop.test.ts) «compras simultáneas», [event-store.test.ts](../apps/server/src/matches/event-store.test.ts) «finales simultáneos… pagan una sola vez» | Cumple | — |
-| E14 | Prueba con varias réplicas en Azure (rúbrica: «funciona con varias réplicas») | Probado en local con varias instancias contra el mismo PostgreSQL y Redis; prod admite de 1 a 3 réplicas | No verificable aquí | Opcional: escalar prod a 2 réplicas y jugar una partida |
-| E15 | Despliegue reproducible con cifras en Azure (latencia real) | Solo cifras locales. El 7 nov se corrió el bot contra prod con 2 partidas (12 jugadas, 0 perdidas, 0 duplicadas, 0 errores) | Cumple parcialmente | Solo un escalón pequeño y desde internet; una carga mayor dentro de Azure gastaría crédito |
+| E14 | Prueba con varias réplicas en Azure (rúbrica: «funciona con varias réplicas») | Probado en local con varias instancias contra el mismo PostgreSQL y Redis; prod admite de 1 a 3 réplicas. Prod corre con 2 réplicas mínimas; el 7 nov las jugadas se repartieron entre las réplicas (261 y 257, más 240 en la anterior) con partidas sin pérdidas ni duplicados | Cumple | — |
+| E15 | Despliegue reproducible con cifras en Azure (latencia real) | Solo cifras locales. El 7 nov se corrió el bot contra prod con 2 partidas (12 jugadas, 0 perdidas, 0 duplicadas, 0 errores). Cifras en Azure en [load-report.md](load-report.md) y `docs/load/azure-prod-*.json`: latencia en el servidor con media de ~17 ms; de extremo a extremo con internet de por medio, p95 de 216 ms | Cumple | Escalón pequeño y desde internet; el punto de quiebre en Azure no se midió |
 
 El conteo del resumen sale de estas tablas: J 5, F 21, S 10, T 9, SE 12, R 5, A 17, E 15 (94 filas en total).
 
 ## Pendientes
+1. A6 queda parcial por el límite de Azure for Students (un entorno de Container Apps por suscripción): dev y prod no pueden coexistir.
+2. Opcional: pasar `ALERT_EMAIL` en `deploy.yml` para recibir las alertas por correo (A15) y medir el punto de quiebre dentro de Azure.
 
-**Dependen de pruebas en Azure o del usuario:**
-1. Desplegar prod con una partida abierta y comprobar que no se corta (A8).
-2. Escalar prod a 2 réplicas y jugar una partida (E14); en local ya se probó con varias instancias.
-3. A6 queda parcial por el límite de Azure for Students (un entorno de Container Apps por suscripción): dev y prod no pueden coexistir.
-4. Opcional: pasar `ALERT_EMAIL` en `deploy.yml` para recibir las alertas por correo (A15), y repetir una carga mayor dentro de Azure (E15).
-
-**Hechos el 7 nov 2026:** tag `v1.0.0` y URL pública (E5, E6), HTTPS y WSS exclusivos, Key Vault con identidad, telemetría, alertas y revisor de prod (T4, SE7, SE9, A7, A11, A15), rollback medido en 22 s (A9).
+**Hechos el 7 nov 2026:** tag `v1.0.0` y URL pública (E5, E6), HTTPS y WSS exclusivos, Key Vault con identidad, telemetría, alertas y revisor de prod (T4, SE7, SE9, A7, A11, A15), rollback medido en 22 s (A9), publicación con partidas abiertas (A8) y 2 réplicas en Azure (E14, E15).
 
 **Cerrados en SCRUM-72:** gracia y espera de la cola configurables por entorno (F8, F14), conexiones vivas en la vista de administración (F19), prueba de aislamiento entre partidas (S7) y modelo de amenazas al día (SE12).
