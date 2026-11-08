@@ -1,6 +1,7 @@
 # Changelog
 
 ## Sin publicar
+- SCRUM-82: el PDF de entrega pasa a documentar el servidor y su despliegue en Azure (recursos reales, configuración, seguridad, contratos, sesiones y concurrencia, rendimiento, CI/CD, observabilidad, pruebas, costo y cumplimiento del enunciado punto por punto); el juego queda en un anexo. El README pone primero la documentación del servidor.
 - SCRUM-81: documentación de entrega en PDF (`entrega/Documentacion_ASHENFALL.pdf`, 23 páginas) con portada del TEC, secciones numeradas, diagramas, cifras reales, capturas, enlace al juego y al repositorio; generador en `scripts/build-documentacion-pdf.py`. El modelo de amenazas pasa de «pendiente de verificar» a lo verificado en Azure el 7 nov.
 - SCRUM-80: `docs/guia-de-juego.md` con capturas de cada pantalla y `docs/arquitectura.md` con cinco diagramas (topología en Azure, capas, flujo de una jugada, ciclo de una partida y modelo de datos). Enlazados desde el README y el índice de `docs/`.
 - SCRUM-79: Vite compila para Safari 14+, Firefox 78+ y Chrome 87+; prod con 2 réplicas mínimas; límite de un entorno de Container Apps por suscripción documentado.
