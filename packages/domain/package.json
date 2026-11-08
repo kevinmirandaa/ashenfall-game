@@ -2,6 +2,7 @@
   "name": "@ashenfall/domain",
   "version": "0.1.0",
   "private": true,
+  "license": "PolyForm-Noncommercial-1.0.0",
   "description": "Motor de reglas puro de ASHENFALL. Sin dependencias de red, base de datos ni framework.",
   "type": "module",
   "main": "./dist/index.js",

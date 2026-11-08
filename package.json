@@ -2,6 +2,7 @@
   "name": "ashenfall",
   "version": "0.1.0",
   "private": true,
+  "license": "PolyForm-Noncommercial-1.0.0",
   "description": "Servidor autoritativo y cliente de ASHENFALL, duelo 1v1 por turnos de proyectiles.",
   "type": "module",
   "engines": {

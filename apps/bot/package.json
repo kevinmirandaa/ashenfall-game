@@ -2,6 +2,7 @@
   "name": "@ashenfall/bot",
   "version": "0.1.0",
   "private": true,
+  "license": "PolyForm-Noncommercial-1.0.0",
   "description": "Bot de carga: juega partidas reales por HTTP y WebSocket y mide latencia.",
   "type": "module",
   "scripts": {

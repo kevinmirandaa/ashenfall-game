@@ -141,6 +141,10 @@ JUEGO
 apps/client/       Cliente web de prueba (Phaser 3 y Vite), servido por el propio servidor
 ```
 
+## Licencia
+
+El código y la documentación están bajo la licencia [PolyForm Noncommercial 1.0.0](LICENSE): se pueden **ver, ejecutar, estudiar y modificar para fines no comerciales** (personal, educativo, investigación), pero **no se pueden usar para vender o con fines comerciales** sin permiso del autor. Cualquier copia debe conservar el aviso de derechos de autor y la licencia. Las dependencias de terceros conservan sus propias licencias. Para otros usos, escribe a kevinmirandaa04@gmail.com.
+
 ---
 
 ## El juego
