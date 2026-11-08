@@ -21,7 +21,7 @@ Si dos documentos se contradicen, manda este orden: el enunciado del curso (`Pro
 - [threat-model.md](threat-model.md): activos, fronteras de confianza, amenazas con su defensa y su prueba, riesgos aceptados.
 
 ## Rendimiento
-- [load-report.md](load-report.md): prueba de carga reproducible, punto de quiebre y optimización medida (antes y después).
+- [load-report.md](load-report.md): prueba de carga reproducible, punto de quiebre, optimización medida (antes y después) y pruebas en Azure con publicación de una revisión nueva y varias réplicas (`apps/bot/src/redeploy.ts`).
 - [optimizacion.md](optimizacion.md): peso de descarga del cliente, compresión y caché, CPU y consultas del servidor, imagen Docker y coste en Azure, con cifras antes y después.
 - [load/](load/): resultados crudos de esas ejecuciones (`before.json`, `break.json`, `storm.json`, `opt-quiebre-*.json`).
 
