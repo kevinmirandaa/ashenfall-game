@@ -1,6 +1,7 @@
 # Changelog
 
 ## Sin publicar
+- SCRUM-84: el PDF de entrega pasa de 34 a 12 páginas: texto en Arial 12 normal, títulos y subtítulos en negrita y más grandes, portada en Arial 12 negrita con la disposición de la referencia, y una tabla con los 51 requisitos del enunciado y su estado.
 - SCRUM-83: el README se divide en la parte del servidor (primero: de un vistazo, cómo funciona, seguridad, sesiones, Azure y CI/CD, rendimiento, cómo correrlo, documentación y estructura) y la parte del juego. Nuevos `docs/seguridad.md` (seguridad con los valores reales de configuración) y `SECURITY.md`. El índice de `docs/` se organiza por servidor y juego.
 - SCRUM-82: el PDF de entrega pasa a documentar el servidor y su despliegue en Azure (recursos reales, configuración, seguridad, contratos, sesiones y concurrencia, rendimiento, CI/CD, observabilidad, pruebas, costo y cumplimiento del enunciado punto por punto); el juego queda en un anexo. El README pone primero la documentación del servidor.
 - SCRUM-81: documentación de entrega en PDF (`entrega/Documentacion_ASHENFALL.pdf`, 23 páginas) con portada del TEC, secciones numeradas, diagramas, cifras reales, capturas, enlace al juego y al repositorio; generador en `scripts/build-documentacion-pdf.py`. El modelo de amenazas pasa de «pendiente de verificar» a lo verificado en Azure el 7 nov.
